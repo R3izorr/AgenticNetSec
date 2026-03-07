@@ -1,0 +1,100 @@
+[
+  {
+    "timestamp": "Wed Apr 16 10:43:52 2025",
+    "avg_latency": 30.239,
+    "avg_loss": 0.0,
+    "anomaly_detected": false,
+    "attack_detected": null
+  },
+  {
+    "timestamp": "Wed Apr 16 10:44:00 2025",
+    "avg_latency": 30.136,
+    "avg_loss": 0.0,
+    "anomaly_detected": false,
+    "attack_detected": null
+  },
+  {
+    "timestamp": "Wed Apr 16 10:44:08 2025",
+    "avg_latency": 30.359,
+    "avg_loss": 0.0,
+    "anomaly_detected": false,
+    "attack_detected": null
+  },
+  {
+    "timestamp": "Wed Apr 16 10:44:18 2025",
+    "avg_latency": 32.145,
+    "avg_loss": 0.0,
+    "anomaly_detected": false,
+    "attack_detected": null
+  },
+  {
+    "timestamp": "Wed Apr 16 10:44:32 2025",
+    "avg_latency": 1033.229,
+    "avg_loss": 0.0,
+    "anomaly_detected": true,
+    "attack_detected": false
+  },
+  {
+    "timestamp": "Wed Apr 16 10:45:19 2025",
+    "avg_latency": 31.943,
+    "avg_loss": 0.0,
+    "anomaly_detected": false,
+    "attack_detected": null
+  },
+  {
+    "timestamp": "Wed Apr 16 10:45:43 2025",
+    "avg_latency": 31.043000000000003,
+    "avg_loss": 0.0,
+    "anomaly_detected": false,
+    "attack_detected": null
+  },
+  {
+    "timestamp": "Wed Apr 16 10:46:08 2025",
+    "avg_latency": 30.339,
+    "avg_loss": 0.0,
+    "anomaly_detected": false,
+    "attack_detected": null
+  },
+  {
+    "timestamp": "Wed Apr 16 10:46:41 2025",
+    "avg_latency": 30.901750000000003,
+    "avg_loss": 0.0,
+    "anomaly_detected": false,
+    "attack_detected": null
+  },
+  {
+    "timestamp": "Wed Apr 16 10:47:15 2025",
+    "avg_latency": 30.257,
+    "avg_loss": 0.0,
+    "anomaly_detected": false,
+    "attack_detected": null
+  },
+  {
+    "timestamp": "Wed Apr 16 10:47:23 2025",
+    "avg_latency": 29.124,
+    "avg_loss": 0.0,
+    "anomaly_detected": false,
+    "attack_detected": null
+  },
+  {
+    "timestamp": "Wed Apr 16 10:47:32 2025",
+    "avg_latency": 33.573,
+    "avg_loss": 0.0,
+    "anomaly_detected": false,
+    "attack_detected": null
+  },
+  {
+    "timestamp": "Wed Apr 16 10:47:45 2025",
+    "avg_latency": 1031.66,
+    "avg_loss": 0.0,
+    "anomaly_detected": true,
+    "attack_detected": false
+  },
+  {
+    "timestamp": "Wed Apr 16 10:48:44 2025",
+    "avg_latency": 30.806,
+    "avg_loss": 0.0,
+    "anomaly_detected": false,
+    "attack_detected": null
+  }
+]

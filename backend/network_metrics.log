@@ -1,0 +1,15 @@
+=== Baseline ===
+Timestamp: Tue Apr 15 01:42:59 CDT 2025
+Latency: 25.347 ms
+Packet Loss: received, %
+
+=== With Network Issue ===
+Timestamp: Tue Apr 15 01:43:48 CDT 2025
+Latency: 1026.313 ms
+Packet Loss: received, %
+
+=== After Recovery ===
+Timestamp: Tue Apr 15 01:44:30 CDT 2025
+Latency: 28.935 ms
+Packet Loss: received, %
+
