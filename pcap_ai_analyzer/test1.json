@@ -1,0 +1,385 @@
+{
+  "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250304-00002398_redacted.pcap",
+  "summary": {
+    "total_packets": 1695,
+    "top_ips": [
+      {
+        "ip": "10.128.239.57",
+        "packet_count": 633
+      },
+      {
+        "ip": "10.128.239.21",
+        "packet_count": 410
+      },
+      {
+        "ip": "10.128.239.20",
+        "packet_count": 390
+      },
+      {
+        "ip": "10.128.239.23",
+        "packet_count": 322
+      },
+      {
+        "ip": "10.128.239.103",
+        "packet_count": 159
+      },
+      {
+        "ip": "194.165.17.11",
+        "packet_count": 139
+      },
+      {
+        "ip": "88.214.25.115",
+        "packet_count": 127
+      },
+      {
+        "ip": "91.238.181.91",
+        "packet_count": 120
+      },
+      {
+        "ip": "88.214.25.123",
+        "packet_count": 78
+      },
+      {
+        "ip": "10.128.239.29",
+        "packet_count": 75
+      }
+    ],
+    "top_ports": [
+      {
+        "port": 3389,
+        "packet_count": 591
+      },
+      {
+        "port": 53,
+        "packet_count": 346
+      },
+      {
+        "port": 49668,
+        "packet_count": 255
+      },
+      {
+        "port": 88,
+        "packet_count": 162
+      },
+      {
+        "port": 389,
+        "packet_count": 128
+      },
+      {
+        "port": 54127,
+        "packet_count": 58
+      },
+      {
+        "port": 49671,
+        "packet_count": 44
+      },
+      {
+        "port": 52170,
+        "packet_count": 42
+      },
+      {
+        "port": 49667,
+        "packet_count": 41
+      },
+      {
+        "port": 443,
+        "packet_count": 31
+      }
+    ],
+    "protocols": [
+      {
+        "protocol": "TCP",
+        "packet_count": 1282
+      },
+      {
+        "protocol": "UDP",
+        "packet_count": 346
+      },
+      {
+        "protocol": "IP-1",
+        "packet_count": 15
+      }
+    ],
+    "average_packet_size": 309.94,
+    "unusual_ports": [
+      {
+        "port": 49668,
+        "packet_count": 135
+      },
+      {
+        "port": 54127,
+        "packet_count": 51
+      },
+      {
+        "port": 49671,
+        "packet_count": 22
+      },
+      {
+        "port": 49667,
+        "packet_count": 22
+      },
+      {
+        "port": 52170,
+        "packet_count": 18
+      },
+      {
+        "port": 61794,
+        "packet_count": 15
+      },
+      {
+        "port": 6405,
+        "packet_count": 13
+      },
+      {
+        "port": 56074,
+        "packet_count": 13
+      },
+      {
+        "port": 54119,
+        "packet_count": 12
+      },
+      {
+        "port": 57774,
+        "packet_count": 12
+      }
+    ],
+    "unusual_protocols": []
+  },
+  "findings": {
+    "external_rdp": {
+      "detector": "external_rdp",
+      "evidence_count": 13,
+      "patient_zero_candidate": {
+        "external_ip": "194.165.17.11",
+        "internal_ip": "10.128.239.57",
+        "first_seen": 1766083550.509238,
+        "last_seen": 1766083721.450204,
+        "duration_seconds": 170.94,
+        "packet_count": 139,
+        "total_bytes": 21642,
+        "handshake_complete": true,
+        "application_packets": 85,
+        "post_login_unique_internal_targets": 0,
+        "suspicious": true,
+        "confidence_score": 50
+      },
+      "sessions": [
+        {
+          "external_ip": "194.165.17.11",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1766083550.509238,
+          "last_seen": 1766083721.450204,
+          "duration_seconds": 170.94,
+          "packet_count": 139,
+          "total_bytes": 21642,
+          "handshake_complete": true,
+          "application_packets": 85,
+          "post_login_unique_internal_targets": 0,
+          "suspicious": true,
+          "confidence_score": 50
+        },
+        {
+          "external_ip": "88.214.25.115",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1766083554.967972,
+          "last_seen": 1766083722.445253,
+          "duration_seconds": 167.48,
+          "packet_count": 127,
+          "total_bytes": 20543,
+          "handshake_complete": true,
+          "application_packets": 79,
+          "post_login_unique_internal_targets": 0,
+          "suspicious": true,
+          "confidence_score": 50
+        },
+        {
+          "external_ip": "91.238.181.91",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1766083558.97999,
+          "last_seen": 1766083722.15283,
+          "duration_seconds": 163.17,
+          "packet_count": 120,
+          "total_bytes": 18984,
+          "handshake_complete": true,
+          "application_packets": 74,
+          "post_login_unique_internal_targets": 0,
+          "suspicious": true,
+          "confidence_score": 50
+        },
+        {
+          "external_ip": "88.214.25.123",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1766083550.700238,
+          "last_seen": 1766083722.802484,
+          "duration_seconds": 172.1,
+          "packet_count": 78,
+          "total_bytes": 11628,
+          "handshake_complete": true,
+          "application_packets": 46,
+          "post_login_unique_internal_targets": 0,
+          "suspicious": true,
+          "confidence_score": 50
+        },
+        {
+          "external_ip": "154.16.192.221",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1766083602.635062,
+          "last_seen": 1766083716.606711,
+          "duration_seconds": 113.97,
+          "packet_count": 34,
+          "total_bytes": 5562,
+          "handshake_complete": true,
+          "application_packets": 24,
+          "post_login_unique_internal_targets": 0,
+          "suspicious": true,
+          "confidence_score": 50
+        },
+        {
+          "external_ip": "80.75.212.45",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1766083557.688537,
+          "last_seen": 1766083576.848934,
+          "duration_seconds": 19.16,
+          "packet_count": 14,
+          "total_bytes": 2508,
+          "handshake_complete": true,
+          "application_packets": 9,
+          "post_login_unique_internal_targets": 0,
+          "suspicious": true,
+          "confidence_score": 43
+        },
+        {
+          "external_ip": "185.91.127.118",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1766083584.586169,
+          "last_seen": 1766083589.918382,
+          "duration_seconds": 5.33,
+          "packet_count": 14,
+          "total_bytes": 2508,
+          "handshake_complete": true,
+          "application_packets": 9,
+          "post_login_unique_internal_targets": 0,
+          "suspicious": true,
+          "confidence_score": 43
+        },
+        {
+          "external_ip": "138.199.59.168",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1766083688.061045,
+          "last_seen": 1766083694.239022,
+          "duration_seconds": 6.18,
+          "packet_count": 14,
+          "total_bytes": 2508,
+          "handshake_complete": true,
+          "application_packets": 9,
+          "post_login_unique_internal_targets": 0,
+          "suspicious": true,
+          "confidence_score": 43
+        },
+        {
+          "external_ip": "193.111.248.216",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1766083709.786126,
+          "last_seen": 1766083717.911246,
+          "duration_seconds": 8.13,
+          "packet_count": 14,
+          "total_bytes": 2508,
+          "handshake_complete": true,
+          "application_packets": 9,
+          "post_login_unique_internal_targets": 0,
+          "suspicious": true,
+          "confidence_score": 43
+        },
+        {
+          "external_ip": "98.159.33.51",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1766083719.849447,
+          "last_seen": 1766083722.936712,
+          "duration_seconds": 3.09,
+          "packet_count": 8,
+          "total_bytes": 948,
+          "handshake_complete": true,
+          "application_packets": 5,
+          "post_login_unique_internal_targets": 0,
+          "suspicious": true,
+          "confidence_score": 35
+        },
+        {
+          "external_ip": "138.199.59.143",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1766083550.577737,
+          "last_seen": 1766083558.05131,
+          "duration_seconds": 7.47,
+          "packet_count": 8,
+          "total_bytes": 1893,
+          "handshake_complete": false,
+          "application_packets": 6,
+          "post_login_unique_internal_targets": 0,
+          "suspicious": false,
+          "confidence_score": 12
+        },
+        {
+          "external_ip": "147.45.112.183",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1766083561.805255,
+          "last_seen": 1766083706.541209,
+          "duration_seconds": 144.74,
+          "packet_count": 20,
+          "total_bytes": 1284,
+          "handshake_complete": false,
+          "application_packets": 0,
+          "post_login_unique_internal_targets": 0,
+          "suspicious": false,
+          "confidence_score": 0
+        },
+        {
+          "external_ip": "171.244.39.5",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1766083612.040753,
+          "last_seen": 1766083612.040753,
+          "duration_seconds": 0.0,
+          "packet_count": 1,
+          "total_bytes": 54,
+          "handshake_complete": false,
+          "application_packets": 0,
+          "post_login_unique_internal_targets": 0,
+          "suspicious": false,
+          "confidence_score": 0
+        }
+      ]
+    },
+    "vpn_like_traffic": {
+      "detector": "vpn_like_traffic",
+      "evidence_count": 0,
+      "sessions": []
+    },
+    "smb_rpc_scans": {
+      "detector": "smb_rpc_scans",
+      "evidence_count": 0,
+      "scanners": []
+    },
+    "dcerpc_account_activity": {
+      "detector": "dcerpc_account_activity",
+      "evidence_count": 0,
+      "events": []
+    },
+    "temp_sh_traffic": {
+      "detector": "temp_sh_traffic",
+      "evidence_count": 0,
+      "hits": []
+    },
+    "large_http_posts": {
+      "detector": "large_http_posts",
+      "threshold_bytes": 5000000,
+      "evidence_count": 0,
+      "uploads": [],
+      "grouped_by_source": []
+    },
+    "rdp_payload_deployment": {
+      "detector": "rdp_payload_deployment",
+      "evidence_count": 0,
+      "spreaders": []
+    }
+  },
+  "report": "# Incident Report\n\n## Initial Access\nMost likely patient zero is 10.128.239.57 after ingress from 194.165.17.11 over RDP.\n\n## Lateral Movement & Discovery\nNo high-confidence SMB/RPC scanning pattern crossed the current thresholds.\n\n## Exfiltration\nNo direct temp.sh indicator was found.\n\n## Payload Deployment\nThe current packet evidence does not strongly prove RDP-based internal deployment.\n\n## Confidence / Gaps\nTotal packets analyzed: 1695. Findings are heuristic and packet-based."
+}

@@ -1,0 +1,1210 @@
+{
+  "file_count": 121,
+  "files_with_external_rdp": 121,
+  "files_with_vpn_like_ingress": 0,
+  "files_with_smb_rpc_scanning": 35,
+  "files_with_dcerpc_account_markers": 5,
+  "files_with_temp_sh_hits": 2,
+  "files_with_outbound_exfil_candidates": 9,
+  "files_with_large_http_uploads": 0,
+  "files_with_internal_rdp_spread": 27,
+  "files_with_deep_dive": 121,
+  "interesting_files": {
+    "external_rdp": [
+      "34936-sensor-250301-00002367_redacted.pcap",
+      "34936-sensor-250301-00002364_redacted.pcap",
+      "34936-sensor-250301-00002365_redacted.pcap",
+      "34936-sensor-250301-00002366_redacted.pcap",
+      "34936-sensor-250301-00002368_redacted.pcap",
+      "34936-sensor-250301-00002369_redacted.pcap",
+      "34936-sensor-250301-00002370_redacted.pcap",
+      "34936-sensor-250301-00002371_redacted.pcap",
+      "34936-sensor-250302-00002372_redacted.pcap",
+      "34936-sensor-250302-00002373_redacted.pcap",
+      "34936-sensor-250302-00002374_redacted.pcap",
+      "34936-sensor-250302-00002375_redacted.pcap",
+      "34936-sensor-250302-00002376_redacted.pcap",
+      "34936-sensor-250302-00002377_redacted.pcap",
+      "34936-sensor-250302-00002378_redacted.pcap",
+      "34936-sensor-250302-00002379_redacted.pcap",
+      "34936-sensor-250303-00002380_redacted.pcap",
+      "34936-sensor-250303-00002381_redacted.pcap",
+      "34936-sensor-250303-00002382_redacted.pcap",
+      "34936-sensor-250303-00002383_redacted.pcap",
+      "34936-sensor-250303-00002387_redacted.pcap",
+      "34936-sensor-250303-00002386_redacted.pcap",
+      "34936-sensor-250303-00002385_redacted.pcap",
+      "34936-sensor-250303-00002384_redacted.pcap",
+      "34936-sensor-250304-00002391_redacted.pcap",
+      "34936-sensor-250304-00002389_redacted.pcap",
+      "34936-sensor-250304-00002388_redacted.pcap",
+      "34936-sensor-250304-00002394_redacted.pcap",
+      "34936-sensor-250304-00002393_redacted.pcap",
+      "34936-sensor-250304-00002390_redacted.pcap"
+    ],
+    "vpn_like_ingress": [],
+    "smb_rpc_scanning": [
+      "34936-sensor-250301-00002370_redacted.pcap",
+      "34936-sensor-250301-00002371_redacted.pcap",
+      "34936-sensor-250302-00002376_redacted.pcap",
+      "34936-sensor-250302-00002377_redacted.pcap",
+      "34936-sensor-250302-00002378_redacted.pcap",
+      "34936-sensor-250302-00002379_redacted.pcap",
+      "34936-sensor-250303-00002385_redacted.pcap",
+      "34936-sensor-250303-00002384_redacted.pcap",
+      "34936-sensor-250306-00002436_redacted.pcap",
+      "34936-sensor-250306-00002437_redacted.pcap",
+      "34936-sensor-250306-00002438_redacted.pcap",
+      "34936-sensor-250306-00002439_redacted.pcap",
+      "34936-sensor-250306-00002440_redacted.pcap",
+      "34936-sensor-250306-00002441_redacted.pcap",
+      "34936-sensor-250307-00002442_redacted.pcap",
+      "34936-sensor-250307-00002444_redacted.pcap",
+      "34936-sensor-250307-00002443_redacted.pcap",
+      "34936-sensor-250307-00002446_redacted.pcap",
+      "34936-sensor-250307-00002447_redacted.pcap",
+      "34936-sensor-250307-00002448_redacted.pcap",
+      "34936-sensor-250307-00002449_redacted.pcap",
+      "34936-sensor-250307-00002445_redacted.pcap",
+      "34936-sensor-250307-00002450_redacted.pcap",
+      "34936-sensor-250307-00002451_redacted.pcap",
+      "34936-sensor-250308-00002452_redacted.pcap",
+      "34936-sensor-250308-00002455_redacted.pcap",
+      "34936-sensor-250308-00002453_redacted.pcap",
+      "34936-sensor-250308-00002457_redacted.pcap",
+      "34936-sensor-250308-00002458_redacted.pcap",
+      "34936-sensor-250308-00002456_redacted.pcap"
+    ],
+    "dcerpc_account_markers": [
+      "34936-sensor-250306-00002436_redacted.pcap",
+      "34936-sensor-250306-00002437_redacted.pcap",
+      "34936-sensor-250306-00002438_redacted.pcap",
+      "34936-sensor-250306-00002439_redacted.pcap",
+      "34936-sensor-250306-00002440_redacted.pcap"
+    ],
+    "temp_sh_hits": [
+      "34936-sensor-250306-00002439_redacted.pcap",
+      "34936-sensor-250306-00002440_redacted.pcap"
+    ],
+    "outbound_exfil_candidates": [
+      "34936-sensor-250301-00002371_redacted.pcap",
+      "34936-sensor-250306-00002436_redacted.pcap",
+      "34936-sensor-250306-00002438_redacted.pcap",
+      "34936-sensor-250306-00002439_redacted.pcap",
+      "34936-sensor-250306-00002440_redacted.pcap",
+      "34936-sensor-250306-00002441_redacted.pcap",
+      "34936-sensor-250308-00002458_redacted.pcap",
+      "34936-sensor-250309-00002477_redacted.pcap",
+      "34936-sensor-250309-00002482_redacted.pcap"
+    ],
+    "large_http_uploads": [],
+    "internal_rdp_spread": [
+      "34936-sensor-250301-00002364_redacted.pcap",
+      "34936-sensor-250301-00002365_redacted.pcap",
+      "34936-sensor-250301-00002370_redacted.pcap",
+      "34936-sensor-250301-00002371_redacted.pcap",
+      "34936-sensor-250302-00002372_redacted.pcap",
+      "34936-sensor-250302-00002373_redacted.pcap",
+      "34936-sensor-250303-00002380_redacted.pcap",
+      "34936-sensor-250303-00002381_redacted.pcap",
+      "34936-sensor-250304-00002389_redacted.pcap",
+      "34936-sensor-250304-00002390_redacted.pcap",
+      "34936-sensor-250305-00002421_redacted.pcap",
+      "34936-sensor-250305-00002422_redacted.pcap",
+      "34936-sensor-250305-00002429_redacted.pcap",
+      "34936-sensor-250305-00002431_redacted.pcap",
+      "34936-sensor-250306-00002432_redacted.pcap",
+      "34936-sensor-250306-00002436_redacted.pcap",
+      "34936-sensor-250306-00002437_redacted.pcap",
+      "34936-sensor-250307-00002444_redacted.pcap",
+      "34936-sensor-250307-00002445_redacted.pcap",
+      "34936-sensor-250308-00002455_redacted.pcap",
+      "34936-sensor-250308-00002457_redacted.pcap",
+      "34936-sensor-250308-00002458_redacted.pcap",
+      "34936-sensor-250308-00002459_redacted.pcap",
+      "34936-sensor-250309-00002477_redacted.pcap",
+      "34936-sensor-250309-00002482_redacted.pcap",
+      "34936-sensor-250309-00002480_redacted.pcap",
+      "34936-sensor-250309-00002481_redacted.pcap"
+    ],
+    "deep_dive": [
+      "34936-sensor-250301-00002367_redacted.pcap",
+      "34936-sensor-250301-00002364_redacted.pcap",
+      "34936-sensor-250301-00002365_redacted.pcap",
+      "34936-sensor-250301-00002366_redacted.pcap",
+      "34936-sensor-250301-00002368_redacted.pcap",
+      "34936-sensor-250301-00002369_redacted.pcap",
+      "34936-sensor-250301-00002370_redacted.pcap",
+      "34936-sensor-250301-00002371_redacted.pcap",
+      "34936-sensor-250302-00002372_redacted.pcap",
+      "34936-sensor-250302-00002373_redacted.pcap",
+      "34936-sensor-250302-00002374_redacted.pcap",
+      "34936-sensor-250302-00002375_redacted.pcap",
+      "34936-sensor-250302-00002376_redacted.pcap",
+      "34936-sensor-250302-00002377_redacted.pcap",
+      "34936-sensor-250302-00002378_redacted.pcap",
+      "34936-sensor-250302-00002379_redacted.pcap",
+      "34936-sensor-250303-00002380_redacted.pcap",
+      "34936-sensor-250303-00002381_redacted.pcap",
+      "34936-sensor-250303-00002382_redacted.pcap",
+      "34936-sensor-250303-00002383_redacted.pcap",
+      "34936-sensor-250303-00002387_redacted.pcap",
+      "34936-sensor-250303-00002386_redacted.pcap",
+      "34936-sensor-250303-00002385_redacted.pcap",
+      "34936-sensor-250303-00002384_redacted.pcap",
+      "34936-sensor-250304-00002391_redacted.pcap",
+      "34936-sensor-250304-00002389_redacted.pcap",
+      "34936-sensor-250304-00002388_redacted.pcap",
+      "34936-sensor-250304-00002394_redacted.pcap",
+      "34936-sensor-250304-00002393_redacted.pcap",
+      "34936-sensor-250304-00002390_redacted.pcap"
+    ]
+  },
+  "top_patient_zero_candidates": [
+    {
+      "file": "34936-sensor-250306-00002436_redacted.pcap",
+      "external_ip": "195.211.190.189",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1768100626.102261,
+      "last_seen": 1768218412.999251,
+      "duration_seconds": 117786.9,
+      "packet_count": 128313,
+      "total_bytes": 54465603,
+      "handshake_complete": true,
+      "application_packets": 91808,
+      "post_login_unique_internal_targets": 153,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250308-00002458_redacted.pcap",
+      "external_ip": "77.90.153.30",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1768065860.572567,
+      "last_seen": 1768154309.211743,
+      "duration_seconds": 88448.64,
+      "packet_count": 129494,
+      "total_bytes": 31367967,
+      "handshake_complete": true,
+      "application_packets": 90400,
+      "post_login_unique_internal_targets": 153,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250301-00002371_redacted.pcap",
+      "external_ip": "195.211.190.189",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1767684878.052679,
+      "last_seen": 1767740043.94092,
+      "duration_seconds": 55165.89,
+      "packet_count": 109182,
+      "total_bytes": 30192403,
+      "handshake_complete": true,
+      "application_packets": 72391,
+      "post_login_unique_internal_targets": 147,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250307-00002442_redacted.pcap",
+      "external_ip": "149.50.116.107",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1764954215.531603,
+      "last_seen": 1765180320.197572,
+      "duration_seconds": 226104.67,
+      "packet_count": 159511,
+      "total_bytes": 28927620,
+      "handshake_complete": true,
+      "application_packets": 104388,
+      "post_login_unique_internal_targets": 21,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250307-00002443_redacted.pcap",
+      "external_ip": "149.50.116.107",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1765487162.943811,
+      "last_seen": 1765732485.731859,
+      "duration_seconds": 245322.79,
+      "packet_count": 138593,
+      "total_bytes": 25123945,
+      "handshake_complete": true,
+      "application_packets": 90629,
+      "post_login_unique_internal_targets": 23,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250306-00002432_redacted.pcap",
+      "external_ip": "179.60.146.33",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1765076737.526714,
+      "last_seen": 1765284393.389753,
+      "duration_seconds": 207655.86,
+      "packet_count": 128258,
+      "total_bytes": 23043404,
+      "handshake_complete": true,
+      "application_packets": 82904,
+      "post_login_unique_internal_targets": 12,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250309-00002482_redacted.pcap",
+      "external_ip": "179.60.146.32",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1768460771.737376,
+      "last_seen": 1768671699.207291,
+      "duration_seconds": 210927.47,
+      "packet_count": 128055,
+      "total_bytes": 22963204,
+      "handshake_complete": true,
+      "application_packets": 82551,
+      "post_login_unique_internal_targets": 10,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250307-00002444_redacted.pcap",
+      "external_ip": "149.50.116.107",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1765462463.900008,
+      "last_seen": 1765618912.792417,
+      "duration_seconds": 156448.89,
+      "packet_count": 113952,
+      "total_bytes": 20636578,
+      "handshake_complete": true,
+      "application_packets": 74406,
+      "post_login_unique_internal_targets": 41,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250307-00002445_redacted.pcap",
+      "external_ip": "179.60.146.32",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1768965491.400755,
+      "last_seen": 1769098569.148256,
+      "duration_seconds": 133077.75,
+      "packet_count": 105165,
+      "total_bytes": 18859304,
+      "handshake_complete": true,
+      "application_packets": 67862,
+      "post_login_unique_internal_targets": 36,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250304-00002390_redacted.pcap",
+      "external_ip": "179.60.146.37",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1767324977.983605,
+      "last_seen": 1767636854.368043,
+      "duration_seconds": 311876.38,
+      "packet_count": 96028,
+      "total_bytes": 17176951,
+      "handshake_complete": true,
+      "application_packets": 61691,
+      "post_login_unique_internal_targets": 24,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250304-00002389_redacted.pcap",
+      "external_ip": "179.60.146.37",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1766295964.823115,
+      "last_seen": 1766583256.907005,
+      "duration_seconds": 287292.08,
+      "packet_count": 95679,
+      "total_bytes": 17115635,
+      "handshake_complete": true,
+      "application_packets": 61462,
+      "post_login_unique_internal_targets": 29,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250305-00002421_redacted.pcap",
+      "external_ip": "179.60.146.35",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1765975927.706801,
+      "last_seen": 1766085739.708582,
+      "duration_seconds": 109812.0,
+      "packet_count": 91805,
+      "total_bytes": 16446660,
+      "handshake_complete": true,
+      "application_packets": 59108,
+      "post_login_unique_internal_targets": 21,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250301-00002370_redacted.pcap",
+      "external_ip": "141.98.11.170",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1765976132.620737,
+      "last_seen": 1766175308.689602,
+      "duration_seconds": 199176.07,
+      "packet_count": 105713,
+      "total_bytes": 16235106,
+      "handshake_complete": true,
+      "application_packets": 63122,
+      "post_login_unique_internal_targets": 151,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250309-00002477_redacted.pcap",
+      "external_ip": "179.60.146.33",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1765732572.240972,
+      "last_seen": 1765875069.094592,
+      "duration_seconds": 142496.85,
+      "packet_count": 87262,
+      "total_bytes": 15634008,
+      "handshake_complete": true,
+      "application_packets": 56182,
+      "post_login_unique_internal_targets": 151,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250303-00002380_redacted.pcap",
+      "external_ip": "141.98.11.190",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1765037609.974365,
+      "last_seen": 1765222222.627779,
+      "duration_seconds": 184612.65,
+      "packet_count": 104459,
+      "total_bytes": 15131984,
+      "handshake_complete": true,
+      "application_packets": 57527,
+      "post_login_unique_internal_targets": 22,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250308-00002452_redacted.pcap",
+      "external_ip": "45.135.232.124",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1765296995.663519,
+      "last_seen": 1765448166.573569,
+      "duration_seconds": 151170.91,
+      "packet_count": 91205,
+      "total_bytes": 14109278,
+      "handshake_complete": true,
+      "application_packets": 53131,
+      "post_login_unique_internal_targets": 21,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250305-00002422_redacted.pcap",
+      "external_ip": "141.98.11.49",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1765743890.822258,
+      "last_seen": 1765935692.698478,
+      "duration_seconds": 191801.88,
+      "packet_count": 94748,
+      "total_bytes": 13397867,
+      "handshake_complete": true,
+      "application_packets": 50368,
+      "post_login_unique_internal_targets": 26,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250307-00002450_redacted.pcap",
+      "external_ip": "179.60.146.34",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1768695192.523322,
+      "last_seen": 1768837786.486882,
+      "duration_seconds": 142593.96,
+      "packet_count": 74460,
+      "total_bytes": 13357189,
+      "handshake_complete": true,
+      "application_packets": 48031,
+      "post_login_unique_internal_targets": 23,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250303-00002381_redacted.pcap",
+      "external_ip": "141.98.11.190",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1767158353.610845,
+      "last_seen": 1767348660.667524,
+      "duration_seconds": 190307.06,
+      "packet_count": 90976,
+      "total_bytes": 13172301,
+      "handshake_complete": true,
+      "application_packets": 50139,
+      "post_login_unique_internal_targets": 31,
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    {
+      "file": "34936-sensor-250308-00002453_redacted.pcap",
+      "external_ip": "45.135.232.124",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1768504944.617953,
+      "last_seen": 1769141582.21836,
+      "duration_seconds": 636637.6,
+      "packet_count": 83336,
+      "total_bytes": 12862704,
+      "handshake_complete": true,
+      "application_packets": 48451,
+      "post_login_unique_internal_targets": 23,
+      "suspicious": true,
+      "confidence_score": 80
+    }
+  ],
+  "top_deep_dive_focus_hosts": [
+    {
+      "host": "10.128.239.57",
+      "file_count": 121
+    }
+  ],
+  "attack_flow": {
+    "focus_host": "10.128.239.57",
+    "primary_external_ips": [
+      {
+        "external_ip": "194.165.17.11",
+        "score": 980
+      },
+      {
+        "external_ip": "179.60.146.37",
+        "score": 764
+      },
+      {
+        "external_ip": "179.60.146.33",
+        "score": 695
+      },
+      {
+        "external_ip": "141.98.11.109",
+        "score": 600
+      },
+      {
+        "external_ip": "179.60.146.36",
+        "score": 526
+      },
+      {
+        "external_ip": "141.98.83.70",
+        "score": 384
+      },
+      {
+        "external_ip": "179.60.146.32",
+        "score": 346
+      },
+      {
+        "external_ip": "141.98.11.170",
+        "score": 337
+      },
+      {
+        "external_ip": "179.60.146.34",
+        "score": 320
+      },
+      {
+        "external_ip": "45.135.232.124",
+        "score": 320
+      }
+    ],
+    "stage_counts": {
+      "initial_access": 121,
+      "discovery": 28,
+      "administrative_activity": 5,
+      "exfiltration": 9,
+      "payload_deployment": 27
+    },
+    "likely_path": "Initial Access -> Discovery -> Payload Deployment -> Exfiltration -> Administrative Activity",
+    "timeline": [
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250308-00002461_redacted.pcap",
+        "timestamp": 1763472611.783473,
+        "detail": "External 141.98.11.109 -> 10.128.239.57 confidence=65 post_login_targets=5"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250305-00002429_redacted.pcap",
+        "timestamp": 1763472623.934428,
+        "detail": "External 141.98.11.53 -> 10.128.239.57 confidence=80 post_login_targets=21"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250303-00002384_redacted.pcap",
+        "timestamp": 1763472623.981631,
+        "detail": "External 141.98.83.70 -> 10.128.239.57 confidence=68 post_login_targets=6"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002412_redacted.pcap",
+        "timestamp": 1763472624.039869,
+        "detail": "External 91.238.181.7 -> 10.128.239.57 confidence=56 post_login_targets=2"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002393_redacted.pcap",
+        "timestamp": 1763472695.928226,
+        "detail": "External 194.165.17.11 -> 10.128.239.57 confidence=56 post_login_targets=2"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250309-00002481_redacted.pcap",
+        "timestamp": 1763473358.64072,
+        "detail": "External 179.60.146.37 -> 10.128.239.57 confidence=80 post_login_targets=153"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250308-00002473_redacted.pcap",
+        "timestamp": 1763473464.646154,
+        "detail": "External 179.60.146.33 -> 10.128.239.57 confidence=65 post_login_targets=5"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250309-00002481_redacted.pcap",
+        "timestamp": 1763473910.324342,
+        "detail": "10.128.239.57 scanned 150 targets over SMB/RPC"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250303-00002386_redacted.pcap",
+        "timestamp": 1763487215.757375,
+        "detail": "External 141.98.11.114 -> 10.128.239.57 confidence=65 post_login_targets=5"
+      },
+      {
+        "stage": "payload_deployment",
+        "file": "34936-sensor-250305-00002429_redacted.pcap",
+        "timestamp": 1763635068.026488,
+        "detail": "10.128.239.57 spread internal RDP to 13 targets"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250306-00002439_redacted.pcap",
+        "timestamp": 1763644005.996081,
+        "detail": "10.128.239.57 scanned 20 targets over SMB/RPC"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250306-00002439_redacted.pcap",
+        "timestamp": 1763644027.233687,
+        "detail": "External 179.60.146.37 -> 10.128.239.57 confidence=80 post_login_targets=22"
+      },
+      {
+        "stage": "exfiltration",
+        "file": "34936-sensor-250306-00002439_redacted.pcap",
+        "timestamp": 1763712895.135164,
+        "detail": "10.128.239.57 -> 51.91.79.17:443 severity=high total_bytes=240443403"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002418_redacted.pcap",
+        "timestamp": 1763807014.787466,
+        "detail": "External 91.199.163.12 -> 10.128.239.57 confidence=56 post_login_targets=2"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250301-00002367_redacted.pcap",
+        "timestamp": 1763835301.116394,
+        "detail": "External 194.0.234.31 -> 10.128.239.57 confidence=62 post_login_targets=4"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002402_redacted.pcap",
+        "timestamp": 1763870026.000581,
+        "detail": "External 194.165.17.11 -> 10.128.239.57 confidence=50 post_login_targets=0"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250308-00002455_redacted.pcap",
+        "timestamp": 1763880146.729707,
+        "detail": "External 45.135.232.124 -> 10.128.239.57 confidence=80 post_login_targets=35"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250308-00002455_redacted.pcap",
+        "timestamp": 1763880147.465688,
+        "detail": "10.128.239.57 scanned 21 targets over SMB/RPC"
+      },
+      {
+        "stage": "payload_deployment",
+        "file": "34936-sensor-250309-00002481_redacted.pcap",
+        "timestamp": 1763920349.651353,
+        "detail": "10.128.239.57 spread internal RDP to 77 targets"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250308-00002464_redacted.pcap",
+        "timestamp": 1763979151.825296,
+        "detail": "External 141.98.11.109 -> 10.128.239.57 confidence=68 post_login_targets=6"
+      },
+      {
+        "stage": "payload_deployment",
+        "file": "34936-sensor-250308-00002455_redacted.pcap",
+        "timestamp": 1764006680.321156,
+        "detail": "10.128.239.57 spread internal RDP to 14 targets"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250307-00002447_redacted.pcap",
+        "timestamp": 1764207940.399505,
+        "detail": "External 179.60.146.30 -> 10.128.239.57 confidence=80 post_login_targets=22"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250307-00002447_redacted.pcap",
+        "timestamp": 1764207955.940322,
+        "detail": "10.128.239.57 scanned 21 targets over SMB/RPC"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250308-00002463_redacted.pcap",
+        "timestamp": 1764312250.700119,
+        "detail": "External 141.98.11.109 -> 10.128.239.57 confidence=65 post_login_targets=5"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002407_redacted.pcap",
+        "timestamp": 1764714486.792081,
+        "detail": "External 194.165.17.11 -> 10.128.239.57 confidence=50 post_login_targets=0"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250303-00002382_redacted.pcap",
+        "timestamp": 1764716551.651343,
+        "detail": "External 141.98.83.70 -> 10.128.239.57 confidence=68 post_login_targets=6"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250308-00002471_redacted.pcap",
+        "timestamp": 1764754307.088678,
+        "detail": "External 141.98.11.109 -> 10.128.239.57 confidence=65 post_login_targets=5"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002408_redacted.pcap",
+        "timestamp": 1764793434.644856,
+        "detail": "External 194.165.17.11 -> 10.128.239.57 confidence=50 post_login_targets=0"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250307-00002446_redacted.pcap",
+        "timestamp": 1764796105.706226,
+        "detail": "External 179.60.146.30 -> 10.128.239.57 confidence=80 post_login_targets=21"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250307-00002446_redacted.pcap",
+        "timestamp": 1764796111.354465,
+        "detail": "10.128.239.57 scanned 20 targets over SMB/RPC"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250303-00002387_redacted.pcap",
+        "timestamp": 1764811990.848468,
+        "detail": "External 141.98.11.144 -> 10.128.239.57 confidence=65 post_login_targets=5"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250308-00002475_redacted.pcap",
+        "timestamp": 1764816353.477918,
+        "detail": "External 179.60.146.33 -> 10.128.239.57 confidence=65 post_login_targets=5"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250308-00002462_redacted.pcap",
+        "timestamp": 1764893548.739614,
+        "detail": "External 141.98.11.170 -> 10.128.239.57 confidence=68 post_login_targets=6"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250307-00002442_redacted.pcap",
+        "timestamp": 1764954212.07351,
+        "detail": "10.128.239.57 scanned 20 targets over SMB/RPC"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250307-00002442_redacted.pcap",
+        "timestamp": 1764954215.531603,
+        "detail": "External 149.50.116.107 -> 10.128.239.57 confidence=80 post_login_targets=21"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250303-00002380_redacted.pcap",
+        "timestamp": 1765037609.974365,
+        "detail": "External 141.98.11.190 -> 10.128.239.57 confidence=80 post_login_targets=22"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250306-00002432_redacted.pcap",
+        "timestamp": 1765076737.526714,
+        "detail": "External 179.60.146.33 -> 10.128.239.57 confidence=80 post_login_targets=12"
+      },
+      {
+        "stage": "payload_deployment",
+        "file": "34936-sensor-250306-00002432_redacted.pcap",
+        "timestamp": 1765076918.814272,
+        "detail": "10.128.239.57 spread internal RDP to 5 targets"
+      },
+      {
+        "stage": "payload_deployment",
+        "file": "34936-sensor-250303-00002380_redacted.pcap",
+        "timestamp": 1765084011.317416,
+        "detail": "10.128.239.57 spread internal RDP to 12 targets"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002403_redacted.pcap",
+        "timestamp": 1765094392.997066,
+        "detail": "External 194.165.17.11 -> 10.128.239.57 confidence=50 post_login_targets=0"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250306-00002433_redacted.pcap",
+        "timestamp": 1765096551.645533,
+        "detail": "External 179.60.146.33 -> 10.128.239.57 confidence=62 post_login_targets=4"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002415_redacted.pcap",
+        "timestamp": 1765180389.420129,
+        "detail": "External 91.238.181.8 -> 10.128.239.57 confidence=62 post_login_targets=4"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002388_redacted.pcap",
+        "timestamp": 1765222305.250941,
+        "detail": "External 179.60.146.37 -> 10.128.239.57 confidence=62 post_login_targets=4"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002409_redacted.pcap",
+        "timestamp": 1765222977.712138,
+        "detail": "External 194.165.17.11 -> 10.128.239.57 confidence=53 post_login_targets=1"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250305-00002424_redacted.pcap",
+        "timestamp": 1765224573.296005,
+        "detail": "External 179.60.146.36 -> 10.128.239.57 confidence=56 post_login_targets=2"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250303-00002383_redacted.pcap",
+        "timestamp": 1765240517.939209,
+        "detail": "External 141.98.83.70 -> 10.128.239.57 confidence=68 post_login_targets=6"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250305-00002423_redacted.pcap",
+        "timestamp": 1765284462.497551,
+        "detail": "External 179.60.146.36 -> 10.128.239.57 confidence=62 post_login_targets=4"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250308-00002452_redacted.pcap",
+        "timestamp": 1765296995.663519,
+        "detail": "External 45.135.232.124 -> 10.128.239.57 confidence=80 post_login_targets=21"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250308-00002452_redacted.pcap",
+        "timestamp": 1765297022.481348,
+        "detail": "10.128.239.57 scanned 21 targets over SMB/RPC"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250301-00002366_redacted.pcap",
+        "timestamp": 1765393318.958322,
+        "detail": "External 194.0.234.31 -> 10.128.239.57 confidence=59 post_login_targets=3"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002414_redacted.pcap",
+        "timestamp": 1765448252.178068,
+        "detail": "External 194.165.17.11 -> 10.128.239.57 confidence=53 post_login_targets=1"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250307-00002444_redacted.pcap",
+        "timestamp": 1765462463.900008,
+        "detail": "External 149.50.116.107 -> 10.128.239.57 confidence=80 post_login_targets=41"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250307-00002444_redacted.pcap",
+        "timestamp": 1765462511.565653,
+        "detail": "10.128.239.57 scanned 21 targets over SMB/RPC"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250301-00002364_redacted.pcap",
+        "timestamp": 1765478616.578709,
+        "detail": "External 141.98.11.81 -> 10.128.239.57 confidence=80 post_login_targets=22"
+      },
+      {
+        "stage": "payload_deployment",
+        "file": "34936-sensor-250307-00002444_redacted.pcap",
+        "timestamp": 1765482792.094225,
+        "detail": "10.128.239.57 spread internal RDP to 20 targets"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250307-00002443_redacted.pcap",
+        "timestamp": 1765487162.943811,
+        "detail": "External 149.50.116.107 -> 10.128.239.57 confidence=80 post_login_targets=23"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250307-00002443_redacted.pcap",
+        "timestamp": 1765487306.039331,
+        "detail": "10.128.239.57 scanned 21 targets over SMB/RPC"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250305-00002430_redacted.pcap",
+        "timestamp": 1765507910.434972,
+        "detail": "External 141.98.11.53 -> 10.128.239.57 confidence=59 post_login_targets=3"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250309-00002476_redacted.pcap",
+        "timestamp": 1765536187.292032,
+        "detail": "External 179.60.146.33 -> 10.128.239.57 confidence=71 post_login_targets=7"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002394_redacted.pcap",
+        "timestamp": 1765598472.941319,
+        "detail": "External 194.165.17.11 -> 10.128.239.57 confidence=50 post_login_targets=0"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002401_redacted.pcap",
+        "timestamp": 1765599384.533114,
+        "detail": "External 194.165.17.11 -> 10.128.239.57 confidence=50 post_login_targets=0"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250309-00002478_redacted.pcap",
+        "timestamp": 1765618972.135988,
+        "detail": "External 179.60.146.33 -> 10.128.239.57 confidence=65 post_login_targets=5"
+      },
+      {
+        "stage": "payload_deployment",
+        "file": "34936-sensor-250301-00002364_redacted.pcap",
+        "timestamp": 1765641715.529698,
+        "detail": "10.128.239.57 spread internal RDP to 16 targets"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250309-00002487_redacted.pcap",
+        "timestamp": 1765656035.265379,
+        "detail": "External 179.60.146.30 -> 10.128.239.57 confidence=65 post_login_targets=5"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002391_redacted.pcap",
+        "timestamp": 1765661431.278019,
+        "detail": "External 179.60.146.32 -> 10.128.239.57 confidence=65 post_login_targets=5"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002397_redacted.pcap",
+        "timestamp": 1765730733.290244,
+        "detail": "External 194.165.17.11 -> 10.128.239.57 confidence=50 post_login_targets=0"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250309-00002477_redacted.pcap",
+        "timestamp": 1765732572.240972,
+        "detail": "External 179.60.146.33 -> 10.128.239.57 confidence=80 post_login_targets=151"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250309-00002477_redacted.pcap",
+        "timestamp": 1765732602.321459,
+        "detail": "10.128.239.57 scanned 150 targets over SMB/RPC"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250305-00002422_redacted.pcap",
+        "timestamp": 1765743890.822258,
+        "detail": "External 141.98.11.49 -> 10.128.239.57 confidence=80 post_login_targets=26"
+      },
+      {
+        "stage": "exfiltration",
+        "file": "34936-sensor-250306-00002438_redacted.pcap",
+        "timestamp": 1765790819.236761,
+        "detail": "10.128.239.57 -> 195.211.190.189:53789 severity=medium total_bytes=12960266"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250306-00002438_redacted.pcap",
+        "timestamp": 1765790820.634671,
+        "detail": "External 91.238.181.8 -> 10.128.239.57 confidence=80 post_login_targets=21"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250306-00002438_redacted.pcap",
+        "timestamp": 1765790884.457117,
+        "detail": "10.128.239.57 scanned 21 targets over SMB/RPC"
+      },
+      {
+        "stage": "payload_deployment",
+        "file": "34936-sensor-250305-00002422_redacted.pcap",
+        "timestamp": 1765811063.611928,
+        "detail": "10.128.239.57 spread internal RDP to 19 targets"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250301-00002369_redacted.pcap",
+        "timestamp": 1765898533.66489,
+        "detail": "External 141.98.11.170 -> 10.128.239.57 confidence=62 post_login_targets=4"
+      },
+      {
+        "stage": "payload_deployment",
+        "file": "34936-sensor-250309-00002477_redacted.pcap",
+        "timestamp": 1765915869.461677,
+        "detail": "10.128.239.57 spread internal RDP to 89 targets"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250305-00002425_redacted.pcap",
+        "timestamp": 1765935763.734578,
+        "detail": "External 179.60.146.36 -> 10.128.239.57 confidence=56 post_login_targets=2"
+      },
+      {
+        "stage": "exfiltration",
+        "file": "34936-sensor-250309-00002477_redacted.pcap",
+        "timestamp": 1765951159.961983,
+        "detail": "10.128.239.57 -> 77.90.153.30:55613 severity=medium total_bytes=11786184"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250305-00002421_redacted.pcap",
+        "timestamp": 1765975927.706801,
+        "detail": "External 179.60.146.35 -> 10.128.239.57 confidence=80 post_login_targets=21"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250301-00002370_redacted.pcap",
+        "timestamp": 1765976132.620737,
+        "detail": "External 141.98.11.170 -> 10.128.239.57 confidence=80 post_login_targets=151"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250301-00002370_redacted.pcap",
+        "timestamp": 1765976187.812818,
+        "detail": "10.128.239.57 scanned 149 targets over SMB/RPC"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002416_redacted.pcap",
+        "timestamp": 1765978432.643873,
+        "detail": "External 91.238.181.8 -> 10.128.239.57 confidence=59 post_login_targets=3"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250308-00002456_redacted.pcap",
+        "timestamp": 1765994076.45493,
+        "detail": "External 179.60.146.36 -> 10.128.239.57 confidence=80 post_login_targets=23"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250308-00002456_redacted.pcap",
+        "timestamp": 1765994612.234109,
+        "detail": "10.128.239.57 scanned 22 targets over SMB/RPC"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250309-00002483_redacted.pcap",
+        "timestamp": 1766021414.049517,
+        "detail": "External 179.60.146.37 -> 10.128.239.57 confidence=62 post_login_targets=4"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250301-00002368_redacted.pcap",
+        "timestamp": 1766068369.225262,
+        "detail": "External 141.98.11.170 -> 10.128.239.57 confidence=62 post_login_targets=4"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002410_redacted.pcap",
+        "timestamp": 1766082942.877366,
+        "detail": "External 91.238.181.7 -> 10.128.239.57 confidence=50 post_login_targets=0"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002398_redacted.pcap",
+        "timestamp": 1766083550.509238,
+        "detail": "External 194.165.17.11 -> 10.128.239.57 confidence=50 post_login_targets=0"
+      },
+      {
+        "stage": "exfiltration",
+        "file": "34936-sensor-250306-00002441_redacted.pcap",
+        "timestamp": 1766083839.473619,
+        "detail": "10.128.239.57 -> 51.91.79.17:443 severity=high total_bytes=576532595"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250306-00002441_redacted.pcap",
+        "timestamp": 1766085692.108401,
+        "detail": "External 179.60.146.37 -> 10.128.239.57 confidence=80 post_login_targets=24"
+      },
+      {
+        "stage": "discovery",
+        "file": "34936-sensor-250306-00002441_redacted.pcap",
+        "timestamp": 1766086178.775156,
+        "detail": "10.128.239.57 scanned 21 targets over SMB/RPC"
+      },
+      {
+        "stage": "payload_deployment",
+        "file": "34936-sensor-250305-00002421_redacted.pcap",
+        "timestamp": 1766092890.36199,
+        "detail": "10.128.239.57 spread internal RDP to 14 targets"
+      },
+      {
+        "stage": "payload_deployment",
+        "file": "34936-sensor-250301-00002370_redacted.pcap",
+        "timestamp": 1766109308.227476,
+        "detail": "10.128.239.57 spread internal RDP to 74 targets"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002399_redacted.pcap",
+        "timestamp": 1766175398.94816,
+        "detail": "External 194.165.17.11 -> 10.128.239.57 confidence=56 post_login_targets=2"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002417_redacted.pcap",
+        "timestamp": 1766175972.431461,
+        "detail": "External 91.199.163.12 -> 10.128.239.57 confidence=56 post_login_targets=2"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250308-00002474_redacted.pcap",
+        "timestamp": 1766251888.837305,
+        "detail": "External 179.60.146.33 -> 10.128.239.57 confidence=71 post_login_targets=7"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250304-00002389_redacted.pcap",
+        "timestamp": 1766295964.823115,
+        "detail": "External 179.60.146.37 -> 10.128.239.57 confidence=80 post_login_targets=29"
+      },
+      {
+        "stage": "payload_deployment",
+        "file": "34936-sensor-250304-00002389_redacted.pcap",
+        "timestamp": 1766548688.546749,
+        "detail": "10.128.239.57 spread internal RDP to 19 targets"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250305-00002428_redacted.pcap",
+        "timestamp": 1766583336.907926,
+        "detail": "External 141.98.11.53 -> 10.128.239.57 confidence=59 post_login_targets=3"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250309-00002479_redacted.pcap",
+        "timestamp": 1766761845.562648,
+        "detail": "External 179.60.146.33 -> 10.128.239.57 confidence=65 post_login_targets=5"
+      },
+      {
+        "stage": "initial_access",
+        "file": "34936-sensor-250308-00002465_redacted.pcap",
+        "timestamp": 1766770114.280461,
+        "detail": "External 141.98.11.109 -> 10.128.239.57 confidence=65 post_login_targets=5"
+      }
+    ],
+    "initial_access_files": [
+      "34936-sensor-250308-00002461_redacted.pcap",
+      "34936-sensor-250305-00002429_redacted.pcap",
+      "34936-sensor-250303-00002384_redacted.pcap",
+      "34936-sensor-250304-00002412_redacted.pcap",
+      "34936-sensor-250304-00002393_redacted.pcap",
+      "34936-sensor-250309-00002481_redacted.pcap",
+      "34936-sensor-250308-00002473_redacted.pcap",
+      "34936-sensor-250303-00002386_redacted.pcap",
+      "34936-sensor-250306-00002439_redacted.pcap",
+      "34936-sensor-250304-00002418_redacted.pcap",
+      "34936-sensor-250301-00002367_redacted.pcap",
+      "34936-sensor-250304-00002402_redacted.pcap",
+      "34936-sensor-250308-00002455_redacted.pcap",
+      "34936-sensor-250308-00002464_redacted.pcap",
+      "34936-sensor-250307-00002447_redacted.pcap",
+      "34936-sensor-250308-00002463_redacted.pcap",
+      "34936-sensor-250304-00002407_redacted.pcap",
+      "34936-sensor-250303-00002382_redacted.pcap",
+      "34936-sensor-250308-00002471_redacted.pcap",
+      "34936-sensor-250304-00002408_redacted.pcap"
+    ],
+    "discovery_files": [
+      "34936-sensor-250309-00002481_redacted.pcap",
+      "34936-sensor-250306-00002439_redacted.pcap",
+      "34936-sensor-250308-00002455_redacted.pcap",
+      "34936-sensor-250307-00002447_redacted.pcap",
+      "34936-sensor-250307-00002446_redacted.pcap",
+      "34936-sensor-250307-00002442_redacted.pcap",
+      "34936-sensor-250308-00002452_redacted.pcap",
+      "34936-sensor-250307-00002444_redacted.pcap",
+      "34936-sensor-250307-00002443_redacted.pcap",
+      "34936-sensor-250309-00002477_redacted.pcap",
+      "34936-sensor-250306-00002438_redacted.pcap",
+      "34936-sensor-250301-00002370_redacted.pcap",
+      "34936-sensor-250308-00002456_redacted.pcap",
+      "34936-sensor-250306-00002441_redacted.pcap",
+      "34936-sensor-250307-00002449_redacted.pcap",
+      "34936-sensor-250308-00002457_redacted.pcap",
+      "34936-sensor-250301-00002371_redacted.pcap",
+      "34936-sensor-250307-00002451_redacted.pcap",
+      "34936-sensor-250308-00002458_redacted.pcap",
+      "34936-sensor-250306-00002436_redacted.pcap"
+    ],
+    "administrative_activity_files": [
+      "34936-sensor-250306-00002439_redacted.pcap",
+      "34936-sensor-250306-00002438_redacted.pcap",
+      "34936-sensor-250306-00002436_redacted.pcap",
+      "34936-sensor-250306-00002440_redacted.pcap",
+      "34936-sensor-250306-00002437_redacted.pcap"
+    ],
+    "exfiltration_files": [
+      "34936-sensor-250306-00002439_redacted.pcap",
+      "34936-sensor-250309-00002477_redacted.pcap",
+      "34936-sensor-250306-00002438_redacted.pcap",
+      "34936-sensor-250306-00002441_redacted.pcap",
+      "34936-sensor-250301-00002371_redacted.pcap",
+      "34936-sensor-250308-00002458_redacted.pcap",
+      "34936-sensor-250306-00002436_redacted.pcap",
+      "34936-sensor-250309-00002482_redacted.pcap",
+      "34936-sensor-250306-00002440_redacted.pcap"
+    ],
+    "payload_deployment_files": [
+      "34936-sensor-250305-00002429_redacted.pcap",
+      "34936-sensor-250309-00002481_redacted.pcap",
+      "34936-sensor-250308-00002455_redacted.pcap",
+      "34936-sensor-250303-00002380_redacted.pcap",
+      "34936-sensor-250306-00002432_redacted.pcap",
+      "34936-sensor-250307-00002444_redacted.pcap",
+      "34936-sensor-250301-00002364_redacted.pcap",
+      "34936-sensor-250309-00002477_redacted.pcap",
+      "34936-sensor-250305-00002422_redacted.pcap",
+      "34936-sensor-250305-00002421_redacted.pcap",
+      "34936-sensor-250301-00002370_redacted.pcap",
+      "34936-sensor-250304-00002389_redacted.pcap",
+      "34936-sensor-250303-00002381_redacted.pcap",
+      "34936-sensor-250304-00002390_redacted.pcap",
+      "34936-sensor-250302-00002372_redacted.pcap",
+      "34936-sensor-250308-00002457_redacted.pcap",
+      "34936-sensor-250301-00002371_redacted.pcap",
+      "34936-sensor-250309-00002480_redacted.pcap",
+      "34936-sensor-250308-00002458_redacted.pcap",
+      "34936-sensor-250306-00002436_redacted.pcap"
+    ]
+  }
+}

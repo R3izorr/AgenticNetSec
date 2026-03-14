@@ -1,0 +1,15 @@
+GEMINI_API_KEY = "paste_your_gemini_key_here"
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_RETRY_ATTEMPTS = 3
+GEMINI_RETRY_DELAY_SECONDS = 2.0
+REPORT_PROVIDER = "gemini"
+REPORT_MODEL = "gemini-2.5-flash"
+# GROQ_API_KEY = "paste_your_groq_key_here"
+# GROQ_MODEL = "openai/gpt-oss-20b"
+# GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+# OLLAMA_MODEL = "qwen2.5:3b"
+# OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+# OLLAMA_TIMEOUT_SECONDS = 300
+# GEMINI_FALLBACK_MODELS = ["gemini-2.0-flash"]
+# GOOGLE_API_KEY = "paste_your_google_api_key_here"
+# OPENAI_API_KEY = "paste_your_openai_key_here"
