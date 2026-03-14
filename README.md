@@ -1,50 +1,47 @@
 ﻿# AgenticNetSec
 
-This repository is organized as a backend-first forensic analyzer with separated outputs.
+Backend-first forensic analyzer with a Next.js frontend shell.
 
 ## Structure
 
-- `backend/src/`: core analysis modules (`analyzer`, `detectors`, `deep_dive`, `flow_analysis`, `report_ai`)
-- `backend/scripts/`: CLI tools (`run.py`, `batch_analyze.py`, `summarize_results.py`, `verify_findings.py`)
-- `backend/config/`: local settings template (`local_settings.example.py`)
-- `backend/tests/`: test placeholder
-- `frontend/`: placeholder for future UI
-- `outputs/`: generated artifacts (`scan_results.jsonl`, reports, aggregates)
-- `docs/`: project docs and requirement/checklist markdown files
+- `backend/src/`: analysis, guardrails, planner, schema, observability
+- `backend/api/`: REST API (`/api/v1/analysis` async job flow)
+- `backend/scripts/`: CLI tools (`run.py`, `batch_analyze.py`, `summarize_results.py`, `verify_findings.py`, `run_api.py`)
+- `backend/config/`: local settings template
+- `backend/tests/`: schema/guardrail tests
+- `frontend/`: Next.js + React + Tailwind UI
+- `outputs/`: reports, metrics, and analysis job artifacts
+- `docs/`: project requirements and checklist
 
-## Install
+## Setup (recommended)
 
 ```bash
-python -m pip install -r requirements.txt
+python -m virtualenv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
 ```
 
 ## Run
 
-Single PCAP analysis:
+CLI analysis:
 
 ```bash
-python backend/scripts/run.py /path/to/file.pcap --no-ai
+.\.venv\Scripts\python backend/scripts/run.py /path/to/file.pcap --no-ai
 ```
 
-Batch analysis:
+Run REST API service:
 
 ```bash
-python backend/scripts/batch_analyze.py --start 1 --end 10 --workers 2
+.\.venv\Scripts\python backend/scripts/run_api.py
 ```
 
-Summarize existing results:
+### REST endpoints
 
-```bash
-python backend/scripts/summarize_results.py outputs/scan_results.jsonl --no-ai --print-json
-```
-
-Verify findings:
-
-```bash
-python backend/scripts/verify_findings.py temp-sh
-python backend/scripts/verify_findings.py rdp
-```
+- `POST /api/v1/analysis`
+- `GET /api/v1/analysis/{job_id}`
+- `GET /api/v1/analysis/{job_id}/report.json`
+- `GET /api/v1/analysis/{job_id}/report.md`
+- `GET /api/v1/analysis/{job_id}/metrics`
 
 ## Output Location
 
-Generated outputs are stored under `outputs/`.
+Generated outputs are stored in `outputs/`.

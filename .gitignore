@@ -1,2 +1,19 @@
+﻿# Python
 __pycache__/
+*.pyc
+.venv/
+.virtualenv_data/
+.tmp/
 local_settings.py
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+
+# Runtime artifacts
+outputs/uploads/
+outputs/analysis_jobs/
