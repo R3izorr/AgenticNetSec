@@ -1,8 +1,19 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
+import sys
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
+SRC_DIR = PROJECT_ROOT / "backend" / "src"
+CONFIG_DIR = PROJECT_ROOT / "backend" / "config"
+
+for module_path in (SRC_DIR, CONFIG_DIR):
+    module_path_str = str(module_path)
+    if module_path_str not in sys.path:
+        sys.path.insert(0, module_path_str)
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from collections import Counter
 import json
@@ -11,11 +11,18 @@ from typing import Any
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CONFIG_DIR = PROJECT_ROOT / "backend" / "config"
+
+config_path = str(CONFIG_DIR)
+if config_path not in sys.path:
+    sys.path.insert(0, config_path)
+
 from flow_analysis import build_attack_flow
 
-DEFAULT_RESULTS_FILE = Path("/home/kuri/4063_project/pcap_ai_analyzer/scan_results.jsonl")
-DEFAULT_AGGREGATE_FILE = Path("/home/kuri/4063_project/pcap_ai_analyzer/aggregate_summary.json")
-DEFAULT_REPORT_FILE = Path("/home/kuri/4063_project/pcap_ai_analyzer/incident_report.md")
+DEFAULT_RESULTS_FILE = PROJECT_ROOT / "outputs" / "scan_results.jsonl"
+DEFAULT_AGGREGATE_FILE = PROJECT_ROOT / "outputs" / "aggregate_summary.json"
+DEFAULT_REPORT_FILE = PROJECT_ROOT / "outputs" / "incident_report.md"
 
 try:
     import local_settings as _local_settings
@@ -870,3 +877,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

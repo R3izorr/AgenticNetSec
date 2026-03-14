@@ -1,16 +1,26 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
 from pathlib import Path
 import shlex
 import subprocess
+import sys
 from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
+SRC_DIR = PROJECT_ROOT / "backend" / "src"
+CONFIG_DIR = PROJECT_ROOT / "backend" / "config"
+
+for module_path in (SRC_DIR, CONFIG_DIR):
+    module_path_str = str(module_path)
+    if module_path_str not in sys.path:
+        sys.path.insert(0, module_path_str)
 
 from summarize_results import load_results
 
-
-DEFAULT_RESULTS_FILE = Path("/home/kuri/4063_project/pcap_ai_analyzer/scan_results.jsonl")
+DEFAULT_RESULTS_FILE = PROJECT_ROOT / "outputs" / "scan_results.jsonl"
 
 
 def _quote(value: str) -> str:
@@ -346,3 +356,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

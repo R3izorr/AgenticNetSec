@@ -1,10 +1,21 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 from collections import Counter
 import json
 from pathlib import Path
+import sys
 from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
+SRC_DIR = PROJECT_ROOT / "backend" / "src"
+CONFIG_DIR = PROJECT_ROOT / "backend" / "config"
+
+for module_path in (SRC_DIR, CONFIG_DIR):
+    module_path_str = str(module_path)
+    if module_path_str not in sys.path:
+        sys.path.insert(0, module_path_str)
 
 from flow_analysis import build_attack_flow
 from report_ai import generate_results_report
@@ -167,3 +178,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
