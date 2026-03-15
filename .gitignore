@@ -17,3 +17,5 @@ Thumbs.db
 # Runtime artifacts
 outputs/uploads/
 outputs/analysis_jobs/
+
+backend/venv/
