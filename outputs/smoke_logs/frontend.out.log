@@ -1,0 +1,18 @@
+
+> frontend@0.1.0 dev
+> next dev --port 3000
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.86.26:3000
+
+✓ Starting...
+Creating turbopack project { dir: 'D:\\Github Projects\\AgenticNetSec\\frontend', testMode: true }
+✓ Ready in 476ms
+ GET / 200 in 435ms (compile: 339ms, render: 96ms)
+ GET / 200 in 22ms (compile: 2ms, render: 20ms)
+ GET /analysis/new 200 in 43ms (compile: 24ms, render: 19ms)
+ GET /analysis/analysis_53748274c674 200 in 248ms (compile: 228ms, render: 20ms)
+ GET /analysis/analysis_53748274c674/report 200 in 420ms (compile: 399ms, render: 21ms)
+ GET /analysis/analysis_53748274c674/raw 200 in 359ms (compile: 334ms, render: 24ms)
+ GET /analysis/analysis_nonexistent_123456 200 in 21ms (compile: 5ms, render: 16ms)

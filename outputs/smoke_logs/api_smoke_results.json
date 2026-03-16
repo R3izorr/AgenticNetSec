@@ -1,0 +1,151 @@
+{
+  "timestamp": "2026-03-17 02:14:20",
+  "inputs": {
+    "benign": "D:\\Github Projects\\AgenticNetSec\\outputs\\smoke_inputs\\benign_small.pcap",
+    "attack": "D:\\Github Projects\\AgenticNetSec\\outputs\\smoke_inputs\\suspicious_scan_small.pcap",
+    "corrupt": "D:\\Github Projects\\AgenticNetSec\\outputs\\smoke_inputs\\corrupt_input.pcap"
+  },
+  "cases": {
+    "benign_file": {
+      "submit_status": 200,
+      "submit_body": {
+        "analysis_job_id": "analysis_53748274c674",
+        "status": "queued",
+        "current_phase": "queued",
+        "progress": 0.0
+      },
+      "job_id": "analysis_53748274c674",
+      "race_report_status": 200,
+      "final": {
+        "analysis_job_id": "analysis_53748274c674",
+        "status": "completed",
+        "current_phase": "completed",
+        "progress": 1.0,
+        "guardrail_state": "Yes",
+        "error": null
+      },
+      "timeline_len": 1,
+      "artifacts": {
+        "report_json": {
+          "status_code": 200,
+          "has_observation": true,
+          "has_inference": true,
+          "has_recommendation": true,
+          "has_guardrail_block": true
+        },
+        "report_md": {
+          "status_code": 200
+        },
+        "metrics": {
+          "status_code": 200,
+          "has_runtime": true,
+          "has_phase_timings": true
+        }
+      }
+    },
+    "attack_path": {
+      "submit_status": 200,
+      "submit_body": {
+        "analysis_job_id": "analysis_c24c2a433310",
+        "status": "queued",
+        "current_phase": "queued",
+        "progress": 0.0
+      },
+      "job_id": "analysis_c24c2a433310",
+      "race_metrics_status": 409,
+      "final": {
+        "analysis_job_id": "analysis_c24c2a433310",
+        "status": "completed",
+        "current_phase": "completed",
+        "progress": 1.0,
+        "guardrail_state": "Yes",
+        "error": null
+      },
+      "timeline_len": 1,
+      "artifacts": {
+        "report_json": {
+          "status_code": 200,
+          "has_observation": true,
+          "has_inference": true,
+          "has_recommendation": true,
+          "has_guardrail_block": true
+        },
+        "report_md": {
+          "status_code": 200
+        },
+        "metrics": {
+          "status_code": 200,
+          "has_runtime": true,
+          "has_phase_timings": true
+        }
+      }
+    },
+    "failure_invalid_path": {
+      "submit_status": 200,
+      "submit_body": {
+        "analysis_job_id": "analysis_727c99ee2bf0",
+        "status": "queued",
+        "current_phase": "queued",
+        "progress": 0.0
+      },
+      "job_id": "analysis_727c99ee2bf0",
+      "final": {
+        "analysis_job_id": "analysis_727c99ee2bf0",
+        "status": "failed",
+        "current_phase": "failed",
+        "progress": 1.0,
+        "guardrail_state": "error",
+        "error": "PCAP path not found: D:\\Github Projects\\AgenticNetSec\\outputs\\smoke_inputs\\does_not_exist.pcap"
+      },
+      "timeline_len": 1,
+      "post_fail_artifacts": {
+        "report_json_status": 409,
+        "report_md_status": 409,
+        "metrics_status": 409
+      }
+    },
+    "failure_corrupt_file": {
+      "submit_status": 200,
+      "submit_body": {
+        "analysis_job_id": "analysis_8b61aa014440",
+        "status": "queued",
+        "current_phase": "queued",
+        "progress": 0.0
+      },
+      "job_id": "analysis_8b61aa014440",
+      "final": {
+        "analysis_job_id": "analysis_8b61aa014440",
+        "status": "failed",
+        "current_phase": "failed",
+        "progress": 1.0,
+        "guardrail_state": "error",
+        "error": "Not a supported capture file"
+      },
+      "timeline_len": 1
+    }
+  },
+  "api_errors": {
+    "400_no_input": {
+      "status_code": 400,
+      "body": "{\"detail\":\"Provide either 'file' upload or 'pcap_path'.\"}"
+    },
+    "404_invalid_job": {
+      "status_code": 404,
+      "body": "{\"detail\":\"Job not found\"}"
+    },
+    "network_simulation": {
+      "raised": true,
+      "error_type": "ConnectTimeout"
+    }
+  },
+  "summary": {
+    "benign_completed": true,
+    "attack_completed": true,
+    "invalid_path_failed": true,
+    "corrupt_failed": true,
+    "race_409_seen": true,
+    "400_seen": true,
+    "404_seen": true,
+    "network_error_simulated": true
+  }
+}

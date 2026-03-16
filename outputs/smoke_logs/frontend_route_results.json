@@ -1,0 +1,32 @@
+[
+    {
+        "path":  "/",
+        "status_code":  200,
+        "content_length":  51441
+    },
+    {
+        "path":  "/analysis/new",
+        "status_code":  200,
+        "content_length":  26084
+    },
+    {
+        "path":  "/analysis/analysis_53748274c674",
+        "status_code":  200,
+        "content_length":  23419
+    },
+    {
+        "path":  "/analysis/analysis_53748274c674/report",
+        "status_code":  200,
+        "content_length":  24359
+    },
+    {
+        "path":  "/analysis/analysis_53748274c674/raw",
+        "status_code":  200,
+        "content_length":  27193
+    },
+    {
+        "path":  "/analysis/analysis_nonexistent_123456",
+        "status_code":  200,
+        "content_length":  23664
+    }
+]
