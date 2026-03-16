@@ -1,59 +1,21 @@
-﻿import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import "./globals.css"
+import { Geist } from "next/font/google"
+import { AppShell } from "@/components/layout/app-shell"
+import { ToastProvider } from "@/components/ui/toast"
+import { cn } from "@/lib/utils"
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-  title: "AgenticNetSec Console",
-  description: "Network forensic dashboard shell for AgenticNetSec",
-};
-
-const navItems = ["Overview", "Findings", "Timeline", "Playbooks"];
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}
-      >
-        <div className="relative min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_right,var(--color-ink-soft),transparent_48%),linear-gradient(155deg,var(--color-bg),var(--color-bg-alt))] text-[var(--color-text)]">
-          <header className="border-b border-[var(--color-border)]/70 backdrop-blur">
-            <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5">
-              <div>
-                <p className="font-mono text-xs uppercase tracking-[0.28em] text-[var(--color-accent)]">
-                  AgenticNetSec
-                </p>
-                <h1 className="mt-2 text-xl font-semibold">Forensic Operations Console</h1>
-              </div>
-              <nav className="hidden gap-2 md:flex" aria-label="Primary navigation">
-                {navItems.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-sm text-[var(--color-text-muted)] transition hover:text-[var(--color-text)]"
-                  >
-                    {item}
-                  </button>
-                ))}
-              </nav>
-            </div>
-          </header>
-          <main className="mx-auto w-full max-w-6xl px-6 py-8">{children}</main>
-        </div>
+    <html lang="en" className={cn("dark font-sans", geist.variable)}>
+      <body className="min-h-screen bg-background text-foreground antialiased">
+        <ToastProvider>
+          <AppShell>{children}</AppShell>
+        </ToastProvider>
       </body>
     </html>
-  );
+  )
 }

@@ -1,50 +1,67 @@
-﻿# Frontend (Next.js + React + Tailwind)
+# Frontend (AgenticNetSec v1)
 
-This frontend is scaffolded with Next.js App Router, TypeScript, React, and Tailwind CSS.
+Next.js App Router frontend aligned to the current backend async REST contract.
 
 ## Stack
 
-- Next.js 16 (App Router)
+- Next.js 16
 - React 19
 - TypeScript
 - Tailwind CSS 4
-- ESLint
+- shadcn/ui primitives
 
-## Setup
+## Run
 
 From repository root:
 
 ```bash
 cd frontend
 npm install
-```
-
-## Run
-
-```bash
 npm run dev
 ```
 
 Open `http://localhost:3000`.
 
-## Build and Lint
+## Build Checks
 
 ```bash
 npm run lint
 npm run build
-npm run start
 ```
 
 ## Environment Variables
 
-Copy values from `.env.example` into your local `.env.local` if needed:
+- `NEXT_PUBLIC_API_BASE_URL` (default in code: `http://localhost:8000`)
 
-- `NEXT_PUBLIC_API_BASE_URL`
-- `NEXT_PUBLIC_WS_URL`
+Create `.env.local` from `.env.example` when needed.
 
-## Structure
+## Routes (v1 scope)
 
-- `app/layout.tsx`: shell layout and top navigation
-- `app/page.tsx`: starter dashboard view
-- `app/globals.css`: global styles and theme tokens
-- `public/`: static assets
+- `/` overview/landing
+- `/analysis/new` submit PCAP file or `pcap_path`
+- `/analysis/[jobId]` async status + polling
+- `/analysis/[jobId]/report` analyst-facing structured report
+- `/analysis/[jobId]/raw` raw artifacts (`report.json`, `report.md`, metrics)
+
+## API Contract Assumptions
+
+Only these backend endpoints are used:
+
+- `POST /api/v1/analysis`
+- `GET /api/v1/analysis/{job_id}`
+- `GET /api/v1/analysis/{job_id}/report.json`
+- `GET /api/v1/analysis/{job_id}/report.md`
+- `GET /api/v1/analysis/{job_id}/metrics`
+
+### Behavior notes
+
+- `analysis_job_id` is treated as canonical identifier.
+- Artifact `409` means "not ready yet" and is handled as a retryable UI state.
+- `404` and failed job states are surfaced as explicit error states.
+- Polling interval for job status is 3 seconds while status is `queued` or `running`.
+
+## Deferred (Phase 2)
+
+- Dashboard aggregate analytics
+- Server-backed job history listing
+- Settings page for runtime configuration
