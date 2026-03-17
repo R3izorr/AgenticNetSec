@@ -44,13 +44,25 @@ class MetricsTracker:
 
 
 def estimate_cost(
+    runtime_seconds: float,
     llm_tokens_in: int,
     llm_tokens_out: int,
+    artifact_bytes_total: int = 0,
     price_in_per_million: float = 0.50,
     price_out_per_million: float = 1.50,
-    compute_cost: float = 0.0,
-    storage_cost: float = 0.0,
-) -> tuple[float, float, float, float]:
+    compute_price_per_runtime_second: float = 0.0002,
+    storage_price_per_gb_month: float = 0.023,
+) -> tuple[float, float, float, float, dict[str, float]]:
+    compute_cost = runtime_seconds * compute_price_per_runtime_second
     llm_cost = (llm_tokens_in / 1_000_000) * price_in_per_million + (llm_tokens_out / 1_000_000) * price_out_per_million
+    storage_gb = artifact_bytes_total / (1024 * 1024 * 1024)
+    storage_cost = storage_gb * storage_price_per_gb_month / 30
     total = compute_cost + llm_cost + storage_cost
-    return compute_cost, llm_cost, storage_cost, total
+    assumptions = {
+        "price_in_per_million": price_in_per_million,
+        "price_out_per_million": price_out_per_million,
+        "compute_price_per_runtime_second": compute_price_per_runtime_second,
+        "storage_price_per_gb_month": storage_price_per_gb_month,
+        "artifact_bytes_total": artifact_bytes_total,
+    }
+    return compute_cost, llm_cost, storage_cost, total, assumptions

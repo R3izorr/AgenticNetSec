@@ -2,6 +2,8 @@
 
 Backend-first forensic analyzer with a Next.js frontend shell.
 
+The agent is read-only by design: it analyzes PCAP evidence and writes report artifacts only. It does not execute containment actions or mutate analyst environments.
+
 ## Structure
 
 - `backend/src/`: analysis, guardrails, planner, schema, observability
@@ -41,7 +43,15 @@ Run REST API service:
 - `GET /api/v1/analysis/{job_id}/report.json`
 - `GET /api/v1/analysis/{job_id}/report.md`
 - `GET /api/v1/analysis/{job_id}/metrics`
+- `GET /api/v1/analysis/{job_id}/guardrail-audit`
 
 ## Output Location
 
 Generated outputs are stored in `outputs/`.
+
+## Demo-Ready Additions
+
+- Evidence-backed findings now include MITRE ATT&CK mappings, evidence reference IDs, sampled frame numbers, and Wireshark filters.
+- Guardrail decisions now emit `guardrail_audit.json` with consistency checks, contradictions, and explicit read-only mode.
+- Runtime metrics now capture provider/model, fallback state, artifact sizes, and token-aware LLM cost when provider metadata is available.
+- Benchmark planning material lives in `docs/BenchmarkManifest.json`, and `backend/scripts/run_benchmark.py` can generate demo-friendly benchmark summaries.

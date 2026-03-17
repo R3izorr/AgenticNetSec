@@ -1,0 +1,24 @@
+[
+  {
+    "name": "Suspicious Scan Small",
+    "pcap_path": "outputs/smoke_inputs/suspicious_scan_small.pcap",
+    "size_bucket": "small",
+    "expected_behaviors": ["lateral_movement"],
+    "notes": "Smoke-test suspicious sample used for detector sanity checks."
+  },
+  {
+    "name": "Benign Small",
+    "pcap_path": "outputs/smoke_inputs/benign_small.pcap",
+    "size_bucket": "medium",
+    "expected_behaviors": [],
+    "notes": "Benign baseline sample for low-noise comparison."
+  },
+  {
+    "name": "Corrupt Input",
+    "pcap_path": "outputs/smoke_inputs/corrupt_input.pcap",
+    "size_bucket": "large",
+    "expected_behaviors": [],
+    "expect_failure": true,
+    "notes": "Validation/error-handling sample to demonstrate guardrails."
+  }
+]

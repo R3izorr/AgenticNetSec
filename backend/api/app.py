@@ -53,6 +53,7 @@ async def _run_job(job_id: str, req: AnalysisRequest) -> None:
         job_store.save_artifact(job_id, "report.json", artifacts.report_json)
         job_store.save_artifact(job_id, "report.md", artifacts.report_markdown)
         job_store.save_artifact(job_id, "metrics.json", artifacts.metrics)
+        job_store.save_artifact(job_id, "guardrail_audit.json", artifacts.guardrail_audit)
 
         guardrail_state = (
             artifacts.report_json.get("guardrail_verification", {}).get("human_review_required", "No")
@@ -167,4 +168,14 @@ async def get_metrics(job_id: str):
     if job.status != "completed":
         raise HTTPException(status_code=409, detail=f"Job is {job.status}")
     return job_store.read_json_artifact(job_id, "metrics.json")
+
+
+@app.get("/api/v1/analysis/{job_id}/guardrail-audit")
+async def get_guardrail_audit(job_id: str):
+    job = job_store.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status != "completed":
+        raise HTTPException(status_code=409, detail=f"Job is {job.status}")
+    return job_store.read_json_artifact(job_id, "guardrail_audit.json")
 

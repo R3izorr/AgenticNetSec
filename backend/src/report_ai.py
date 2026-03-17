@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 from collections import Counter
+from dataclasses import dataclass
 import json
 import os
 import sys
@@ -46,6 +47,16 @@ SYSTEM_PROMPT = dedent(
     5. Confidence / Gaps
     """
 ).strip()
+
+
+@dataclass
+class ReportGenerationResult:
+    text: str
+    provider: str
+    model: str
+    llm_tokens_in: int = 0
+    llm_tokens_out: int = 0
+    fallback_used: bool = False
 
 
 def build_prompt(summary: dict[str, Any], findings: dict[str, Any]) -> str:
@@ -385,7 +396,65 @@ def _fallback_results_report(aggregate: dict[str, Any], records: list[dict[str, 
     ).strip()
 
 
-def _generate_with_openai(prompt: str, model: str | None) -> str | None:
+def _safe_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _read_value(source: Any, *keys: str) -> Any:
+    current = source
+    for key in keys:
+        if current is None:
+            return None
+        if isinstance(current, dict):
+            current = current.get(key)
+        else:
+            current = getattr(current, key, None)
+    return current
+
+
+def _extract_usage_tokens(payload: Any) -> tuple[int, int]:
+    prompt_tokens = (
+        _read_value(payload, "usage", "input_tokens")
+        or _read_value(payload, "usage", "prompt_tokens")
+        or _read_value(payload, "usage_metadata", "prompt_token_count")
+        or _read_value(payload, "usage_metadata", "input_tokens")
+        or _read_value(payload, "prompt_eval_count")
+        or _read_value(payload, "prompt_tokens")
+    )
+    completion_tokens = (
+        _read_value(payload, "usage", "output_tokens")
+        or _read_value(payload, "usage", "completion_tokens")
+        or _read_value(payload, "usage_metadata", "candidates_token_count")
+        or _read_value(payload, "usage_metadata", "output_tokens")
+        or _read_value(payload, "eval_count")
+        or _read_value(payload, "completion_tokens")
+    )
+    return _safe_int(prompt_tokens), _safe_int(completion_tokens)
+
+
+def _result_from_text(
+    *,
+    text: str,
+    provider: str,
+    model: str,
+    usage_payload: Any | None = None,
+    fallback_used: bool = False,
+) -> ReportGenerationResult:
+    llm_tokens_in, llm_tokens_out = _extract_usage_tokens(usage_payload)
+    return ReportGenerationResult(
+        text=text.strip(),
+        provider=provider,
+        model=model,
+        llm_tokens_in=llm_tokens_in,
+        llm_tokens_out=llm_tokens_out,
+        fallback_used=fallback_used,
+    )
+
+
+def _generate_with_openai(prompt: str, model: str | None) -> ReportGenerationResult | None:
     api_key = _get_secret("OPENAI_API_KEY")
     if not api_key:
         print(
@@ -407,14 +476,19 @@ def _generate_with_openai(prompt: str, model: str | None) -> str | None:
         )
         if response.output_text:
             print(f"OpenAI request succeeded using model {selected_model}.", file=sys.stderr)
-            return response.output_text.strip()
+            return _result_from_text(
+                text=response.output_text,
+                provider="openai",
+                model=selected_model,
+                usage_payload=response,
+            )
     except Exception as exc:
         print(f"OpenAI request failed: {exc}. Using fallback report.", file=sys.stderr)
         return None
     return None
 
 
-def _generate_with_groq(prompt: str, model: str | None) -> str | None:
+def _generate_with_groq(prompt: str, model: str | None) -> ReportGenerationResult | None:
     api_key = _get_secret("GROQ_API_KEY")
     if not api_key:
         print(
@@ -436,7 +510,12 @@ def _generate_with_groq(prompt: str, model: str | None) -> str | None:
         )
         if response.output_text:
             print(f"Groq request succeeded using model {selected_model}.", file=sys.stderr)
-            return response.output_text.strip()
+            return _result_from_text(
+                text=response.output_text,
+                provider="groq",
+                model=selected_model,
+                usage_payload=response,
+            )
     except Exception as exc:
         print(f"Groq request failed: {exc}. Using fallback report.", file=sys.stderr)
         return None
@@ -527,7 +606,7 @@ def _get_gemini_api_key_source() -> str | None:
     return None
 
 
-def _generate_with_gemini(prompt: str, model: str | None) -> str | None:
+def _generate_with_gemini(prompt: str, model: str | None) -> ReportGenerationResult | None:
     api_key = _get_gemini_api_key()
     key_source = _get_gemini_api_key_source()
     if not api_key:
@@ -562,7 +641,12 @@ def _generate_with_gemini(prompt: str, model: str | None) -> str | None:
                                 f"Gemini request succeeded using {key_source} and model {candidate_model}.",
                                 file=sys.stderr,
                             )
-                        return text.strip()
+                        return _result_from_text(
+                            text=text,
+                            provider="gemini",
+                            model=candidate_model,
+                            usage_payload=response,
+                        )
                     print(
                         f"Gemini model {candidate_model} returned no text. Trying next option if available.",
                         file=sys.stderr,
@@ -609,7 +693,7 @@ def _get_ollama_base_url() -> str:
     return str(_get_setting("OLLAMA_BASE_URL", "http://127.0.0.1:11434")).rstrip("/")
 
 
-def _generate_with_ollama(prompt: str, model: str | None) -> str | None:
+def _generate_with_ollama(prompt: str, model: str | None) -> ReportGenerationResult | None:
     base_url = _get_ollama_base_url()
     model_candidates = _get_ollama_model_candidates(model)
     timeout_seconds = max(30.0, _get_setting_float("OLLAMA_TIMEOUT_SECONDS", 300.0))
@@ -644,7 +728,12 @@ def _generate_with_ollama(prompt: str, model: str | None) -> str | None:
                     f"Ollama request succeeded using model {candidate_model} at {base_url}.",
                     file=sys.stderr,
                 )
-                return text.strip()
+                return _result_from_text(
+                    text=text,
+                    provider="ollama",
+                    model=candidate_model,
+                    usage_payload=payload,
+                )
             print(
                 f"Ollama model {candidate_model} returned no text. Trying next option if available.",
                 file=sys.stderr,
@@ -670,6 +759,43 @@ def _generate_with_ollama(prompt: str, model: str | None) -> str | None:
     return None
 
 
+def generate_report_result(
+    summary: dict[str, Any],
+    findings: dict[str, Any],
+    *,
+    provider: str = "gemini",
+    model: str | None = None,
+    use_ai: bool = True,
+    require_ai: bool = False,
+) -> ReportGenerationResult:
+    prompt = build_prompt(summary, findings)
+    if use_ai:
+        if provider == "gemini":
+            result = _generate_with_gemini(prompt, model)
+            if result:
+                return result
+        elif provider == "groq":
+            result = _generate_with_groq(prompt, model)
+            if result:
+                return result
+        elif provider == "ollama":
+            result = _generate_with_ollama(prompt, model)
+            if result:
+                return result
+        elif provider == "openai":
+            result = _generate_with_openai(prompt, model)
+            if result:
+                return result
+        if require_ai:
+            raise RuntimeError(f"{provider} report generation failed")
+    return _result_from_text(
+        text=_fallback_report(summary, findings),
+        provider=provider,
+        model=str(model or _get_setting("REPORT_MODEL", "fallback")),
+        fallback_used=True,
+    )
+
+
 def generate_report(
     summary: dict[str, Any],
     findings: dict[str, Any],
@@ -679,27 +805,14 @@ def generate_report(
     use_ai: bool = True,
     require_ai: bool = False,
 ) -> str:
-    prompt = build_prompt(summary, findings)
-    if use_ai:
-        if provider == "gemini":
-            text = _generate_with_gemini(prompt, model)
-            if text:
-                return text
-        elif provider == "groq":
-            text = _generate_with_groq(prompt, model)
-            if text:
-                return text
-        elif provider == "ollama":
-            text = _generate_with_ollama(prompt, model)
-            if text:
-                return text
-        elif provider == "openai":
-            text = _generate_with_openai(prompt, model)
-            if text:
-                return text
-        if require_ai:
-            raise RuntimeError(f"{provider} report generation failed")
-    return _fallback_report(summary, findings)
+    return generate_report_result(
+        summary,
+        findings,
+        provider=provider,
+        model=model,
+        use_ai=use_ai,
+        require_ai=require_ai,
+    ).text
 
 
 def generate_results_report(
@@ -714,21 +827,21 @@ def generate_results_report(
     prompt = build_results_prompt(aggregate, records, compact=(provider in {"groq", "ollama"}))
     if use_ai:
         if provider == "gemini":
-            text = _generate_with_gemini(prompt, model)
-            if text:
-                return text
+            result = _generate_with_gemini(prompt, model)
+            if result:
+                return result.text
         elif provider == "groq":
-            text = _generate_with_groq(prompt, model)
-            if text:
-                return text
+            result = _generate_with_groq(prompt, model)
+            if result:
+                return result.text
         elif provider == "ollama":
-            text = _generate_with_ollama(prompt, model)
-            if text:
-                return text
+            result = _generate_with_ollama(prompt, model)
+            if result:
+                return result.text
         elif provider == "openai":
-            text = _generate_with_openai(prompt, model)
-            if text:
-                return text
+            result = _generate_with_openai(prompt, model)
+            if result:
+                return result.text
         if require_ai:
             raise RuntimeError(f"{provider} report generation failed")
     return _fallback_results_report(aggregate, records)

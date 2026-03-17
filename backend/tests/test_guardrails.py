@@ -23,6 +23,29 @@ class TestGuardrails(unittest.TestCase):
         result = guardrails.apply_policy(confidence_score=0.9, tool_validation="pass")
         self.assertEqual(result.human_review_required, "No")
 
+    def test_policy_requires_human_review_when_contradictions_exist(self) -> None:
+        guardrails = Guardrails()
+        result = guardrails.apply_policy(
+            confidence_score=0.9,
+            tool_validation="pass",
+            contradictions=["markdown_claim_without_structured_match:exfiltration"],
+        )
+        self.assertEqual(result.human_review_required, "Yes")
+
+    def test_consistency_check_fails_when_markdown_claim_lacks_structured_support(self) -> None:
+        guardrails = Guardrails()
+        claim_checks, contradictions = guardrails.evaluate_consistency(
+            attack_type="unknown",
+            primary_finding="No single attack path reached a high-confidence autonomous conclusion.",
+            inference="Likely attack class: unknown with risk level low.",
+            markdown_report="## Exfiltration\nEvidence supports exfiltration.",
+            evidence_refs=[],
+            patient_zero_candidate=None,
+            has_lateral_evidence=False,
+        )
+        self.assertTrue(claim_checks)
+        self.assertIn("markdown_claim_without_structured_match:exfiltration", contradictions)
+
 
 if __name__ == "__main__":
     unittest.main()

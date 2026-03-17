@@ -9,11 +9,11 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/common/page-s
 import { KeyValueGrid } from "@/components/common/key-value-grid"
 import { SectionCard } from "@/components/common/section-card"
 import { useArtifact } from "@/hooks/use-artifact"
-import { getMetrics, getReportJson, getReportMarkdown } from "@/lib/api/analysis"
-import { adaptRunMetrics } from "@/lib/adapters/analysis"
+import { getGuardrailAudit, getMetrics, getReportJson, getReportMarkdown } from "@/lib/api/analysis"
+import { adaptGuardrailAudit, adaptRunMetrics } from "@/lib/adapters/analysis"
 import { formatNumber, titleCase } from "@/lib/format"
 
-type RawTab = "report" | "markdown" | "metrics"
+type RawTab = "report" | "markdown" | "metrics" | "guardrails"
 
 export default function AnalysisRawPage() {
   const params = useParams<{ jobId: string }>()
@@ -37,6 +37,14 @@ export default function AnalysisRawPage() {
     useCallback(async () => {
       const payload = await getMetrics(jobId)
       return adaptRunMetrics(payload)
+    }, [jobId]),
+    [jobId]
+  )
+
+  const guardrailAuditState = useArtifact(
+    useCallback(async () => {
+      const payload = await getGuardrailAudit(jobId)
+      return adaptGuardrailAudit(payload)
     }, [jobId]),
     [jobId]
   )
@@ -149,6 +157,9 @@ export default function AnalysisRawPage() {
             items={[
               { label: "Status", value: metrics.status },
               { label: "Runtime (s)", value: formatNumber(metrics.runtimeSecondsTotal, 3) },
+              { label: "Provider", value: metrics.provider },
+              { label: "Model", value: metrics.model },
+              { label: "Fallback Used", value: metrics.fallbackUsed ? "Yes" : "No" },
               {
                 label: "CPU Peak (%)",
                 value: metrics.cpuPercentPeak === null ? "N/A" : formatNumber(metrics.cpuPercentPeak, 2),
@@ -168,6 +179,29 @@ export default function AnalysisRawPage() {
               },
             ]}
           />
+        </SectionCard>
+
+        <SectionCard title="Artifact Sizes">
+          <div className="space-y-2">
+            {Object.entries(metrics.artifactBytes).map(([name, value]) => (
+              <div
+                key={name}
+                className="flex items-center justify-between rounded-md border border-border bg-background/40 px-3 py-2 text-sm"
+              >
+                <span>{titleCase(name.replaceAll("_", " "))}</span>
+                <span>{formatNumber(value, 0)} bytes</span>
+              </div>
+            ))}
+            {!Object.keys(metrics.artifactBytes).length ? (
+              <p className="text-sm text-muted-foreground">No artifact size data available.</p>
+            ) : null}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Cost Assumptions">
+          <pre className="max-h-[30vh] overflow-auto rounded-lg border border-border bg-background/40 p-3 text-xs">
+            {JSON.stringify(metrics.costAssumptions, null, 2)}
+          </pre>
         </SectionCard>
 
         <SectionCard title="Phase Timings">
@@ -196,12 +230,70 @@ export default function AnalysisRawPage() {
     )
   }
 
+  function renderGuardrailAuditTab() {
+    if (guardrailAuditState.loading && !guardrailAuditState.data) {
+      return <LoadingState title="Loading guardrail audit" />
+    }
+    if (guardrailAuditState.notReady && !guardrailAuditState.data) {
+      return (
+        <EmptyState
+          title="guardrail audit not ready"
+          description="The job may still be running. Retry after a few seconds."
+        />
+      )
+    }
+    if (!guardrailAuditState.data && guardrailAuditState.error) {
+      return (
+        <ErrorState
+          title="Unable to load guardrail audit"
+          description={guardrailAuditState.error}
+          onRetry={() => void guardrailAuditState.reload()}
+        />
+      )
+    }
+    if (!guardrailAuditState.data) {
+      return <EmptyState title="No guardrail audit data" />
+    }
+
+    const audit = guardrailAuditState.data
+    const auditJson = JSON.stringify(audit, null, 2)
+
+    return (
+      <div className="space-y-4">
+        <SectionCard title="Guardrail Audit" actions={<CopyButton value={auditJson} label="Copy Audit" />}>
+          <KeyValueGrid
+            items={[
+              { label: "Human Review Required", value: audit.humanReviewRequired },
+              { label: "Read Only Mode", value: audit.readOnlyMode ? "Yes" : "No" },
+              { label: "Contradictions", value: audit.contradictions.length ? audit.contradictions.join(", ") : "None" },
+            ]}
+          />
+        </SectionCard>
+
+        <SectionCard title="Claim Checks">
+          <pre className="max-h-[40vh] overflow-auto rounded-lg border border-border bg-background/40 p-3 text-xs">
+            {JSON.stringify(audit.claimChecks, null, 2)}
+          </pre>
+        </SectionCard>
+
+        <SectionCard title="Raw guardrail audit JSON">
+          <pre className="max-h-[60vh] overflow-auto rounded-lg border border-border bg-background/40 p-3 text-xs">
+            {auditJson}
+          </pre>
+        </SectionCard>
+      </div>
+    )
+  }
+
   function renderBody() {
     if (tab === "report") {
       return renderReportTab()
     }
     if (tab === "markdown") {
       return renderMarkdownTab()
+    }
+    if (tab === "guardrails") {
+      return renderGuardrailAuditTab()
     }
     return renderMetricsTab()
   }
@@ -227,6 +319,7 @@ export default function AnalysisRawPage() {
             ["report", "report.json"],
             ["markdown", "report.md"],
             ["metrics", "metrics"],
+            ["guardrails", "guardrail_audit.json"],
           ] as const).map(([key, label]) => (
             <button
               key={key}

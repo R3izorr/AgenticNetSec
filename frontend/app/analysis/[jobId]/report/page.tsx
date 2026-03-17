@@ -19,6 +19,7 @@ const sectionLinks = [
   { id: "evidence", label: "Evidence" },
   { id: "timeline", label: "Timeline" },
   { id: "findings", label: "Findings" },
+  { id: "mitre", label: "MITRE" },
   { id: "impact", label: "Impact" },
   { id: "recommendations", label: "Recommendations" },
   { id: "guardrails", label: "Guardrails" },
@@ -167,6 +168,32 @@ export default function AnalysisReportPage() {
               <BulletList items={report.findings.alternativeHypotheses} />
             </div>
           </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div>
+              <p className="mb-2 text-sm font-medium">Direct Evidence</p>
+              <BulletList items={report.findings.directEvidence} />
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-medium">Uncertainties</p>
+              <BulletList items={report.findings.uncertainties} />
+            </div>
+          </div>
+        </SectionCard>
+      </section>
+
+      <section id="mitre">
+        <SectionCard title="MITRE ATT&CK Mapping">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <p className="mb-2 text-sm font-medium">Mapped Techniques</p>
+              <BulletList items={report.findings.mitreTechniques} />
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-medium">Evidence Reference IDs</p>
+              <BulletList items={report.findings.evidenceRefIds} />
+            </div>
+          </div>
         </SectionCard>
       </section>
 
@@ -221,6 +248,28 @@ export default function AnalysisReportPage() {
           />
         </SectionCard>
       </section>
+
+      <SectionCard title="Evidence References">
+        <div className="space-y-3">
+          {report.evidence.evidenceRefs.map((ref) => (
+            <div key={ref.refId} className="rounded-lg border border-border bg-background/40 p-3 text-sm">
+              <p className="font-medium">{ref.refId} · {ref.detector} · {ref.claim}</p>
+              <p className="mt-2">{ref.summary}</p>
+              <p className="mt-2 text-muted-foreground">Source: {ref.sourceFile}</p>
+              <p className="mt-1 text-muted-foreground">Flow: {ref.flow || "N/A"}</p>
+              <p className="mt-1 text-muted-foreground">
+                Frames: {ref.frameNumbers.length ? ref.frameNumbers.join(", ") : "No sampled frames"}
+              </p>
+              <p className="mt-1 break-all text-muted-foreground">
+                Filter: <code>{ref.wiresharkFilter || "N/A"}</code>
+              </p>
+            </div>
+          ))}
+          {!report.evidence.evidenceRefs.length ? (
+            <p className="text-sm text-muted-foreground">No evidence references available.</p>
+          ) : null}
+        </div>
+      </SectionCard>
     </div>
   )
 }

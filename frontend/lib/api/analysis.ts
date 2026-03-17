@@ -1,6 +1,7 @@
 import { apiRequest } from "@/lib/api/client"
 import type {
   ForensicReportTransport,
+  GuardrailAuditTransport,
   JobStatusResponseTransport,
   ReportMarkdownTransport,
   RunMetricsTransport,
@@ -58,4 +59,12 @@ export async function getReportMarkdown(jobId: string): Promise<ReportMarkdownTr
 
 export async function getMetrics(jobId: string): Promise<RunMetricsTransport> {
   return apiRequest<RunMetricsTransport>(`/api/v1/analysis/${jobId}/metrics`)
+}
+
+export async function getGuardrailAudit(
+  jobId: string
+): Promise<GuardrailAuditTransport> {
+  return apiRequest<GuardrailAuditTransport>(
+    `/api/v1/analysis/${jobId}/guardrail-audit`
+  )
 }
