@@ -22,6 +22,8 @@ python -m virtualenv .venv
 .\.venv\Scripts\python -m pip install -r requirements.txt
 ```
 
+For a full Windows-first setup, run, and verification walkthrough, see [README_RUN_TEST.md](d:/AgenticNetSec/README_RUN_TEST.md).
+
 ## Run
 
 CLI analysis:
