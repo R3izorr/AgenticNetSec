@@ -52,6 +52,10 @@ def _records_with_rdp(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [record for record in records if record.get("patient_zero_candidate")]
 
 
+def _records_with_external_scan(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [record for record in records if record.get("suspicious_external_port_scanners")]
+
+
 def _temp_sh_filter(record: dict[str, Any]) -> str:
     exfil_dsts = sorted(
         {
@@ -78,6 +82,21 @@ def _rdp_filter(record: dict[str, Any]) -> str:
     if not external_ip or not internal_ip:
         return "tcp.port == 3389"
     return f"ip.addr == {external_ip} and ip.addr == {internal_ip} and tcp.port == 3389"
+
+
+def _external_scan_filter(record: dict[str, Any]) -> str:
+    scanners = record.get("suspicious_external_port_scanners") or []
+    if not scanners:
+        return "tcp.flags.syn == 1 and tcp.flags.ack == 0"
+    scanner = scanners[0]
+    src_ip = scanner.get("src_ip")
+    top_target = (scanner.get("top_targets") or [{}])[0]
+    dst_ip = top_target.get("dst_ip")
+    if src_ip and dst_ip:
+        return f"ip.src == {src_ip} and ip.dst == {dst_ip} and tcp.flags.syn == 1 and tcp.flags.ack == 0"
+    if src_ip:
+        return f"ip.src == {src_ip} and tcp.flags.syn == 1 and tcp.flags.ack == 0"
+    return "tcp.flags.syn == 1 and tcp.flags.ack == 0"
 
 
 def _print_temp_sh(records: list[dict[str, Any]], *, limit: int, run_tshark: bool) -> None:
@@ -312,13 +331,93 @@ def _print_rdp(records: list[dict[str, Any]], *, limit: int, run_tshark: bool) -
         print()
 
 
+def _print_external_scan(records: list[dict[str, Any]], *, limit: int, run_tshark: bool) -> None:
+    print("How external reconnaissance is inferred")
+    print("- source is treated as external and target as internal")
+    print("- repeated SYN-only attempts span many destination ports and/or targets")
+    print("- this is reconnaissance, not a proven compromise by itself")
+    print()
+
+    matches = sorted(
+        _records_with_external_scan(records),
+        key=lambda item: (
+            len(item.get("suspicious_external_port_scanners", [])),
+            max(
+                (
+                    source.get("unique_ports", 0)
+                    for source in (item.get("suspicious_external_port_scanners") or [])
+                ),
+                default=0,
+            ),
+        ),
+        reverse=True,
+    )[:limit]
+
+    if not matches:
+        print("No external reconnaissance records were found in the current results file.")
+        return
+
+    for record in matches:
+        file_name = record.get("file", "unknown")
+        pcap_path = record.get("path", "")
+        print(f"FILE {file_name}")
+        print(f"path: {pcap_path}")
+        for source in (record.get("suspicious_external_port_scanners") or [])[:3]:
+            top_target = (source.get("top_targets") or [{}])[0]
+            print(
+                f"- external scan {source.get('src_ip')} -> {top_target.get('dst_ip')} "
+                f"ports={source.get('unique_ports')} targets={source.get('unique_targets')} "
+                f"syn_ratio={source.get('syn_only_ratio')} severity={source.get('severity')}"
+            )
+
+        tshark_filter = _external_scan_filter(record)
+        tshark_cmd = (
+            f"tshark -r {_quote(pcap_path)} -Y {_quote(tshark_filter)} "
+            "-T fields -e frame.number -e frame.time_epoch -e ip.src -e ip.dst "
+            "-e tcp.srcport -e tcp.dstport -e tcp.flags"
+        )
+        print("tshark command:")
+        print(tshark_cmd)
+        print("Wireshark display filter:")
+        print(tshark_filter)
+        if run_tshark and pcap_path:
+            print("tshark preview:")
+            preview = _run_tshark(
+                [
+                    "tshark",
+                    "-r",
+                    pcap_path,
+                    "-Y",
+                    tshark_filter,
+                    "-T",
+                    "fields",
+                    "-e",
+                    "frame.number",
+                    "-e",
+                    "frame.time_epoch",
+                    "-e",
+                    "ip.src",
+                    "-e",
+                    "ip.dst",
+                    "-e",
+                    "tcp.srcport",
+                    "-e",
+                    "tcp.dstport",
+                    "-e",
+                    "tcp.flags",
+                ]
+            )
+            print(preview[:4000])
+        print()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Verify temp.sh and attacker-like inbound RDP findings from the current results file."
+        description="Verify external scan, temp.sh, and attacker-like inbound RDP findings from the current results file."
     )
     parser.add_argument(
         "mode",
-        choices=["temp-sh", "rdp"],
+        choices=["temp-sh", "rdp", "external-scan"],
         help="Which finding family to verify",
     )
     parser.add_argument(
@@ -349,6 +448,8 @@ def main() -> int:
 
     if args.mode == "temp-sh":
         _print_temp_sh(records, limit=max(1, args.limit), run_tshark=args.run_tshark)
+    elif args.mode == "external-scan":
+        _print_external_scan(records, limit=max(1, args.limit), run_tshark=args.run_tshark)
     else:
         _print_rdp(records, limit=max(1, args.limit), run_tshark=args.run_tshark)
     return 0

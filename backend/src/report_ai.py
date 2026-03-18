@@ -83,6 +83,7 @@ def build_results_prompt(
         records,
         key=lambda item: (
             (item.get("patient_zero_candidate") or {}).get("confidence_score", 0),
+            len(item.get("suspicious_external_port_scanners", [])),
             item.get("suspicious_external_rdp_count", 0),
             len(item.get("temp_sh_hits", [])),
             len(item.get("possible_outbound_exfil_flows", [])),
@@ -109,6 +110,15 @@ def build_results_prompt(
             "packet_count": item.get("packet_count"),
             "patient_zero_candidate": compact_patient_zero(item.get("patient_zero_candidate")),
             "suspicious_external_rdp_count": item.get("suspicious_external_rdp_count", 0),
+            "external_port_scans": [
+                {
+                    "src_ip": source.get("src_ip"),
+                    "unique_targets": source.get("unique_targets"),
+                    "unique_ports": source.get("unique_ports"),
+                    "syn_only_ratio": source.get("syn_only_ratio"),
+                }
+                for source in item.get("suspicious_external_port_scanners", [])[:2]
+            ],
             "suspicious_vpn_count": item.get("suspicious_vpn_count", 0),
             "smb_rpc_scanners": [
                 {
@@ -182,6 +192,7 @@ def build_results_prompt(
 
     category_examples = {
         "patient_zero_candidates": [compact_record(item) for item in top_records[: (3 if compact else 6)]],
+        "external_port_scan_records": [compact_record(item) for item in records if item.get("suspicious_external_port_scanners")][: (3 if compact else 5)],
         "smb_rpc_scan_records": [compact_record(item) for item in records if item.get("suspicious_smb_rpc_scanners")][: (3 if compact else 6)],
         "dcerpc_account_records": [compact_record(item) for item in records if item.get("possible_dcerpc_account_changes")][: (3 if compact else 5)],
         "temp_sh_records": [compact_record(item) for item in records if item.get("temp_sh_hits")][: (3 if compact else 5)],
@@ -196,6 +207,7 @@ def build_results_prompt(
         prompt_aggregate = {
             "file_count": aggregate.get("file_count"),
             "files_with_external_rdp": aggregate.get("files_with_external_rdp"),
+            "files_with_external_port_scans": aggregate.get("files_with_external_port_scans"),
             "files_with_vpn_like_ingress": aggregate.get("files_with_vpn_like_ingress"),
             "files_with_smb_rpc_scanning": aggregate.get("files_with_smb_rpc_scanning"),
             "files_with_dcerpc_account_markers": aggregate.get("files_with_dcerpc_account_markers"),
@@ -232,7 +244,8 @@ def build_results_prompt(
         - Name the strongest patient-zero candidate and cite the file(s) that support it.
         - Distinguish direct evidence from heuristic inference.
         - Explain the likely attack flow in order when the evidence supports it.
-        - Call out if temp.sh, outbound exfil candidates, large uploads, SMB/RPC scanning, DCERPC account markers, manual payload-deployment candidates, or internal RDP spread are absent.
+        - Treat external reconnaissance separately from confirmed initial access.
+        - Call out if external reconnaissance, temp.sh, outbound exfil candidates, large uploads, SMB/RPC scanning, DCERPC account markers, manual payload-deployment candidates, or internal RDP spread are absent.
         - Be concise and operational.
         """
     ).strip()
@@ -240,6 +253,7 @@ def build_results_prompt(
 
 def _fallback_report(summary: dict[str, Any], findings: dict[str, Any]) -> str:
     patient_zero = findings.get("external_rdp", {}).get("patient_zero_candidate")
+    external_scans = [item for item in findings.get("external_port_scans", {}).get("sources", []) if item.get("suspicious")][:3]
     temp_hits = findings.get("temp_sh_traffic", {}).get("hits", [])[:5]
     uploads = findings.get("large_http_posts", {}).get("uploads", [])[:5]
     exfil_candidates = findings.get("outbound_exfiltration_candidates", {}).get("flows", [])[:5]
@@ -256,6 +270,11 @@ def _fallback_report(summary: dict[str, Any], findings: dict[str, Any]) -> str:
         "Rapid SMB/RPC scanning was observed from " + ", ".join(f"{item['src_ip']} ({item['unique_targets']} targets)" for item in scanners)
         if scanners else "No high-confidence SMB/RPC scanning pattern crossed the current thresholds."
     )
+    if external_scans:
+        lateral = "External reconnaissance was also observed from " + ", ".join(
+            f"{item['src_ip']} ({item['unique_ports']} ports / {item['unique_targets']} targets)"
+            for item in external_scans
+        ) + ". " + lateral
     exfiltration = (
         "Evidence supports outbound exfiltration to temp.sh from " + ", ".join(f"{hit['src_ip']} -> {hit['dst_ip']}" for hit in temp_hits)
         if temp_hits else "No direct temp.sh indicator was found."
@@ -318,6 +337,9 @@ def _fallback_results_report(aggregate: dict[str, Any], records: list[dict[str, 
         reverse=True,
     )
     scanners = [
+        item for item in records if item.get("suspicious_external_port_scanners")
+    ][:5]
+    smb_scanners = [
         item
         for item in records
         if item.get("suspicious_smb_rpc_scanners")
@@ -338,11 +360,18 @@ def _fallback_results_report(aggregate: dict[str, Any], records: list[dict[str, 
         else "No patient-zero candidate was found in the current results file."
     )
     lateral = (
-        "Possible SMB/RPC scanning appears in "
+        "Possible external reconnaissance appears in "
         + ", ".join(item["file"] for item in scanners)
+        + "."
         if scanners
-        else "No SMB/RPC scanning evidence is currently present in the results file."
+        else "No external reconnaissance evidence is currently present in the results file."
     )
+    if smb_scanners:
+        lateral += " Possible SMB/RPC scanning appears in " + ", ".join(
+            item["file"] for item in smb_scanners
+        ) + "."
+    else:
+        lateral += " No SMB/RPC scanning evidence is currently present in the results file."
     if dcerpc_hits:
         lateral += " DCERPC or account/group markers appear in " + ", ".join(
             item["file"] for item in dcerpc_hits
@@ -871,6 +900,7 @@ def _load_results(results_file: Path) -> list[dict[str, Any]]:
 
 def _build_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
     external_rdp = [item for item in records if item.get("suspicious_external_rdp_count", 0)]
+    external_scans = [item for item in records if item.get("suspicious_external_port_scanners")]
     vpn_like = [item for item in records if item.get("suspicious_vpn_count", 0)]
     smb_scan = [item for item in records if item.get("suspicious_smb_rpc_scanners")]
     dcerpc = [item for item in records if item.get("possible_dcerpc_account_changes")]
@@ -902,6 +932,7 @@ def _build_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "file_count": len(records),
         "files_with_external_rdp": len(external_rdp),
+        "files_with_external_port_scans": len(external_scans),
         "files_with_vpn_like_ingress": len(vpn_like),
         "files_with_smb_rpc_scanning": len(smb_scan),
         "files_with_dcerpc_account_markers": len(dcerpc),
@@ -913,6 +944,7 @@ def _build_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
         "files_with_deep_dive": len(deep_dive),
         "interesting_files": {
             "external_rdp": [item["file"] for item in external_rdp[:30]],
+            "external_port_scans": [item["file"] for item in external_scans[:30]],
             "vpn_like_ingress": [item["file"] for item in vpn_like[:30]],
             "smb_rpc_scanning": [item["file"] for item in smb_scan[:30]],
             "dcerpc_account_markers": [item["file"] for item in dcerpc[:30]],

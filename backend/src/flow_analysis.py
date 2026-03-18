@@ -12,12 +12,29 @@ def _pick_focus_host(records: list[dict[str, Any]]) -> str | None:
         host = candidate.get("internal_ip") or record.get("deep_dive_focus_host")
         if host:
             hosts[host] += max(1, candidate.get("confidence_score", 0))
+            continue
+        for scanner in record.get("suspicious_external_port_scanners", [])[:3]:
+            top_target = (scanner.get("top_targets") or [{}])[0]
+            target_host = top_target.get("dst_ip")
+            if target_host:
+                hosts[target_host] += max(1, scanner.get("unique_ports", 0))
     return hosts.most_common(1)[0][0] if hosts else None
 
 
 def _record_sort_key(record: dict[str, Any]) -> tuple[Any, str]:
     candidate = record.get("patient_zero_candidate") or {}
     timestamp = candidate.get("first_seen")
+    if timestamp is None:
+        scanners = record.get("suspicious_external_port_scanners") or []
+        if scanners:
+            timestamp = min(
+                (
+                    scanner.get("first_seen")
+                    for scanner in scanners
+                    if scanner.get("first_seen") is not None
+                ),
+                default=None,
+            )
     if timestamp is None:
         deep_dive = record.get("deep_dive") or {}
         timestamp = (
@@ -46,10 +63,24 @@ def _best_external_ips(records: list[dict[str, Any]], focus_host: str | None) ->
     for record in records:
         candidate = record.get("patient_zero_candidate") or {}
         if focus_host and candidate.get("internal_ip") != focus_host:
-            continue
+            matching_scanners = [
+                scanner
+                for scanner in record.get("suspicious_external_port_scanners", [])
+                if any(target.get("dst_ip") == focus_host for target in scanner.get("top_targets", []))
+            ]
+            if not matching_scanners:
+                continue
         external_ip = candidate.get("external_ip")
         if external_ip:
             counter[external_ip] += max(1, candidate.get("confidence_score", 0))
+            continue
+        for scanner in record.get("suspicious_external_port_scanners", [])[:5]:
+            scanner_ip = scanner.get("src_ip")
+            if not scanner_ip:
+                continue
+            if focus_host and not any(target.get("dst_ip") == focus_host for target in scanner.get("top_targets", [])):
+                continue
+            counter[scanner_ip] += max(1, scanner.get("unique_ports", 0))
     return [{"external_ip": ip, "score": score} for ip, score in counter.most_common(10)]
 
 
@@ -86,6 +117,7 @@ def build_attack_flow(records: list[dict[str, Any]]) -> dict[str, Any]:
     primary_external_ips = _best_external_ips(records, focus_host)
 
     initial_access_records = []
+    reconnaissance_records = []
     discovery_records = []
     admin_records = []
     exfil_records = []
@@ -95,6 +127,30 @@ def build_attack_flow(records: list[dict[str, Any]]) -> dict[str, Any]:
     for record in sorted(records, key=_record_sort_key):
         file_name = record.get("file", "unknown")
         candidate = record.get("patient_zero_candidate") or {}
+
+        matching_external_scans = [
+            item
+            for item in record.get("suspicious_external_port_scanners", [])
+            if (
+                not focus_host
+                or any(target.get("dst_ip") == focus_host for target in item.get("top_targets", []))
+            )
+        ]
+        for scanner in matching_external_scans:
+            reconnaissance_records.append(record)
+            top_target = (scanner.get("top_targets") or [{}])[0]
+            timeline.append(
+                _stage_entry(
+                    stage="reconnaissance",
+                    file_name=file_name,
+                    timestamp=scanner.get("first_seen"),
+                    detail=(
+                        f"External {scanner.get('src_ip')} probed "
+                        f"{scanner.get('unique_ports')} ports against "
+                        f"{top_target.get('dst_ip') or 'internal targets'}"
+                    ),
+                )
+            )
 
         if focus_host and candidate.get("internal_ip") == focus_host:
             initial_access_records.append(record)
@@ -227,6 +283,7 @@ def build_attack_flow(records: list[dict[str, Any]]) -> dict[str, Any]:
         "primary_external_ips": primary_external_ips,
         "stage_counts": {
             "initial_access": len(initial_access_records),
+            "reconnaissance": len(reconnaissance_records),
             "discovery": len(discovery_records),
             "administrative_activity": len(admin_records),
             "exfiltration": len(exfil_records),
@@ -235,6 +292,7 @@ def build_attack_flow(records: list[dict[str, Any]]) -> dict[str, Any]:
         "likely_path": likely_path,
         "timeline": timeline[:100],
         "initial_access_files": [record.get("file") for record in initial_access_records[:20]],
+        "reconnaissance_files": [record.get("file") for record in reconnaissance_records[:20]],
         "discovery_files": [record.get("file") for record in discovery_records[:20]],
         "administrative_activity_files": [record.get("file") for record in admin_records[:20]],
         "exfiltration_files": [record.get("file") for record in exfil_records[:20]],

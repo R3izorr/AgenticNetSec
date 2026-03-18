@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from functools import lru_cache
-from ipaddress import ip_address
+from ipaddress import ip_address, ip_network
 import logging
 from pathlib import Path
 from typing import Any
@@ -18,6 +18,10 @@ logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 VPN_PORTS = {443, 500, 4500, 1194, 1701, 1723, 8443, 10443}
 LATERAL_PORTS = {88, 135, 139, 389, 445, 464, 3389, 5985, 5986}
 SCAN_PORTS = {135, 445}
+EXTERNAL_SCAN_MIN_UNIQUE_PORTS = 20
+EXTERNAL_SCAN_MIN_UNIQUE_TARGETS = 5
+EXTERNAL_SCAN_MIN_ATTEMPTS = 10
+EXTERNAL_SCAN_MIN_SYN_RATIO = 0.8
 SEVEN_Z_MAGIC = b"\x37\x7a\xbc\xaf\x27\x1c"
 ZIP_MAGIC = b"PK\x03\x04"
 RAR_MAGIC = b"Rar!\x1a\x07"
@@ -66,6 +70,18 @@ UPLOAD_METHODS = {"POST", "PUT", "PATCH"}
 ADMIN_SHARE_MARKERS = {"admin$", "c$", "ipc$"}
 REMOTE_EXEC_MARKERS = {"svcctl", "atsvc", "winreg", "psexec", "paexec", "remcom", "schtasks"}
 PAYLOAD_DEPLOYMENT_MARKERS = ADMIN_SHARE_MARKERS | REMOTE_EXEC_MARKERS
+INTERNAL_IPV4_NETWORKS = (
+    ip_network("10.0.0.0/8"),
+    ip_network("172.16.0.0/12"),
+    ip_network("192.168.0.0/16"),
+    ip_network("127.0.0.0/8"),
+    ip_network("169.254.0.0/16"),
+)
+INTERNAL_IPV6_NETWORKS = (
+    ip_network("fc00::/7"),
+    ip_network("fe80::/10"),
+    ip_network("::1/128"),
+)
 
 
 @lru_cache(maxsize=4096)
@@ -76,7 +92,10 @@ def _is_internal_ip(value: str | None) -> bool:
         ip_obj = ip_address(value)
     except ValueError:
         return False
-    return bool(ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_reserved)
+    if ip_obj.is_loopback or ip_obj.is_link_local:
+        return True
+    networks = INTERNAL_IPV4_NETWORKS if ip_obj.version == 4 else INTERNAL_IPV6_NETWORKS
+    return any(ip_obj in network for network in networks)
 
 
 @lru_cache(maxsize=4096)
@@ -84,9 +103,12 @@ def _is_external_ip(value: str | None) -> bool:
     if not value:
         return False
     try:
-        return bool(ip_address(value).is_global)
+        ip_obj = ip_address(value)
     except ValueError:
         return False
+    if _is_internal_ip(value):
+        return False
+    return not (ip_obj.is_multicast or ip_obj.is_unspecified)
 
 
 def _packet_timestamp(packet: Any) -> float | None:
@@ -278,6 +300,65 @@ def _outbound_flow_bucket() -> dict[str, Any]:
     }
 
 
+def _build_scan_candidate_summary(
+    scan_attempts: dict[str, list[dict[str, Any]]],
+    *,
+    min_unique_ports: int = EXTERNAL_SCAN_MIN_ATTEMPTS,
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    candidates = []
+    for src_ip, events in scan_attempts.items():
+        if not events:
+            continue
+        unique_ports = sorted({int(event["dst_port"]) for event in events if event.get("dst_port") is not None})
+        if len(unique_ports) < min_unique_ports:
+            continue
+        target_counts = Counter(event["dst_ip"] for event in events if event.get("dst_ip"))
+        syn_only_attempts = sum(1 for event in events if event.get("syn_only"))
+        candidates.append(
+            {
+                "src_ip": src_ip,
+                "unique_ports": len(unique_ports),
+                "unique_targets": len(target_counts),
+                "syn_only_ratio": round(syn_only_attempts / len(events), 3) if events else 0.0,
+                "min_port": unique_ports[0],
+                "max_port": unique_ports[-1],
+                "sample_targets": [
+                    {"dst_ip": dst_ip, "count": count}
+                    for dst_ip, count in target_counts.most_common(3)
+                ],
+            }
+        )
+    candidates.sort(
+        key=lambda item: (item["unique_ports"], item["unique_targets"], item["syn_only_ratio"]),
+        reverse=True,
+    )
+    return candidates[:limit]
+
+
+def _sample_scan_events(
+    events: list[dict[str, Any]],
+    *,
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    ordered = sorted(
+        [event for event in events if event.get("timestamp") is not None],
+        key=lambda item: (item.get("timestamp"), item.get("dst_ip", ""), item.get("dst_port", 0)),
+    )
+    if not ordered:
+        ordered = list(events)
+    return [
+        {
+            "timestamp": event.get("timestamp"),
+            "dst_ip": event.get("dst_ip"),
+            "dst_port": event.get("dst_port"),
+            "syn_only": event.get("syn_only", False),
+            "basis": "external SYN probe toward an internal target",
+        }
+        for event in ordered[:limit]
+    ]
+
+
 def _update_session(session: dict[str, Any], timestamp: float | None, packet_size: int, client_to_server: bool, flags: int, has_payload: bool) -> None:
     if session["first_seen"] is None or (timestamp is not None and timestamp < session["first_seen"]):
         session["first_seen"] = timestamp
@@ -334,6 +415,8 @@ def _scan_detection_surfaces(pcap_path: str) -> dict[str, Any]:
     temp_sh_hits: list[dict[str, Any]] = []
     internal_rdp_sessions: dict[tuple[str, str], dict[str, Any]] = defaultdict(_session_bucket)
     outbound_flows: dict[tuple[str, str, int, str], dict[str, Any]] = defaultdict(_outbound_flow_bucket)
+    external_scan_attempts: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    external_scan_seen_pairs: dict[str, set[tuple[str, int]]] = defaultdict(set)
 
     with PcapReader(resolved) as pcap:
         for packet in pcap:
@@ -363,6 +446,19 @@ def _scan_detection_surfaces(pcap_path: str) -> dict[str, Any]:
                 port_counter[dport] += 1
                 if dport not in COMMON_TCP_UDP_PORTS and dport > 1024:
                     unusual_ports[dport] += 1
+
+                if _is_external_ip(src_ip) and _is_internal_ip(dst_ip) and _flag_set(flags, 0x02) and not _flag_set(flags, 0x10):
+                    flow_key = (dst_ip, dport)
+                    if flow_key not in external_scan_seen_pairs[src_ip]:
+                        external_scan_seen_pairs[src_ip].add(flow_key)
+                        external_scan_attempts[src_ip].append(
+                            {
+                                "timestamp": timestamp,
+                                "dst_ip": dst_ip,
+                                "dst_port": dport,
+                                "syn_only": True,
+                            }
+                        )
 
                 if _is_external_ip(src_ip) and _is_internal_ip(dst_ip) and dport == 3389:
                     _update_session(external_rdp_sessions[(src_ip, dst_ip)], timestamp, packet_size, True, flags, has_payload)
@@ -538,9 +634,11 @@ def _scan_detection_surfaces(pcap_path: str) -> dict[str, Any]:
                 {"protocol_number": proto, "packet_count": count}
                 for proto, count in unusual_protocols.most_common()
             ],
+            "scan_candidates": _build_scan_candidate_summary(external_scan_attempts),
         },
         "external_rdp_sessions": dict(external_rdp_sessions),
         "vpn_sessions": dict(vpn_sessions),
+        "external_scan_attempts": dict(external_scan_attempts),
         "internal_lateral_events": dict(internal_lateral_events),
         "smb_rpc_attempts": dict(smb_rpc_attempts),
         "dcerpc_markers": dcerpc_markers,
@@ -579,6 +677,86 @@ def find_external_rdp(pcap_path: str) -> dict[str, Any]:
         "evidence_count": len(results),
         "patient_zero_candidate": results[0] if results else None,
         "sessions": results,
+    }
+
+
+def find_external_port_scans(pcap_path: str) -> dict[str, Any]:
+    scan = _scan_detection_surfaces(pcap_path)
+    results = []
+    for src_ip, events in scan["external_scan_attempts"].items():
+        if not events:
+            continue
+        unique_targets = sorted({event["dst_ip"] for event in events if event.get("dst_ip")})
+        unique_ports = sorted({int(event["dst_port"]) for event in events if event.get("dst_port") is not None})
+        target_counts = Counter(event["dst_ip"] for event in events if event.get("dst_ip"))
+        port_counts = Counter(int(event["dst_port"]) for event in events if event.get("dst_port") is not None)
+        timestamps = [event["timestamp"] for event in events if event.get("timestamp") is not None]
+        first_seen = min(timestamps) if timestamps else None
+        last_seen = max(timestamps) if timestamps else None
+        duration = _duration_seconds(first_seen, last_seen)
+        syn_only_attempts = sum(1 for event in events if event.get("syn_only"))
+        syn_only_ratio = syn_only_attempts / len(events) if events else 0.0
+        suspicious = bool(
+            syn_only_ratio >= EXTERNAL_SCAN_MIN_SYN_RATIO
+            and (
+                len(unique_ports) >= EXTERNAL_SCAN_MIN_UNIQUE_PORTS
+                or (
+                    len(unique_targets) >= EXTERNAL_SCAN_MIN_UNIQUE_TARGETS
+                    and len(events) >= EXTERNAL_SCAN_MIN_ATTEMPTS
+                )
+                or (
+                    len(unique_targets) == 1
+                    and len(unique_ports) >= 10
+                    and (unique_ports[-1] - unique_ports[0]) >= 10
+                )
+            )
+        )
+        severity = "low"
+        if len(unique_ports) >= 50 or len(unique_targets) >= 10:
+            severity = "high"
+        elif suspicious:
+            severity = "medium"
+        results.append(
+            {
+                "src_ip": src_ip,
+                "first_seen": first_seen,
+                "last_seen": last_seen,
+                "duration_seconds": duration,
+                "connection_attempts": len(events),
+                "unique_targets": len(unique_targets),
+                "unique_ports": len(unique_ports),
+                "min_port": unique_ports[0] if unique_ports else None,
+                "max_port": unique_ports[-1] if unique_ports else None,
+                "syn_only_attempts": syn_only_attempts,
+                "syn_only_ratio": round(syn_only_ratio, 3),
+                "top_ports": [
+                    {"port": port, "count": count}
+                    for port, count in port_counts.most_common(10)
+                ],
+                "top_targets": [
+                    {"dst_ip": dst_ip, "count": count}
+                    for dst_ip, count in target_counts.most_common(5)
+                ],
+                "sample_events": _sample_scan_events(events),
+                "basis": "External source generated repeated SYN-only probes across multiple internal ports and/or targets.",
+                "suspicious": suspicious,
+                "severity": severity,
+            }
+        )
+    results.sort(
+        key=lambda item: (
+            item["suspicious"],
+            {"high": 2, "medium": 1, "low": 0}[item["severity"]],
+            item["unique_ports"],
+            item["unique_targets"],
+            item["connection_attempts"],
+        ),
+        reverse=True,
+    )
+    return {
+        "detector": "external_port_scans",
+        "evidence_count": len(results),
+        "sources": results,
     }
 
 
@@ -1027,6 +1205,7 @@ def find_manual_payload_deployment(
 def collect_all_findings(pcap_path: str) -> dict[str, Any]:
     return {
         "external_rdp": find_external_rdp(pcap_path),
+        "external_port_scans": find_external_port_scans(pcap_path),
         "vpn_like_traffic": find_vpn_like_traffic(pcap_path),
         "smb_rpc_scans": find_smb_rpc_scans(pcap_path),
         "dcerpc_account_activity": find_dcerpc_account_activity(pcap_path),
@@ -1044,6 +1223,7 @@ def analyze_pcap_bundle(pcap_path: str) -> dict[str, Any]:
         "summary": scan["summary"],
         "findings": {
             "external_rdp": find_external_rdp(pcap_path),
+            "external_port_scans": find_external_port_scans(pcap_path),
             "vpn_like_traffic": find_vpn_like_traffic(pcap_path),
             "smb_rpc_scans": find_smb_rpc_scans(pcap_path),
             "dcerpc_account_activity": find_dcerpc_account_activity(pcap_path),

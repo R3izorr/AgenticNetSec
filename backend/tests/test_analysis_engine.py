@@ -21,6 +21,17 @@ class TestAnalysisEngineEvidenceRefs(unittest.TestCase):
             "external_rdp": {
                 "patient_zero_candidate": {"external_ip": "203.0.113.10", "internal_ip": "10.0.0.5"},
             },
+            "external_port_scans": {
+                "sources": [
+                    {
+                        "src_ip": "198.51.100.25",
+                        "unique_ports": 100,
+                        "unique_targets": 1,
+                        "top_targets": [{"dst_ip": "10.0.0.9"}],
+                        "top_ports": [{"port": 20}],
+                    }
+                ]
+            },
             "smb_rpc_scans": {"scanners": [{"src_ip": "10.0.0.5", "unique_targets": 4}]},
             "temp_sh_traffic": {"hits": [{"src_ip": "10.0.0.5", "dst_ip": "198.51.100.5", "dst_port": 443}]},
             "large_http_posts": {"uploads": [{"src_ip": "10.0.0.5", "dst_ip": "198.51.100.5", "dst_port": 443, "inferred_upload_bytes": 4096}]},
@@ -31,8 +42,9 @@ class TestAnalysisEngineEvidenceRefs(unittest.TestCase):
 
         refs = engine._build_evidence_refs(str(pcap_path), metadata, findings)
 
-        self.assertGreaterEqual(len(refs), 7)
+        self.assertGreaterEqual(len(refs), 8)
         self.assertEqual(refs[0].ref_id, "EV-001")
+        self.assertIn("external_port_scans", {ref.detector for ref in refs})
         self.assertIn("external_rdp", {ref.detector for ref in refs})
         self.assertIn("payload_deployment", {ref.claim for ref in refs})
 

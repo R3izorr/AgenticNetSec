@@ -53,6 +53,11 @@ def summarize_file(pcap_path: Path, dive: bool = False) -> dict[str, Any]:
         for item in findings.get("vpn_like_traffic", {}).get("sessions", [])
         if item.get("total_bytes", 0) >= 50000
     ]
+    suspicious_external_scanners = [
+        item
+        for item in findings.get("external_port_scans", {}).get("sources", [])
+        if item.get("suspicious")
+    ]
     suspicious_scanners = [
         item
         for item in findings.get("smb_rpc_scans", {}).get("scanners", [])
@@ -90,6 +95,7 @@ def summarize_file(pcap_path: Path, dive: bool = False) -> dict[str, Any]:
         "top_ports": summary.get("top_ports", [])[:5],
         "patient_zero_candidate": patient_zero,
         "suspicious_external_rdp_count": len(suspicious_rdp),
+        "suspicious_external_port_scanners": suspicious_external_scanners,
         "suspicious_vpn_count": len(suspicious_vpn),
         "suspicious_smb_rpc_scanners": suspicious_scanners,
         "possible_dcerpc_account_changes": suspicious_dcerpc,
@@ -167,6 +173,7 @@ def print_result_line(
         f"{prefix} "
         f"packets={result.get('total_packets')} "
         f"rdp={result.get('suspicious_external_rdp_count', 0)} "
+        f"extscan={len(result.get('suspicious_external_port_scanners', []))} "
         f"scan={len(result.get('suspicious_smb_rpc_scanners', []))} "
         f"temp={len(result.get('temp_sh_hits', []))} "
         f"uploads={len(result.get('large_http_uploads', []))} "

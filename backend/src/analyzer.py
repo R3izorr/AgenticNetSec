@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 import logging
+from typing import Any
 
 try:
     from scapy.layers import dcerpc as _scapy_dcerpc  # noqa: F401
@@ -29,6 +30,7 @@ def analyze_pcap_summary(pcap_path: str) -> dict:
         packet_sizes = []
         unusual_ports = Counter()
         unusual_protocols = Counter()
+        tcp_scan_pairs: dict[tuple[str, str], dict[str, Any]] = {}
         total_packets = 0
 
         with PcapReader(pcap_path) as pcap:
@@ -47,6 +49,19 @@ def analyze_pcap_summary(pcap_path: str) -> dict:
                     protocol_counter["TCP"] += 1
                     sport = int(packet[TCP].sport)
                     dport = int(packet[TCP].dport)
+                    pair_key = (ip_layer.src, ip_layer.dst)
+                    pair_bucket = tcp_scan_pairs.setdefault(
+                        pair_key,
+                        {"ports": set(), "syn_only_packets": 0, "packet_count": 0},
+                    )
+                    pair_bucket["ports"].add(dport)
+                    pair_bucket["packet_count"] += 1
+                    try:
+                        flags = int(packet[TCP].flags)
+                    except Exception:
+                        flags = 0
+                    if flags & 0x02 and not flags & 0x10:
+                        pair_bucket["syn_only_packets"] += 1
                     port_counter[sport] += 1
                     port_counter[dport] += 1
                     if dport not in COMMON_TCP_UDP_PORTS and dport > 1024:
@@ -66,6 +81,29 @@ def analyze_pcap_summary(pcap_path: str) -> dict:
                         unusual_protocols[proto] += 1
 
         avg_packet_size = sum(packet_sizes) / len(packet_sizes) if packet_sizes else 0.0
+        scan_candidates = []
+        for (src_ip, dst_ip), bucket in tcp_scan_pairs.items():
+            unique_port_count = len(bucket["ports"])
+            if unique_port_count < 10:
+                continue
+            syn_only_ratio = bucket["syn_only_packets"] / bucket["packet_count"] if bucket["packet_count"] else 0.0
+            if syn_only_ratio < 0.8:
+                continue
+            ports = sorted(bucket["ports"])
+            scan_candidates.append(
+                {
+                    "src_ip": src_ip,
+                    "dst_ip": dst_ip,
+                    "unique_ports": unique_port_count,
+                    "min_port": ports[0],
+                    "max_port": ports[-1],
+                    "syn_only_ratio": round(syn_only_ratio, 3),
+                }
+            )
+        scan_candidates.sort(
+            key=lambda item: (item["unique_ports"], item["syn_only_ratio"]),
+            reverse=True,
+        )
         return {
             "total_packets": total_packets,
             "top_ips": [
@@ -89,6 +127,7 @@ def analyze_pcap_summary(pcap_path: str) -> dict:
                 {"protocol_number": proto, "packet_count": count}
                 for proto, count in unusual_protocols.most_common()
             ],
+            "scan_candidates": scan_candidates[:5],
         }
     except Exception as exc:
         logger.exception("Error analyzing PCAP summary")

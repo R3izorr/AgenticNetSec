@@ -45,6 +45,7 @@ def load_results(results_file: Path) -> list[dict[str, Any]]:
 
 def build_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
     external_rdp = [item for item in records if item.get("suspicious_external_rdp_count", 0)]
+    external_scans = [item for item in records if item.get("suspicious_external_port_scanners")]
     vpn_like = [item for item in records if item.get("suspicious_vpn_count", 0)]
     smb_scan = [item for item in records if item.get("suspicious_smb_rpc_scanners")]
     dcerpc = [item for item in records if item.get("possible_dcerpc_account_changes")]
@@ -76,6 +77,7 @@ def build_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "file_count": len(records),
         "files_with_external_rdp": len(external_rdp),
+        "files_with_external_port_scans": len(external_scans),
         "files_with_vpn_like_ingress": len(vpn_like),
         "files_with_smb_rpc_scanning": len(smb_scan),
         "files_with_dcerpc_account_markers": len(dcerpc),
@@ -87,6 +89,7 @@ def build_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
         "files_with_deep_dive": len(deep_dive),
         "interesting_files": {
             "external_rdp": [item["file"] for item in external_rdp[:30]],
+            "external_port_scans": [item["file"] for item in external_scans[:30]],
             "vpn_like_ingress": [item["file"] for item in vpn_like[:30]],
             "smb_rpc_scanning": [item["file"] for item in smb_scan[:30]],
             "dcerpc_account_markers": [item["file"] for item in dcerpc[:30]],

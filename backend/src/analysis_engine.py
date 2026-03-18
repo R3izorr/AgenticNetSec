@@ -32,6 +32,7 @@ from tool_executor import ToolExecutor, ToolPolicy
 
 MITRE_BY_DETECTOR = {
     "external_rdp": ["T1133 - External Remote Services", "T1021.001 - Remote Desktop Protocol"],
+    "external_port_scans": ["T1595 - Active Scanning"],
     "smb_rpc_scans": ["T1018 - Remote System Discovery", "T1021.002 - SMB/Windows Admin Shares"],
     "temp_sh_traffic": ["T1567 - Exfiltration Over Web Service"],
     "large_http_posts": ["T1567 - Exfiltration Over Web Service"],
@@ -247,11 +248,16 @@ class AnalysisEngine:
         burst_flag = packet_count > 1_000_000
         entropy_proxy_flag = unusual_port_count > 15 or unusual_proto_count > 5
         handshake_fail_proxy = len(findings.get("external_rdp", {}).get("sessions", [])) > 50 and not findings.get("external_rdp", {}).get("patient_zero_candidate")
+        external_scan_proxy = any(
+            item.get("suspicious")
+            for item in findings.get("external_port_scans", {}).get("sources", [])
+        )
 
         anomaly_score = 0.0
         anomaly_score += 0.3 if burst_flag else 0.0
         anomaly_score += 0.4 if entropy_proxy_flag else 0.0
         anomaly_score += 0.3 if handshake_fail_proxy else 0.0
+        anomaly_score += 0.2 if external_scan_proxy else 0.0
 
         return {
             "burst_anomaly": burst_flag,
@@ -388,6 +394,8 @@ class AnalysisEngine:
     def _primary_finding(self, attack_type: str, findings: dict[str, Any]) -> str:
         if attack_type == "exfiltration":
             return "Outbound transfer patterns indicate likely data exfiltration activity."
+        if attack_type == "reconnaissance/scanning":
+            return "External reconnaissance activity targeted internal hosts across multiple ports."
         if attack_type == "scan/lateral-movement":
             return "Internal scanning and lateral-movement indicators were observed across multiple hosts."
         if attack_type == "brute-force or remote-access compromise":
@@ -402,6 +410,8 @@ class AnalysisEngine:
         score = 0.2
         if findings.get("external_rdp", {}).get("patient_zero_candidate"):
             score += 0.25
+        if any(item.get("suspicious") for item in findings.get("external_port_scans", {}).get("sources", [])):
+            score += 0.15
         if findings.get("smb_rpc_scans", {}).get("scanners"):
             score += 0.15
         if findings.get("outbound_exfiltration_candidates", {}).get("flows"):
@@ -416,6 +426,8 @@ class AnalysisEngine:
             attack = "exfiltration"
         elif findings.get("smb_rpc_scans", {}).get("scanners"):
             attack = "scan/lateral-movement"
+        elif any(item.get("suspicious") for item in findings.get("external_port_scans", {}).get("sources", [])):
+            attack = "reconnaissance/scanning"
         elif findings.get("external_rdp", {}).get("patient_zero_candidate"):
             attack = "brute-force or remote-access compromise"
         elif zero_day.get("anomaly_score", 0.0) >= 0.5:
@@ -460,6 +472,14 @@ class AnalysisEngine:
             if intl:
                 iocs.append(f"ip:{intl}")
 
+        for source in findings.get("external_port_scans", {}).get("sources", [])[:5]:
+            src_ip = source.get("src_ip")
+            if src_ip:
+                iocs.append(f"ip:{src_ip}")
+                sessions.append(
+                    f"External scan src={src_ip} ports={source.get('unique_ports')} targets={source.get('unique_targets')}"
+                )
+
         for scanner in findings.get("smb_rpc_scans", {}).get("scanners", [])[:5]:
             sessions.append(
                 f"SMB/RPC scan src={scanner.get('src_ip')} targets={scanner.get('unique_targets')}"
@@ -492,6 +512,7 @@ class AnalysisEngine:
         record = {
             "file": "runtime-case",
             "patient_zero_candidate": findings.get("external_rdp", {}).get("patient_zero_candidate"),
+            "suspicious_external_port_scanners": findings.get("external_port_scans", {}).get("sources", []),
             "suspicious_smb_rpc_scanners": findings.get("smb_rpc_scans", {}).get("scanners", []),
             "possible_dcerpc_account_changes": findings.get("dcerpc_account_activity", {}).get("events", []),
             "possible_outbound_exfil_flows": findings.get("outbound_exfiltration_candidates", {}).get("flows", []),
@@ -564,6 +585,33 @@ class AnalysisEngine:
                     frame_numbers=self._frame_numbers_for_tcp_pair(pcap_path, external_ip, internal_ip, 3389),
                     flow=f"{external_ip} -> {internal_ip}:3389",
                     wireshark_filter=f"ip.addr == {external_ip} and ip.addr == {internal_ip} and tcp.port == 3389",
+                )
+            )
+
+        for source in findings.get("external_port_scans", {}).get("sources", [])[:2]:
+            src_ip = source.get("src_ip")
+            sample_event = (source.get("sample_events") or [{}])[0]
+            dst_ip = sample_event.get("dst_ip") or (source.get("top_targets") or [{}])[0].get("dst_ip")
+            top_port = sample_event.get("dst_port")
+            if top_port is None:
+                top_port = (source.get("top_ports") or [{}])[0].get("port")
+            evidence_refs.append(
+                self._make_evidence_ref(
+                    ref_id=f"EV-{len(evidence_refs) + 1:03d}",
+                    detector="external_port_scans",
+                    claim="reconnaissance",
+                    source_file=source_file,
+                    summary=(
+                        f"External source {src_ip} probed {source.get('unique_ports')} ports "
+                        f"across {source.get('unique_targets')} internal targets."
+                    ),
+                    frame_numbers=self._frame_numbers_for_external_scan(pcap_path, src_ip, dst_ip, top_port),
+                    flow=f"{src_ip} -> {dst_ip or 'internal targets'}:{top_port or 'multiple ports'}",
+                    wireshark_filter=(
+                        f"ip.src == {src_ip} and ip.dst == {dst_ip} and tcp.flags.syn == 1 and tcp.flags.ack == 0"
+                        if src_ip and dst_ip
+                        else f"ip.src == {src_ip} and tcp.flags.syn == 1 and tcp.flags.ack == 0"
+                    ),
                 )
             )
 
@@ -739,6 +787,35 @@ class AnalysisEngine:
                     continue
                 if packet[IP].src == src_ip and int(packet[TCP].dport) in {135, 445}:
                     results.append(frame_number)
+                if len(results) >= limit:
+                    break
+        return results
+
+    def _frame_numbers_for_external_scan(
+        self,
+        pcap_path: str,
+        src_ip: str | None,
+        dst_ip: str | None,
+        dst_port: int | None,
+        limit: int = 5,
+    ) -> list[int]:
+        if not src_ip:
+            return []
+        results: list[int] = []
+        with PcapReader(str(Path(pcap_path).resolve())) as pcap:
+            for frame_number, packet in enumerate(pcap, start=1):
+                if IP not in packet or TCP not in packet:
+                    continue
+                if packet[IP].src != src_ip:
+                    continue
+                if dst_ip and packet[IP].dst != dst_ip:
+                    continue
+                if dst_port is not None and int(packet[TCP].dport) != int(dst_port):
+                    continue
+                flags = int(packet[TCP].flags)
+                if not (flags & 0x02) or (flags & 0x10):
+                    continue
+                results.append(frame_number)
                 if len(results) >= limit:
                     break
         return results

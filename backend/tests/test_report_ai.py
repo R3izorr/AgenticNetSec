@@ -9,7 +9,7 @@ SRC_DIR = PROJECT_ROOT / "backend" / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from report_ai import _extract_usage_tokens, _result_from_text  # noqa: E402
+from report_ai import _extract_usage_tokens, _fallback_report, _result_from_text  # noqa: E402
 
 
 class _Object:
@@ -42,6 +42,35 @@ class TestReportAiUsage(unittest.TestCase):
         self.assertTrue(result.fallback_used)
         self.assertEqual(result.llm_tokens_in, 1)
         self.assertEqual(result.llm_tokens_out, 2)
+
+    def test_fallback_report_mentions_external_reconnaissance(self) -> None:
+        report = _fallback_report(
+            {"total_packets": 100},
+            {
+                "external_rdp": {"patient_zero_candidate": None},
+                "external_port_scans": {
+                    "sources": [
+                        {
+                            "src_ip": "198.51.100.25",
+                            "unique_ports": 100,
+                            "unique_targets": 1,
+                            "suspicious": True,
+                        }
+                    ]
+                },
+                "temp_sh_traffic": {"hits": []},
+                "large_http_posts": {"uploads": []},
+                "outbound_exfiltration_candidates": {"flows": []},
+                "smb_rpc_scans": {"scanners": []},
+                "rdp_payload_deployment": {"spreaders": []},
+                "manual_payload_deployment": {"candidates": []},
+            },
+        )
+
+        self.assertIn("## Lateral Movement & Discovery", report)
+        self.assertIn("External reconnaissance was also observed", report)
+        self.assertIn("198.51.100.25", report)
+        self.assertNotIn("## Initial Access\nNo strong external RDP patient-zero candidate was identified. External reconnaissance", report)
 
 
 if __name__ == "__main__":
