@@ -45,7 +45,15 @@ def main() -> int:
     summary = analyze_pcap_summary(pcap_path)
     findings = collect_all_findings(pcap_path)
     deep_dive = build_deep_dive(pcap_path, findings) if args.dive else None
-    report_findings = {**findings, "deep_dive": deep_dive} if deep_dive else findings
+    report_findings = (
+        {
+            **findings,
+            "deep_dive": deep_dive,
+            "suspected_attack_flow": (deep_dive or {}).get("suspected_attack_flow"),
+        }
+        if deep_dive
+        else findings
+    )
     report = generate_report(
         summary,
         report_findings,

@@ -121,6 +121,7 @@ class AnalysisEngine:
             report_findings = {**findings, "zero_day_heuristics": zero_day}
             if deep_dive:
                 report_findings["deep_dive"] = deep_dive
+                report_findings["suspected_attack_flow"] = deep_dive.get("suspected_attack_flow")
 
             report_result = self.executor.execute(
                 "reasoning",
@@ -292,7 +293,7 @@ class AnalysisEngine:
 
         observation = f"Observed {metadata.get('packet_count', 0)} packets across {metadata.get('flow_count', 0)} flows."
         inference = f"Likely attack class: {attack_type} with risk level {risk_level}."
-        recommendation = "Contain suspicious source hosts, verify affected assets, and perform follow-up validation."
+        recommendation = self._recommendation_summary(findings, attack_type, confidence)
 
         observation, inference, recommendation = self.guardrails.enforce_output_sections(
             observation,
@@ -407,19 +408,97 @@ class AnalysisEngine:
         return "No single attack path reached a high-confidence autonomous conclusion."
 
     def _confidence_score(self, findings: dict[str, Any], zero_day: dict[str, Any]) -> float:
-        score = 0.2
-        if findings.get("external_rdp", {}).get("patient_zero_candidate"):
-            score += 0.25
-        if any(item.get("suspicious") for item in findings.get("external_port_scans", {}).get("sources", [])):
-            score += 0.15
-        if findings.get("smb_rpc_scans", {}).get("scanners"):
-            score += 0.15
-        if findings.get("outbound_exfiltration_candidates", {}).get("flows"):
-            score += 0.2
-        if findings.get("manual_payload_deployment", {}).get("candidates"):
-            score += 0.15
-        score += min(0.1, float(zero_day.get("anomaly_score", 0.0)) * 0.2)
-        return max(0.0, min(1.0, score))
+        score = 0.1
+
+        patient_zero = findings.get("external_rdp", {}).get("patient_zero_candidate") or {}
+        if patient_zero:
+            score += 0.12
+            if patient_zero.get("handshake_complete"):
+                score += 0.08
+            if patient_zero.get("application_packets", 0) > 0:
+                score += 0.08
+            if patient_zero.get("post_login_unique_internal_targets", 0) >= 3:
+                score += 0.1
+            elif patient_zero.get("post_login_unique_internal_targets", 0) > 0:
+                score += 0.04
+
+        external_scans = [item for item in findings.get("external_port_scans", {}).get("sources", []) if item.get("suspicious")]
+        if external_scans:
+            strongest_recon = external_scans[0]
+            score += 0.05
+            if strongest_recon.get("severity") == "high":
+                score += 0.05
+            if strongest_recon.get("unique_ports", 0) >= 50:
+                score += 0.03
+
+        smb_scanners = [item for item in findings.get("smb_rpc_scans", {}).get("scanners", []) if item.get("suspicious")]
+        if smb_scanners:
+            strongest_scan = smb_scanners[0]
+            score += 0.1
+            if strongest_scan.get("unique_targets", 0) >= 20:
+                score += 0.06
+            elif strongest_scan.get("unique_targets", 0) >= 10:
+                score += 0.04
+            if strongest_scan.get("sample_events"):
+                score += 0.02
+
+        dcerpc_events = findings.get("dcerpc_account_activity", {}).get("events", [])
+        if dcerpc_events:
+            score += 0.04
+            if any(item.get("possible_account_or_group_change") for item in dcerpc_events):
+                score += 0.05
+
+        exfil_flows = findings.get("outbound_exfiltration_candidates", {}).get("flows", [])
+        if exfil_flows:
+            strongest_exfil = exfil_flows[0]
+            score += 0.08
+            if strongest_exfil.get("severity") == "high":
+                score += 0.14
+            elif strongest_exfil.get("severity") == "medium":
+                score += 0.1
+            else:
+                score += 0.05
+            if strongest_exfil.get("temp_sh_mentions", 0) > 0:
+                score += 0.05
+            if strongest_exfil.get("sample_events"):
+                score += 0.02
+
+        manual_drop = findings.get("manual_payload_deployment", {}).get("candidates", [])
+        if manual_drop:
+            strongest_drop = manual_drop[0]
+            score += 0.1
+            if strongest_drop.get("manual_drop_score", 0) >= 80:
+                score += 0.08
+            if strongest_drop.get("targets_with_admin_share_markers", 0) > 0:
+                score += 0.04
+            if strongest_drop.get("targets_with_remote_exec_markers", 0) > 0:
+                score += 0.05
+        else:
+            spreaders = [item for item in findings.get("rdp_payload_deployment", {}).get("spreaders", []) if item.get("suspicious")]
+            if spreaders:
+                score += 0.08
+                if spreaders[0].get("unique_targets", 0) >= 5:
+                    score += 0.04
+
+        score += min(0.08, float(zero_day.get("anomaly_score", 0.0)) * 0.16)
+
+        if patient_zero and not (
+            smb_scanners
+            or exfil_flows
+            or manual_drop
+            or [item for item in findings.get("rdp_payload_deployment", {}).get("spreaders", []) if item.get("suspicious")]
+        ):
+            score -= 0.08
+        if external_scans and not (patient_zero or smb_scanners or exfil_flows or manual_drop):
+            score = min(score, 0.58)
+        if exfil_flows and not any(flow.get("sample_events") for flow in exfil_flows[:2]):
+            score -= 0.03
+        if zero_day.get("anomaly_score", 0.0) > 0 and not (
+            patient_zero or external_scans or smb_scanners or dcerpc_events or exfil_flows or manual_drop
+        ):
+            score = min(score, 0.45)
+
+        return max(0.0, min(1.0, round(score, 3)))
 
     def _impact_summary(self, findings: dict[str, Any], zero_day: dict[str, Any], confidence: float) -> tuple[str, str]:
         if findings.get("outbound_exfiltration_candidates", {}).get("flows"):
@@ -435,13 +514,28 @@ class AnalysisEngine:
         else:
             attack = "unknown"
 
-        if confidence >= 0.8:
+        if attack == "reconnaissance/scanning" and confidence >= 0.65:
+            risk = "medium"
+        elif confidence >= 0.8:
             risk = "high"
         elif confidence >= 0.6:
             risk = "medium"
         else:
             risk = "low"
         return attack, risk
+
+    def _recommendation_summary(self, findings: dict[str, Any], attack_type: str, confidence: float) -> str:
+        if confidence < 0.45:
+            return "Preserve the PCAP and perform manual analyst review before making high-confidence containment decisions."
+        if attack_type == "exfiltration":
+            return "Prioritize containment of the suspected source host, review outbound destinations, and validate possible data-loss paths in packet and host telemetry."
+        if attack_type == "scan/lateral-movement":
+            return "Isolate the likely pivot host, validate SMB/RPC and internal RDP activity, and review downstream targets for lateral movement."
+        if attack_type == "reconnaissance/scanning":
+            return "Block or monitor the suspicious external source, validate the targeted internal hosts, and confirm whether reconnaissance progressed to authenticated access."
+        if attack_type == "brute-force or remote-access compromise":
+            return "Contain the suspected patient-zero host, review remote-access exposure and credentials, and verify follow-on lateral activity."
+        return "Contain suspicious source hosts, verify affected assets, and perform follow-up validation."
 
     def _affected_assets(self, findings: dict[str, Any]) -> list[str]:
         assets = set()
@@ -496,6 +590,10 @@ class AnalysisEngine:
         events: list[str] = []
 
         if deep_dive:
+            recon = deep_dive.get("reconnaissance", {})
+            recon_ts = recon.get("first_seen")
+            if recon_ts:
+                events.append(f"{recon_ts} - reconnaissance indicators")
             init_access = deep_dive.get("initial_access", {})
             first_seen = init_access.get("first_seen")
             if first_seen:

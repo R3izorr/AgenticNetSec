@@ -56,6 +56,22 @@ def _records_with_external_scan(records: list[dict[str, Any]]) -> list[dict[str,
     return [record for record in records if record.get("suspicious_external_port_scanners")]
 
 
+def _records_with_smb_rpc(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [record for record in records if record.get("suspicious_smb_rpc_scanners")]
+
+
+def _records_with_dcerpc(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [record for record in records if record.get("possible_dcerpc_account_changes")]
+
+
+def _records_with_exfil(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [record for record in records if record.get("possible_outbound_exfil_flows")]
+
+
+def _records_with_payload(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [record for record in records if record.get("manual_payload_deployment_candidates")]
+
+
 def _temp_sh_filter(record: dict[str, Any]) -> str:
     exfil_dsts = sorted(
         {
@@ -97,6 +113,67 @@ def _external_scan_filter(record: dict[str, Any]) -> str:
     if src_ip:
         return f"ip.src == {src_ip} and tcp.flags.syn == 1 and tcp.flags.ack == 0"
     return "tcp.flags.syn == 1 and tcp.flags.ack == 0"
+
+
+def _smb_rpc_filter(record: dict[str, Any]) -> str:
+    scanners = record.get("suspicious_smb_rpc_scanners") or []
+    if not scanners:
+        return "tcp.dstport == 445 or tcp.dstport == 135"
+    scanner = scanners[0]
+    src_ip = scanner.get("src_ip")
+    sample_event = (scanner.get("sample_events") or [{}])[0]
+    dst_ip = sample_event.get("dst_ip")
+    dst_port = sample_event.get("dst_port")
+    if src_ip and dst_ip and dst_port:
+        return f"ip.src == {src_ip} and ip.dst == {dst_ip} and tcp.dstport == {dst_port}"
+    if src_ip:
+        return f"ip.src == {src_ip} and (tcp.dstport == 445 or tcp.dstport == 135)"
+    return "tcp.dstport == 445 or tcp.dstport == 135"
+
+
+def _dcerpc_filter(record: dict[str, Any]) -> str:
+    events = record.get("possible_dcerpc_account_changes") or []
+    if not events:
+        return "dcerpc or tcp.port == 135 or tcp.port == 445"
+    event = events[0]
+    src_ip = event.get("src_ip")
+    dst_ip = event.get("dst_ip")
+    if src_ip and dst_ip:
+        return f"ip.addr == {src_ip} and ip.addr == {dst_ip} and (dcerpc or tcp.port == 135 or tcp.port == 445)"
+    return "dcerpc or tcp.port == 135 or tcp.port == 445"
+
+
+def _exfil_filter(record: dict[str, Any]) -> str:
+    flows = record.get("possible_outbound_exfil_flows") or []
+    if not flows:
+        return "http.request.method or tcp.len > 0"
+    flow = flows[0]
+    src_ip = flow.get("src_ip")
+    dst_ip = flow.get("dst_ip")
+    dst_port = flow.get("dst_port")
+    transport = str(flow.get("transport") or "TCP").upper()
+    if src_ip and dst_ip and dst_port and transport == "UDP":
+        return f"ip.src == {src_ip} and ip.dst == {dst_ip} and udp.dstport == {dst_port}"
+    if src_ip and dst_ip and dst_port:
+        return f"ip.src == {src_ip} and ip.dst == {dst_ip} and tcp.dstport == {dst_port}"
+    if src_ip:
+        return f"ip.src == {src_ip}"
+    return "http.request.method or tcp.len > 0"
+
+
+def _payload_filter(record: dict[str, Any]) -> str:
+    candidates = record.get("manual_payload_deployment_candidates") or []
+    if not candidates:
+        return "tcp.port == 3389 or tcp.port == 445 or tcp.port == 135"
+    candidate = candidates[0]
+    src_ip = candidate.get("src_ip")
+    top_target = (candidate.get("targets") or [{}])[0]
+    dst_ip = top_target.get("dst_ip")
+    if src_ip and dst_ip:
+        return f"ip.src == {src_ip} and ip.dst == {dst_ip} and (tcp.port == 3389 or tcp.port == 445 or tcp.port == 135)"
+    if src_ip:
+        return f"ip.src == {src_ip} and (tcp.port == 3389 or tcp.port == 445 or tcp.port == 135)"
+    return "tcp.port == 3389 or tcp.port == 445 or tcp.port == 135"
 
 
 def _print_temp_sh(records: list[dict[str, Any]], *, limit: int, run_tshark: bool) -> None:
@@ -411,13 +488,251 @@ def _print_external_scan(records: list[dict[str, Any]], *, limit: int, run_tshar
         print()
 
 
+def _print_smb_rpc(records: list[dict[str, Any]], *, limit: int, run_tshark: bool) -> None:
+    print("How SMB/RPC discovery is inferred")
+    print("- one internal source touches many peers over tcp/445 or tcp/135")
+    print("- this often indicates environment mapping or lateral discovery")
+    print("- verify whether the fan-out is broad, rapid, and concentrated on a single source")
+    print()
+
+    matches = sorted(
+        _records_with_smb_rpc(records),
+        key=lambda item: max((scanner.get("unique_targets", 0) for scanner in (item.get("suspicious_smb_rpc_scanners") or [])), default=0),
+        reverse=True,
+    )[:limit]
+
+    if not matches:
+        print("No SMB/RPC scanning records were found in the current results file.")
+        return
+
+    for record in matches:
+        file_name = record.get("file", "unknown")
+        pcap_path = record.get("path", "")
+        print(f"FILE {file_name}")
+        print(f"path: {pcap_path}")
+        for scanner in (record.get("suspicious_smb_rpc_scanners") or [])[:3]:
+            print(
+                f"- smb/rpc scan {scanner.get('src_ip')} targets={scanner.get('unique_targets')} "
+                f"attempts={scanner.get('connection_attempts')} duration={scanner.get('duration_seconds')}"
+            )
+            for event in (scanner.get("sample_events") or [])[:3]:
+                print(
+                    f"  sample {event.get('dst_ip')}:{event.get('dst_port')} ts={event.get('timestamp')} basis={event.get('basis')}"
+                )
+        tshark_filter = _smb_rpc_filter(record)
+        tshark_cmd = (
+            f"tshark -r {_quote(pcap_path)} -Y {_quote(tshark_filter)} "
+            "-T fields -e frame.number -e frame.time_epoch -e ip.src -e ip.dst "
+            "-e tcp.srcport -e tcp.dstport -e tcp.flags"
+        )
+        print("tshark command:")
+        print(tshark_cmd)
+        print("Wireshark display filter:")
+        print(tshark_filter)
+        if run_tshark and pcap_path:
+            print("tshark preview:")
+            preview = _run_tshark(
+                [
+                    "tshark", "-r", pcap_path, "-Y", tshark_filter,
+                    "-T", "fields",
+                    "-e", "frame.number",
+                    "-e", "frame.time_epoch",
+                    "-e", "ip.src",
+                    "-e", "ip.dst",
+                    "-e", "tcp.srcport",
+                    "-e", "tcp.dstport",
+                    "-e", "tcp.flags",
+                ]
+            )
+            print(preview[:4000])
+        print()
+
+
+def _print_dcerpc(records: list[dict[str, Any]], *, limit: int, run_tshark: bool) -> None:
+    print("How DCERPC account or group activity is inferred")
+    print("- payload markers like samr, administrators, domain admins, or c$ were observed")
+    print("- this is still heuristic string evidence unless decoded and confirmed manually")
+    print()
+
+    matches = sorted(
+        _records_with_dcerpc(records),
+        key=lambda item: max((sum(change.get("marker_counts", {}).values()) for change in (item.get("possible_dcerpc_account_changes") or [])), default=0),
+        reverse=True,
+    )[:limit]
+
+    if not matches:
+        print("No DCERPC account-activity records were found in the current results file.")
+        return
+
+    for record in matches:
+        file_name = record.get("file", "unknown")
+        pcap_path = record.get("path", "")
+        print(f"FILE {file_name}")
+        print(f"path: {pcap_path}")
+        for event in (record.get("possible_dcerpc_account_changes") or [])[:3]:
+            print(
+                f"- dcerpc {event.get('src_ip')} -> {event.get('dst_ip')} markers={event.get('marker_counts')} "
+                f"possible_account_change={event.get('possible_account_or_group_change')}"
+            )
+            for sample in (event.get("sample_events") or [])[:3]:
+                print(
+                    f"  sample ts={sample.get('timestamp')} port={sample.get('dst_port')} matches={sample.get('matches')} basis={sample.get('basis')}"
+                )
+        tshark_filter = _dcerpc_filter(record)
+        tshark_cmd = (
+            f"tshark -r {_quote(pcap_path)} -Y {_quote(tshark_filter)} "
+            "-T fields -e frame.number -e frame.time_epoch -e ip.src -e ip.dst "
+            "-e tcp.srcport -e tcp.dstport -e dcerpc.cn_call_id"
+        )
+        print("tshark command:")
+        print(tshark_cmd)
+        print("Wireshark display filter:")
+        print(tshark_filter)
+        if run_tshark and pcap_path:
+            print("tshark preview:")
+            preview = _run_tshark(
+                [
+                    "tshark", "-r", pcap_path, "-Y", tshark_filter,
+                    "-T", "fields",
+                    "-e", "frame.number",
+                    "-e", "frame.time_epoch",
+                    "-e", "ip.src",
+                    "-e", "ip.dst",
+                    "-e", "tcp.srcport",
+                    "-e", "tcp.dstport",
+                    "-e", "dcerpc.cn_call_id",
+                ]
+            )
+            print(preview[:4000])
+        print()
+
+
+def _print_exfil(records: list[dict[str, Any]], *, limit: int, run_tshark: bool) -> None:
+    print("How outbound exfiltration candidates are inferred")
+    print("- one internal source sends large or unusual outbound flows")
+    print("- severity rises with temp.sh, archive markers, or large sustained transfer volume")
+    print()
+
+    matches = sorted(
+        _records_with_exfil(records),
+        key=lambda item: max((flow.get("total_bytes", 0) for flow in (item.get("possible_outbound_exfil_flows") or [])), default=0),
+        reverse=True,
+    )[:limit]
+
+    if not matches:
+        print("No outbound exfiltration records were found in the current results file.")
+        return
+
+    for record in matches:
+        file_name = record.get("file", "unknown")
+        pcap_path = record.get("path", "")
+        print(f"FILE {file_name}")
+        print(f"path: {pcap_path}")
+        for flow in (record.get("possible_outbound_exfil_flows") or [])[:3]:
+            print(
+                f"- exfil {flow.get('src_ip')} -> {flow.get('dst_ip')}:{flow.get('dst_port')} "
+                f"severity={flow.get('severity')} total_bytes={flow.get('total_bytes')} payload_bytes={flow.get('payload_bytes')}"
+            )
+            for event in (flow.get("sample_events") or [])[:3]:
+                print(
+                    f"  sample ts={event.get('timestamp')} port={event.get('dst_port')} payload_bytes={event.get('payload_bytes')} basis={event.get('basis')}"
+                )
+        tshark_filter = _exfil_filter(record)
+        tshark_cmd = (
+            f"tshark -r {_quote(pcap_path)} -Y {_quote(tshark_filter)} "
+            "-T fields -e frame.number -e frame.time_epoch -e ip.src -e ip.dst "
+            "-e tcp.srcport -e tcp.dstport -e tcp.len"
+        )
+        print("tshark command:")
+        print(tshark_cmd)
+        print("Wireshark display filter:")
+        print(tshark_filter)
+        if run_tshark and pcap_path:
+            print("tshark preview:")
+            preview = _run_tshark(
+                [
+                    "tshark", "-r", pcap_path, "-Y", tshark_filter,
+                    "-T", "fields",
+                    "-e", "frame.number",
+                    "-e", "frame.time_epoch",
+                    "-e", "ip.src",
+                    "-e", "ip.dst",
+                    "-e", "tcp.srcport",
+                    "-e", "tcp.dstport",
+                    "-e", "tcp.len",
+                ]
+            )
+            print(preview[:4000])
+        print()
+
+
+def _print_payload(records: list[dict[str, Any]], *, limit: int, run_tshark: bool) -> None:
+    print("How manual payload deployment is inferred")
+    print("- internal RDP access is correlated with SMB/RPC targeting and admin-share or remote-exec markers")
+    print("- this is strongest when the same source touches many internal targets in a short window")
+    print()
+
+    matches = sorted(
+        _records_with_payload(records),
+        key=lambda item: max((candidate.get("manual_drop_score", 0) for candidate in (item.get("manual_payload_deployment_candidates") or [])), default=0),
+        reverse=True,
+    )[:limit]
+
+    if not matches:
+        print("No manual payload-deployment records were found in the current results file.")
+        return
+
+    for record in matches:
+        file_name = record.get("file", "unknown")
+        pcap_path = record.get("path", "")
+        print(f"FILE {file_name}")
+        print(f"path: {pcap_path}")
+        for candidate in (record.get("manual_payload_deployment_candidates") or [])[:2]:
+            print(
+                f"- payload candidate {candidate.get('src_ip')} targets={candidate.get('unique_targets')} "
+                f"score={candidate.get('manual_drop_score')} smb_targets={candidate.get('targets_with_smb_rpc')} "
+                f"admin_share_targets={candidate.get('targets_with_admin_share_markers')} remote_exec_targets={candidate.get('targets_with_remote_exec_markers')}"
+            )
+            for event in (candidate.get("sample_events") or [])[:3]:
+                print(
+                    f"  sample dst={event.get('dst_ip')} port={event.get('dst_port')} ts={event.get('timestamp')} basis={event.get('basis')}"
+                )
+        tshark_filter = _payload_filter(record)
+        tshark_cmd = (
+            f"tshark -r {_quote(pcap_path)} -Y {_quote(tshark_filter)} "
+            "-T fields -e frame.number -e frame.time_epoch -e ip.src -e ip.dst "
+            "-e tcp.srcport -e tcp.dstport -e tcp.flags"
+        )
+        print("tshark command:")
+        print(tshark_cmd)
+        print("Wireshark display filter:")
+        print(tshark_filter)
+        if run_tshark and pcap_path:
+            print("tshark preview:")
+            preview = _run_tshark(
+                [
+                    "tshark", "-r", pcap_path, "-Y", tshark_filter,
+                    "-T", "fields",
+                    "-e", "frame.number",
+                    "-e", "frame.time_epoch",
+                    "-e", "ip.src",
+                    "-e", "ip.dst",
+                    "-e", "tcp.srcport",
+                    "-e", "tcp.dstport",
+                    "-e", "tcp.flags",
+                ]
+            )
+            print(preview[:4000])
+        print()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Verify external scan, temp.sh, and attacker-like inbound RDP findings from the current results file."
+        description="Verify key finding families from the current results file with analyst-friendly pivots."
     )
     parser.add_argument(
         "mode",
-        choices=["temp-sh", "rdp", "external-scan"],
+        choices=["temp-sh", "rdp", "external-scan", "smb-rpc", "dcerpc", "exfil", "payload"],
         help="Which finding family to verify",
     )
     parser.add_argument(
@@ -450,6 +765,14 @@ def main() -> int:
         _print_temp_sh(records, limit=max(1, args.limit), run_tshark=args.run_tshark)
     elif args.mode == "external-scan":
         _print_external_scan(records, limit=max(1, args.limit), run_tshark=args.run_tshark)
+    elif args.mode == "smb-rpc":
+        _print_smb_rpc(records, limit=max(1, args.limit), run_tshark=args.run_tshark)
+    elif args.mode == "dcerpc":
+        _print_dcerpc(records, limit=max(1, args.limit), run_tshark=args.run_tshark)
+    elif args.mode == "exfil":
+        _print_exfil(records, limit=max(1, args.limit), run_tshark=args.run_tshark)
+    elif args.mode == "payload":
+        _print_payload(records, limit=max(1, args.limit), run_tshark=args.run_tshark)
     else:
         _print_rdp(records, limit=max(1, args.limit), run_tshark=args.run_tshark)
     return 0

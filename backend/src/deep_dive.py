@@ -37,6 +37,21 @@ def _duration(first_seen: float | None, last_seen: float | None) -> float | None
     return round(max(0.0, last_seen - first_seen), 2)
 
 
+def _stage_confidence(*, strong: bool, moderate: bool = False, weak: bool = False) -> float:
+    if strong:
+        return 0.9
+    if moderate:
+        return 0.65
+    if weak:
+        return 0.35
+    return 0.0
+
+
+def _likely_path_from_stages(stages: list[dict[str, Any]]) -> str:
+    supported = [stage["stage"] for stage in stages if stage.get("supported")]
+    return " -> ".join(name.replace("_", " ").title() for name in supported) or "No strongly supported attack flow."
+
+
 def build_deep_dive(pcap_path: str, findings: dict[str, Any] | None = None) -> dict[str, Any]:
     findings = findings or collect_all_findings(pcap_path)
     scan = _scan_detection_surfaces(pcap_path)
@@ -51,12 +66,24 @@ def build_deep_dive(pcap_path: str, findings: dict[str, Any] | None = None) -> d
     manual_payload = findings["manual_payload_deployment"]
 
     patient_zero = external_rdp.get("patient_zero_candidate") or {}
+    external_scans = [item for item in findings.get("external_port_scans", {}).get("sources", []) if item.get("suspicious")]
     focus_host = patient_zero.get("internal_ip")
+    if not focus_host and external_scans:
+        top_target = (external_scans[0].get("top_targets") or [{}])[0]
+        focus_host = top_target.get("dst_ip")
 
     focus_ingress_sessions = [
         session
         for session in external_rdp.get("sessions", [])
         if not focus_host or session.get("internal_ip") == focus_host
+    ][:10]
+    focus_external_scans = [
+        source
+        for source in external_scans
+        if (
+            not focus_host
+            or any(target.get("dst_ip") == focus_host for target in source.get("top_targets", []))
+        )
     ][:10]
 
     focus_lateral_events = scan["internal_lateral_events"].get(focus_host, []) if focus_host else []
@@ -97,6 +124,7 @@ def build_deep_dive(pcap_path: str, findings: dict[str, Any] | None = None) -> d
     ][:10]
 
     ingress_first_seen = _first_timestamp([session.get("first_seen") for session in focus_ingress_sessions])
+    recon_first_seen = _first_timestamp([source.get("first_seen") for source in focus_external_scans])
     ingress_last_seen = _last_timestamp([session.get("last_seen") for session in focus_ingress_sessions])
     scan_first_seen = _first_timestamp([scanner.get("first_seen") for scanner in focus_scanners])
     spread_first_seen = _first_timestamp([spread.get("first_seen") for spread in focus_rdp_spread])
@@ -123,6 +151,11 @@ def build_deep_dive(pcap_path: str, findings: dict[str, Any] | None = None) -> d
         analyst_filters.append(
             f"ip.addr == {patient_zero['external_ip']} and ip.addr == {focus_host} and tcp.port == 3389"
         )
+    for scan_source in focus_external_scans[:2]:
+        if scan_source.get("src_ip") and focus_host:
+            analyst_filters.append(
+                f"ip.src == {scan_source['src_ip']} and ip.dst == {focus_host} and tcp.flags.syn == 1 and tcp.flags.ack == 0"
+            )
     analyst_filters.extend(
         [
             'http.request.method == "POST"',
@@ -131,9 +164,13 @@ def build_deep_dive(pcap_path: str, findings: dict[str, Any] | None = None) -> d
     )
 
     notes = []
-    if focus_host:
+    if patient_zero and focus_host:
         notes.append(
             f"The challenge hypothesis fits an external-to-internal RDP compromise focused on {focus_host}."
+        )
+    if focus_external_scans:
+        notes.append(
+            "External reconnaissance against the focus host was observed before or alongside the stronger intrusion indicators."
         )
     if focus_scanners:
         notes.append(
@@ -155,9 +192,129 @@ def build_deep_dive(pcap_path: str, findings: dict[str, Any] | None = None) -> d
         "PCAP alone cannot prove whether RDP access came from bought credentials, brute force, or a vulnerable exposed service."
     )
 
+    strongest_external_ip = (
+        patient_zero.get("external_ip")
+        or (focus_external_scans[0].get("src_ip") if focus_external_scans else None)
+    )
+    attack_flow_stages = [
+        {
+            "stage": "reconnaissance",
+            "supported": bool(focus_external_scans),
+            "confidence": _stage_confidence(
+                strong=bool(focus_external_scans and any(item.get("severity") == "high" for item in focus_external_scans)),
+                moderate=bool(focus_external_scans),
+            ),
+            "first_seen": _fmt_ts(recon_first_seen),
+            "evidence_summary": (
+                f"External source {focus_external_scans[0].get('src_ip')} probed "
+                f"{focus_external_scans[0].get('unique_ports')} ports against "
+                f"{focus_host or 'internal targets'}."
+                if focus_external_scans
+                else "No strong external reconnaissance signal was isolated in this file."
+            ),
+        },
+        {
+            "stage": "initial_access",
+            "supported": bool(patient_zero),
+            "confidence": _stage_confidence(
+                strong=bool(patient_zero and patient_zero.get("handshake_complete") and patient_zero.get("application_packets", 0) > 0),
+                moderate=bool(patient_zero),
+            ),
+            "first_seen": _fmt_ts(ingress_first_seen),
+            "evidence_summary": (
+                f"External RDP from {patient_zero.get('external_ip')} into {patient_zero.get('internal_ip')} "
+                f"shows handshake/application evidence and post-login behavior change."
+                if patient_zero
+                else "No strong patient-zero initial-access candidate was isolated in this file."
+            ),
+        },
+        {
+            "stage": "discovery",
+            "supported": bool(focus_scanners),
+            "confidence": _stage_confidence(
+                strong=bool(focus_scanners and focus_scanners[0].get("unique_targets", 0) >= 10),
+                moderate=bool(focus_scanners),
+            ),
+            "first_seen": _fmt_ts(scan_first_seen),
+            "evidence_summary": (
+                f"{focus_host or 'Focus host'} generated SMB/RPC scanning toward "
+                f"{focus_scanners[0].get('unique_targets')} internal targets."
+                if focus_scanners
+                else "No strong SMB/RPC discovery pattern was isolated in this file."
+            ),
+        },
+        {
+            "stage": "administrative_activity",
+            "supported": bool(focus_dcerpc),
+            "confidence": _stage_confidence(
+                strong=bool(any(event.get("possible_account_or_group_change") for event in focus_dcerpc)),
+                moderate=bool(focus_dcerpc),
+            ),
+            "first_seen": _fmt_ts(dcerpc_first_seen),
+            "evidence_summary": (
+                "DCERPC/account-administration markers were observed near the focus host."
+                if focus_dcerpc
+                else "No clear account/group administration markers were isolated in this file."
+            ),
+        },
+        {
+            "stage": "exfiltration",
+            "supported": bool(focus_temp_sh or focus_uploads or focus_exfil_candidates),
+            "confidence": _stage_confidence(
+                strong=bool(focus_temp_sh or any(flow.get("severity") == "high" for flow in focus_exfil_candidates)),
+                moderate=bool(focus_uploads or focus_exfil_candidates),
+            ),
+            "first_seen": _fmt_ts(exfil_first_seen),
+            "evidence_summary": (
+                "Outbound upload or transfer evidence exists and should be treated as potential exfiltration."
+                if focus_temp_sh or focus_uploads or focus_exfil_candidates
+                else "No direct exfiltration indicator was isolated in this file."
+            ),
+        },
+        {
+            "stage": "payload_deployment",
+            "supported": bool(focus_manual_payload or focus_rdp_spread),
+            "confidence": _stage_confidence(
+                strong=bool(focus_manual_payload),
+                moderate=bool(focus_rdp_spread),
+            ),
+            "first_seen": _fmt_ts(spread_first_seen),
+            "evidence_summary": (
+                "Internal RDP plus SMB/DCERPC correlations are consistent with manual payload deployment."
+                if focus_manual_payload
+                else "Internal RDP fan-out suggests operator-driven payload staging."
+                if focus_rdp_spread
+                else "No strong internal RDP payload-deployment pattern was isolated in this file."
+            ),
+        },
+    ]
+    suspected_attack_flow = {
+        "focus_host": focus_host,
+        "strongest_external_ip": strongest_external_ip,
+        "likely_path": _likely_path_from_stages(attack_flow_stages),
+        "stages": attack_flow_stages,
+        "summary": (
+            f"Likely path for this file: {_likely_path_from_stages(attack_flow_stages)}"
+            if any(stage["supported"] for stage in attack_flow_stages)
+            else "No strongly supported attack flow was isolated in this file."
+        ),
+    }
+
     return {
         "focus_host": focus_host,
         "patient_zero_candidate": patient_zero or None,
+        "suspected_attack_flow": suspected_attack_flow,
+        "reconnaissance": {
+            "first_seen": _fmt_ts(recon_first_seen),
+            "external_scan_sources": focus_external_scans,
+            "interpretation": (
+                f"External reconnaissance against {focus_host} was observed before stronger intrusion indicators."
+                if focus_external_scans and focus_host
+                else "External reconnaissance against internal targets was observed in this file."
+                if focus_external_scans
+                else "No strong external reconnaissance pattern was isolated in this file."
+            ),
+        },
         "initial_access": {
             "top_ingress_sessions": focus_ingress_sessions,
             "first_seen": _fmt_ts(ingress_first_seen),
@@ -165,7 +322,7 @@ def build_deep_dive(pcap_path: str, findings: dict[str, Any] | None = None) -> d
             "duration_seconds": _duration(ingress_first_seen, ingress_last_seen),
             "interpretation": (
                 f"External RDP into {focus_host} is the strongest initial-access hypothesis."
-                if focus_host
+                if patient_zero and focus_host
                 else "No strong patient-zero host was identified."
             ),
         },
@@ -237,10 +394,35 @@ def render_deep_dive_markdown(deep_dive: dict[str, Any]) -> str:
         f"Focus host: `{focus_host}`",
     ]
 
+    flow = deep_dive.get("suspected_attack_flow") or {}
+    lines.extend(
+        [
+            "",
+            "### Structured Flow Hypothesis",
+            flow.get("summary", "No structured flow hypothesis available."),
+        ]
+    )
+    for stage in flow.get("stages", []):
+        lines.append(
+            f"- {stage.get('stage')}: supported={stage.get('supported')} confidence={stage.get('confidence')} first_seen={stage.get('first_seen')} evidence={stage.get('evidence_summary')}"
+        )
+
     if patient_zero:
         lines.append(
             f"Best ingress candidate: external `{patient_zero.get('external_ip')}` -> internal `{patient_zero.get('internal_ip')}` with confidence `{patient_zero.get('confidence_score')}`."
         )
+    lines.extend(
+        [
+            "",
+            "### Reconnaissance Pivot",
+            deep_dive.get("reconnaissance", {}).get("interpretation", "No reconnaissance interpretation available."),
+        ]
+    )
+    for source in deep_dive.get("reconnaissance", {}).get("external_scan_sources", [])[:3]:
+        lines.append(
+            f"- External scan source {source.get('src_ip')} unique_ports={source.get('unique_ports')} unique_targets={source.get('unique_targets')} severity={source.get('severity')}"
+        )
+
     lines.extend(
         [
             "",

@@ -60,6 +60,7 @@ class ReportGenerationResult:
 
 
 def build_prompt(summary: dict[str, Any], findings: dict[str, Any]) -> str:
+    flow = findings.get("suspected_attack_flow") or ((findings.get("deep_dive") or {}).get("suspected_attack_flow"))
     return dedent(
         f"""
         Apex Global Logistics incident evidence is below.
@@ -69,6 +70,12 @@ def build_prompt(summary: dict[str, Any], findings: dict[str, Any]) -> str:
 
         Structured Findings:
         {json.dumps(findings, indent=2)}
+
+        Structured Flow Hypothesis:
+        {json.dumps(flow, indent=2) if flow else "None provided"}
+
+        If a structured flow hypothesis is provided, use it as an evidence-backed hypothesis map.
+        Do not treat unsupported stages as proven.
         """
     ).strip()
 
@@ -252,6 +259,7 @@ def build_results_prompt(
 
 
 def _fallback_report(summary: dict[str, Any], findings: dict[str, Any]) -> str:
+    suspected_flow = findings.get("suspected_attack_flow") or ((findings.get("deep_dive") or {}).get("suspected_attack_flow")) or {}
     patient_zero = findings.get("external_rdp", {}).get("patient_zero_candidate")
     external_scans = [item for item in findings.get("external_port_scans", {}).get("sources", []) if item.get("suspicious")][:3]
     temp_hits = findings.get("temp_sh_traffic", {}).get("hits", [])[:5]
@@ -299,6 +307,7 @@ def _fallback_report(summary: dict[str, Any], findings: dict[str, Any]) -> str:
         if spreaders
         else "The current packet evidence does not strongly prove RDP-based internal deployment."
     )
+    flow_summary = suspected_flow.get("summary")
 
     return dedent(
         f"""
@@ -318,6 +327,7 @@ def _fallback_report(summary: dict[str, Any], findings: dict[str, Any]) -> str:
 
         ## Confidence / Gaps
         Total packets analyzed: {summary.get("total_packets", "unknown")}. Findings are heuristic and packet-based.
+        {flow_summary or "No explicit single-file attack-flow hypothesis was provided."}
         """
     ).strip()
 

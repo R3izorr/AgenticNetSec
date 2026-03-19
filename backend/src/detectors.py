@@ -282,6 +282,7 @@ def _session_bucket() -> dict[str, Any]:
         "seen_synack": False,
         "seen_ack": False,
         "application_packets": 0,
+        "sample_events": [],
     }
 
 
@@ -297,7 +298,23 @@ def _outbound_flow_bucket() -> dict[str, Any]:
         "paths": Counter(),
         "archive_hits": Counter(),
         "temp_sh_mentions": 0,
+        "sample_events": [],
     }
+
+
+def _append_sample_event(
+    sample_events: list[dict[str, Any]],
+    event: dict[str, Any],
+    *,
+    limit: int = 5,
+    dedupe_fields: tuple[str, ...] = ("timestamp", "src_ip", "dst_ip", "src_port", "dst_port", "basis"),
+) -> None:
+    if len(sample_events) >= limit:
+        return
+    for existing in sample_events:
+        if all(existing.get(field) == event.get(field) for field in dedupe_fields):
+            return
+    sample_events.append(event)
 
 
 def _build_scan_candidate_summary(
@@ -461,17 +478,75 @@ def _scan_detection_surfaces(pcap_path: str) -> dict[str, Any]:
                         )
 
                 if _is_external_ip(src_ip) and _is_internal_ip(dst_ip) and dport == 3389:
-                    _update_session(external_rdp_sessions[(src_ip, dst_ip)], timestamp, packet_size, True, flags, has_payload)
+                    session = external_rdp_sessions[(src_ip, dst_ip)]
+                    _update_session(session, timestamp, packet_size, True, flags, has_payload)
+                    basis = "external RDP packet"
+                    if _flag_set(flags, 0x02) and not _flag_set(flags, 0x10):
+                        basis = "external SYN toward RDP service"
+                    elif _flag_set(flags, 0x10) and not _flag_set(flags, 0x02) and not has_payload:
+                        basis = "external ACK completing RDP handshake"
+                    elif has_payload:
+                        basis = "external RDP application packet"
+                    _append_sample_event(
+                        session["sample_events"],
+                        {
+                            "timestamp": timestamp,
+                            "src_ip": src_ip,
+                            "dst_ip": dst_ip,
+                            "src_port": sport,
+                            "dst_port": dport,
+                            "has_payload": has_payload,
+                            "basis": basis,
+                        },
+                    )
                 elif _is_internal_ip(src_ip) and _is_external_ip(dst_ip) and sport == 3389:
-                    _update_session(external_rdp_sessions[(dst_ip, src_ip)], timestamp, packet_size, False, flags, has_payload)
+                    session = external_rdp_sessions[(dst_ip, src_ip)]
+                    _update_session(session, timestamp, packet_size, False, flags, has_payload)
+                    basis = "internal RDP server response"
+                    if _flag_set(flags, 0x02) and _flag_set(flags, 0x10):
+                        basis = "internal SYN-ACK from RDP service"
+                    elif has_payload:
+                        basis = "internal RDP application response"
+                    _append_sample_event(
+                        session["sample_events"],
+                        {
+                            "timestamp": timestamp,
+                            "src_ip": src_ip,
+                            "dst_ip": dst_ip,
+                            "src_port": sport,
+                            "dst_port": dport,
+                            "has_payload": has_payload,
+                            "basis": basis,
+                        },
+                    )
 
                 if _is_internal_ip(src_ip) and _is_external_ip(dst_ip):
-                    _update_outbound_flow(
-                        outbound_flows[(src_ip, dst_ip, dport, "TCP")],
-                        timestamp,
-                        packet_size,
-                        payload,
-                    )
+                    flow = outbound_flows[(src_ip, dst_ip, dport, "TCP")]
+                    _update_outbound_flow(flow, timestamp, packet_size, payload)
+                    if payload:
+                        archive_matches = [
+                            archive_name
+                            for archive_name, magic in ARCHIVE_MAGIC_MAP.items()
+                            if magic in payload
+                        ]
+                        basis = "outbound payload packet"
+                        if b"temp.sh" in payload.lower():
+                            basis = "outbound payload mentions temp.sh"
+                        elif archive_matches:
+                            basis = "outbound payload contains archive marker"
+                        _append_sample_event(
+                            flow["sample_events"],
+                            {
+                                "timestamp": timestamp,
+                                "src_ip": src_ip,
+                                "dst_ip": dst_ip,
+                                "src_port": sport,
+                                "dst_port": dport,
+                                "payload_bytes": len(payload),
+                                "archive_types": archive_matches,
+                                "basis": basis,
+                            },
+                        )
 
                 if _is_internal_ip(src_ip) and _is_internal_ip(dst_ip) and src_ip != dst_ip and dport in LATERAL_PORTS and (_flag_set(flags, 0x02) or dport in {3389, 445, 135}):
                     internal_lateral_events[src_ip].append({"timestamp": timestamp, "dst_ip": dst_ip, "dst_port": dport})
@@ -495,9 +570,45 @@ def _scan_detection_surfaces(pcap_path: str) -> dict[str, Any]:
                         )
 
                 if _is_internal_ip(src_ip) and _is_internal_ip(dst_ip) and src_ip != dst_ip and dport == 3389:
-                    _update_session(internal_rdp_sessions[(src_ip, dst_ip)], timestamp, packet_size, True, flags, has_payload)
+                    session = internal_rdp_sessions[(src_ip, dst_ip)]
+                    _update_session(session, timestamp, packet_size, True, flags, has_payload)
+                    basis = "internal RDP packet"
+                    if _flag_set(flags, 0x02) and not _flag_set(flags, 0x10):
+                        basis = "internal SYN toward peer RDP service"
+                    elif has_payload:
+                        basis = "internal RDP application packet"
+                    _append_sample_event(
+                        session["sample_events"],
+                        {
+                            "timestamp": timestamp,
+                            "src_ip": src_ip,
+                            "dst_ip": dst_ip,
+                            "src_port": sport,
+                            "dst_port": dport,
+                            "has_payload": has_payload,
+                            "basis": basis,
+                        },
+                    )
                 elif _is_internal_ip(src_ip) and _is_internal_ip(dst_ip) and src_ip != dst_ip and sport == 3389:
-                    _update_session(internal_rdp_sessions[(dst_ip, src_ip)], timestamp, packet_size, False, flags, has_payload)
+                    session = internal_rdp_sessions[(dst_ip, src_ip)]
+                    _update_session(session, timestamp, packet_size, False, flags, has_payload)
+                    basis = "internal RDP peer response"
+                    if _flag_set(flags, 0x02) and _flag_set(flags, 0x10):
+                        basis = "internal SYN-ACK from peer RDP service"
+                    elif has_payload:
+                        basis = "internal RDP application response"
+                    _append_sample_event(
+                        session["sample_events"],
+                        {
+                            "timestamp": timestamp,
+                            "src_ip": src_ip,
+                            "dst_ip": dst_ip,
+                            "src_port": sport,
+                            "dst_port": dport,
+                            "has_payload": has_payload,
+                            "basis": basis,
+                        },
+                    )
 
                 if payload and ((sport in {135, 445}) or (dport in {135, 445})):
                     lowered = payload.lower()
@@ -535,6 +646,22 @@ def _scan_detection_surfaces(pcap_path: str) -> dict[str, Any]:
                                 flow["hosts"][event["host"]] += 1
                             if event["path"]:
                                 flow["paths"][event["path"]] += 1
+                            _append_sample_event(
+                                flow["sample_events"],
+                                {
+                                    "timestamp": timestamp,
+                                    "src_ip": src_ip,
+                                    "dst_ip": dst_ip,
+                                    "src_port": sport,
+                                    "dst_port": dport,
+                                    "method": event["method"],
+                                    "host": event["host"],
+                                    "path": event["path"],
+                                    "content_length": event["content_length"],
+                                    "basis": "outbound HTTP request observed",
+                                },
+                                dedupe_fields=("timestamp", "src_ip", "dst_ip", "dst_port", "method", "host", "path"),
+                            )
                         if event["method"] in UPLOAD_METHODS and _is_internal_ip(src_ip) and _is_external_ip(dst_ip):
                             http_posts.append(event)
                         if event["mentions_temp_sh"]:
@@ -657,6 +784,20 @@ def find_external_rdp(pcap_path: str) -> dict[str, Any]:
         unique_follow_on_hosts = sorted({event["dst_ip"] for event in follow_on_events})
         established = bool(session["seen_syn"] and session["seen_synack"] and session["seen_ack"])
         confidence = min(100, (25 if established else 0) + min(25, session["application_packets"] * 2) + min(30, len(unique_follow_on_hosts) * 3))
+        sample_events = list(session.get("sample_events", []))
+        for event in follow_on_events[:3]:
+            _append_sample_event(
+                sample_events,
+                {
+                    "timestamp": event.get("timestamp"),
+                    "src_ip": internal_ip,
+                    "dst_ip": event.get("dst_ip"),
+                    "src_port": None,
+                    "dst_port": event.get("dst_port"),
+                    "basis": "post-login internal lateral activity from patient-zero candidate",
+                },
+                dedupe_fields=("timestamp", "dst_ip", "dst_port", "basis"),
+            )
         results.append({
             "external_ip": external_ip,
             "internal_ip": internal_ip,
@@ -668,6 +809,8 @@ def find_external_rdp(pcap_path: str) -> dict[str, Any]:
             "handshake_complete": established,
             "application_packets": session["application_packets"],
             "post_login_unique_internal_targets": len(unique_follow_on_hosts),
+            "sample_events": sample_events[:5],
+            "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
             "suspicious": bool(established and (session["application_packets"] > 0 or len(unique_follow_on_hosts) >= 3)),
             "confidence_score": confidence,
         })
@@ -809,6 +952,16 @@ def find_smb_rpc_scans(pcap_path: str) -> dict[str, Any]:
                 {"port": port, "count": count}
                 for port, count in port_counts.most_common()
             ],
+            "sample_events": [
+                {
+                    "timestamp": event.get("timestamp"),
+                    "dst_ip": event.get("dst_ip"),
+                    "dst_port": event.get("dst_port"),
+                    "basis": "new internal SMB/RPC target attempt",
+                }
+                for event in events[:5]
+            ],
+            "basis": "Internal host attempted connections to many peers over SMB/RPC ports 445/135.",
             "suspicious": suspicious,
         })
     scanners.sort(key=lambda item: (item["unique_targets"], item["connection_attempts"]), reverse=True)
@@ -821,15 +974,33 @@ def find_dcerpc_account_activity(pcap_path: str) -> dict[str, Any]:
     interesting = {"samr", "domain admins", "administrators", "remote desktop users", "net user", "net localgroup", "addmember", "createuser"}
     for event in scan["dcerpc_markers"]:
         key = (event["src_ip"], event["dst_ip"])
-        bucket = grouped.setdefault(key, {"src_ip": event["src_ip"], "dst_ip": event["dst_ip"], "matches": Counter()})
+        bucket = grouped.setdefault(
+            key,
+            {"src_ip": event["src_ip"], "dst_ip": event["dst_ip"], "matches": Counter(), "sample_events": []},
+        )
         for marker in event["matches"]:
             bucket["matches"][marker] += 1
+        _append_sample_event(
+            bucket["sample_events"],
+            {
+                "timestamp": event.get("timestamp"),
+                "src_ip": event.get("src_ip"),
+                "dst_ip": event.get("dst_ip"),
+                "src_port": event.get("src_port"),
+                "dst_port": event.get("dst_port"),
+                "matches": event.get("matches"),
+                "basis": "DCERPC/SMB payload contained account or group administration markers",
+            },
+            dedupe_fields=("timestamp", "src_ip", "dst_ip", "dst_port"),
+        )
     results = []
     for bucket in grouped.values():
         results.append({
             "src_ip": bucket["src_ip"],
             "dst_ip": bucket["dst_ip"],
             "marker_counts": dict(bucket["matches"].most_common()),
+            "sample_events": bucket["sample_events"][:5],
+            "basis": "Observed DCERPC/SMB marker strings associated with account or group administration activity.",
             "possible_account_or_group_change": any(marker in interesting for marker in bucket["matches"]),
         })
     results.sort(key=lambda item: (item["possible_account_or_group_change"], sum(item["marker_counts"].values())), reverse=True)
@@ -922,6 +1093,8 @@ def find_outbound_exfiltration_candidates(
             "archive_hits": dict(flow["archive_hits"]),
             "suspicious_archive_hits": suspicious_archive_hits,
             "temp_sh_mentions": flow["temp_sh_mentions"],
+            "sample_events": flow.get("sample_events", [])[:5],
+            "basis": "Outbound flow exceeded exfiltration thresholds or included exfiltration-like markers.",
             "suspicious": suspicious,
             "severity": severity,
         }
@@ -1119,6 +1292,27 @@ def find_manual_payload_deployment(
                 "smb_rpc_ports": sorted({event.get("dst_port") for event in correlated_lateral if event.get("dst_port")}),
                 "admin_share_markers": admin_markers,
                 "remote_exec_markers": remote_exec_markers,
+                "sample_events": [
+                    *[
+                        {
+                            "timestamp": event.get("timestamp"),
+                            "dst_ip": dst_ip,
+                            "dst_port": event.get("dst_port"),
+                            "basis": "correlated SMB/RPC lateral activity after internal RDP access",
+                        }
+                        for event in correlated_lateral[:3]
+                    ],
+                    *[
+                        {
+                            "timestamp": event.get("timestamp"),
+                            "dst_ip": dst_ip,
+                            "dst_port": event.get("dst_port"),
+                            "matches": event.get("matches"),
+                            "basis": "correlated admin-share or remote-exec marker after internal RDP access",
+                        }
+                        for event in correlated_markers[:3]
+                    ],
+                ][:5],
             }
         )
         bucket["target_set"].add(dst_ip)
@@ -1171,6 +1365,12 @@ def find_manual_payload_deployment(
                 "duration_seconds": _duration_seconds(bucket["first_seen"], bucket["last_seen"]),
                 "total_rdp_bytes": bucket["total_rdp_bytes"],
                 "manual_drop_score": score,
+                "sample_events": [
+                    event
+                    for target in bucket["targets"][:3]
+                    for event in target.get("sample_events", [])
+                ][:5],
+                "basis": "Internal RDP access was temporally correlated with SMB/RPC targeting and admin-share or remote-exec markers.",
                 "suspicious": suspicious,
                 "targets": sorted(
                     bucket["targets"],
