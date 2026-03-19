@@ -55,6 +55,8 @@ export function adaptJobStatus(transport: JobStatusResponseTransport): JobStatus
     progress: safeNumber(transport.progress, 0),
     guardrailState: transport.guardrail_state ?? "pending",
     error: transport.error ?? null,
+    createdAt: transport.created_at,
+    updatedAt: transport.updated_at,
   }
 }
 

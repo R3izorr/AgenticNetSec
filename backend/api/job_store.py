@@ -74,3 +74,10 @@ class JobStore:
             raise KeyError(f"Unknown job_id {job_id}")
         path = Path(record.artifacts_dir) / name
         return path.read_text(encoding="utf-8")
+
+    def list_jobs(self) -> list[JobRecord]:
+        """List all jobs sorted by creation time (newest first)."""
+        with self._lock:
+            jobs = list(self._jobs.values())
+            jobs.sort(key=lambda j: j.created_at, reverse=True)
+            return jobs

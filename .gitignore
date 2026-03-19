@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .venv/
+backend/venv/
 .virtualenv_data/
 .tmp/
 local_settings.py

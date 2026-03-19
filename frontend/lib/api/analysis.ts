@@ -6,7 +6,18 @@ import type {
   ReportMarkdownTransport,
   RunMetricsTransport,
 } from "@/lib/transport/analysis"
-import type { CreateAnalysisInput } from "@/lib/types/analysis"
+import type { CreateAnalysisInput, JobStatus } from "@/lib/types/analysis"
+import { adaptJobStatus } from "@/lib/adapters/analysis"
+
+export interface JobHistoryResponseRaw {
+  total: number
+  jobs: JobStatusResponseTransport[]
+}
+
+export interface JobHistoryResponse {
+  total: number
+  jobs: JobStatus[]
+}
 
 export async function createAnalysisJob(
   input: CreateAnalysisInput
@@ -41,6 +52,17 @@ export async function createAnalysisJob(
     method: "POST",
     body: formData,
   })
+}
+
+export async function getJobHistory(
+): Promise<JobHistoryResponse> {
+  const raw = await apiRequest<JobHistoryResponseRaw>(
+    `/api/v1/analysis`
+  )
+  return {
+    total: raw.total,
+    jobs: raw.jobs.map(adaptJobStatus),
+  }
 }
 
 export async function getAnalysisJobStatus(

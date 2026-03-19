@@ -5,6 +5,8 @@ export interface JobStatusResponseTransport {
   progress: number
   guardrail_state: string
   error?: string | null
+  created_at?: string
+  updated_at?: string
 }
 
 export interface HeaderBlockTransport {

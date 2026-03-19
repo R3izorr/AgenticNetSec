@@ -7,6 +7,8 @@ export interface JobStatus {
   progress: number
   guardrailState: string
   error: string | null
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface ReportHeader {

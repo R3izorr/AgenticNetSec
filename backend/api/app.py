@@ -179,3 +179,27 @@ async def get_guardrail_audit(job_id: str):
         raise HTTPException(status_code=409, detail=f"Job is {job.status}")
     return job_store.read_json_artifact(job_id, "guardrail_audit.json")
 
+
+@app.get("/api/v1/analysis")
+async def list_jobs():
+    """List all analysis jobs, ordered by creation time (newest first)."""
+    all_jobs = job_store.list_jobs()
+    print(all_jobs)
+    # Convert to dict format
+    return {
+        "total": len(all_jobs),
+        "jobs": [
+            {
+                "analysis_job_id": job.analysis_job_id,
+                "status": job.status,
+                "current_phase": job.current_phase,
+                "progress": job.progress,
+                "guardrail_state": job.guardrail_state,
+                "created_at": job.created_at,
+                "updated_at": job.updated_at,
+                "error": job.error,
+            }
+            for job in all_jobs
+        ],
+    }
+

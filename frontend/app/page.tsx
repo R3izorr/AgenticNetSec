@@ -19,6 +19,10 @@ const highlights = [
     title: "Raw Artifacts & Metrics",
     description: "Inspect report.json, markdown output, and runtime/cost metrics for demo credibility.",
   },
+  {
+    title: "Ingestion History",
+    description: "View all submitted PCAP analyses with status, timestamps, and quick access to details.",
+  },
 ]
 
 export default function HomePage() {
@@ -40,7 +44,7 @@ export default function HomePage() {
               <Link href="/analysis/new">Start Analysis</Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link href="/analysis/new">Open Submission</Link>
+              <Link href="/analysis/history">View History</Link>
             </Button>
           </div>
         </div>

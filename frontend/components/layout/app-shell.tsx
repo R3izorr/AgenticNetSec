@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 const navLinks = [
   { href: "/", label: "Overview" },
   { href: "/analysis/new", label: "New Analysis" },
+  { href: "/analysis/history", label: "History" },
 ]
 
 export function AppShell({ children }: { children: React.ReactNode }) {
