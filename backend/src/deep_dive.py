@@ -94,11 +94,13 @@ def build_deep_dive(pcap_path: str, findings: dict[str, Any] | None = None) -> d
         for scanner in smb_rpc.get("scanners", [])
         if scanner.get("src_ip") == focus_host
     ]
+    suspicious_focus_scanners = [scanner for scanner in focus_scanners if scanner.get("suspicious")]
     focus_rdp_spread = [
         spread
         for spread in internal_rdp.get("spreaders", [])
         if spread.get("src_ip") == focus_host
     ]
+    suspicious_focus_rdp_spread = [spread for spread in focus_rdp_spread if spread.get("suspicious")]
     focus_manual_payload = [
         candidate
         for candidate in manual_payload.get("candidates", [])
@@ -108,6 +110,9 @@ def build_deep_dive(pcap_path: str, findings: dict[str, Any] | None = None) -> d
         event
         for event in dcerpc.get("events", [])
         if focus_host and focus_host in {event.get("src_ip"), event.get("dst_ip")}
+    ]
+    suspicious_focus_dcerpc = [
+        event for event in focus_dcerpc if event.get("possible_account_or_group_change")
     ]
     focus_temp_sh = [
         hit for hit in temp_sh.get("hits", []) if not focus_host or hit.get("src_ip") == focus_host
@@ -230,29 +235,40 @@ def build_deep_dive(pcap_path: str, findings: dict[str, Any] | None = None) -> d
         },
         {
             "stage": "discovery",
-            "supported": bool(focus_scanners),
+            "supported": bool(suspicious_focus_scanners),
+            "weakly_supported": bool(focus_scanners and not suspicious_focus_scanners),
             "confidence": _stage_confidence(
-                strong=bool(focus_scanners and focus_scanners[0].get("unique_targets", 0) >= 10),
-                moderate=bool(focus_scanners),
+                strong=bool(
+                    suspicious_focus_scanners
+                    and suspicious_focus_scanners[0].get("unique_targets", 0) >= 10
+                ),
+                moderate=bool(suspicious_focus_scanners),
+                weak=bool(focus_scanners and not suspicious_focus_scanners),
             ),
             "first_seen": _fmt_ts(scan_first_seen),
             "evidence_summary": (
                 f"{focus_host or 'Focus host'} generated SMB/RPC scanning toward "
-                f"{focus_scanners[0].get('unique_targets')} internal targets."
+                f"{suspicious_focus_scanners[0].get('unique_targets')} internal targets."
+                if suspicious_focus_scanners
+                else f"{focus_host or 'Focus host'} generated limited SMB/RPC probing toward "
+                f"{focus_scanners[0].get('unique_targets')} internal targets, but it stayed below the stronger detection threshold."
                 if focus_scanners
                 else "No strong SMB/RPC discovery pattern was isolated in this file."
             ),
         },
         {
             "stage": "administrative_activity",
-            "supported": bool(focus_dcerpc),
+            "supported": bool(suspicious_focus_dcerpc),
+            "weakly_supported": bool(focus_dcerpc and not suspicious_focus_dcerpc),
             "confidence": _stage_confidence(
-                strong=bool(any(event.get("possible_account_or_group_change") for event in focus_dcerpc)),
-                moderate=bool(focus_dcerpc),
+                strong=bool(suspicious_focus_dcerpc),
+                weak=bool(focus_dcerpc and not suspicious_focus_dcerpc),
             ),
             "first_seen": _fmt_ts(dcerpc_first_seen),
             "evidence_summary": (
                 "DCERPC/account-administration markers were observed near the focus host."
+                if suspicious_focus_dcerpc
+                else "Generic SMB/DCERPC marker strings were observed near the focus host, but they did not meet the account-change threshold."
                 if focus_dcerpc
                 else "No clear account/group administration markers were isolated in this file."
             ),
@@ -273,17 +289,18 @@ def build_deep_dive(pcap_path: str, findings: dict[str, Any] | None = None) -> d
         },
         {
             "stage": "payload_deployment",
-            "supported": bool(focus_manual_payload or focus_rdp_spread),
+            "supported": bool(focus_manual_payload),
+            "weakly_supported": bool(suspicious_focus_rdp_spread and not focus_manual_payload),
             "confidence": _stage_confidence(
                 strong=bool(focus_manual_payload),
-                moderate=bool(focus_rdp_spread),
+                weak=bool(suspicious_focus_rdp_spread and not focus_manual_payload),
             ),
             "first_seen": _fmt_ts(spread_first_seen),
             "evidence_summary": (
                 "Internal RDP plus SMB/DCERPC correlations are consistent with manual payload deployment."
                 if focus_manual_payload
-                else "Internal RDP fan-out suggests operator-driven payload staging."
-                if focus_rdp_spread
+                else "Internal RDP fan-out suggests operator-driven payload staging, but no stronger correlated payload-drop indicator was isolated."
+                if suspicious_focus_rdp_spread
                 else "No strong internal RDP payload-deployment pattern was isolated in this file."
             ),
         },
@@ -404,7 +421,7 @@ def render_deep_dive_markdown(deep_dive: dict[str, Any]) -> str:
     )
     for stage in flow.get("stages", []):
         lines.append(
-            f"- {stage.get('stage')}: supported={stage.get('supported')} confidence={stage.get('confidence')} first_seen={stage.get('first_seen')} evidence={stage.get('evidence_summary')}"
+            f"- {stage.get('stage')}: supported={stage.get('supported')} weakly_supported={stage.get('weakly_supported', False)} confidence={stage.get('confidence')} first_seen={stage.get('first_seen')} evidence={stage.get('evidence_summary')}"
         )
 
     if patient_zero:

@@ -45,7 +45,7 @@ MITRE_BY_DETECTOR = {
 @dataclass
 class AnalysisRequest:
     pcap_path: str
-    provider: str = "gemini"
+    provider: str = "openrouter"
     model: str | None = None
     use_ai: bool = True
     require_ai: bool = False

@@ -527,6 +527,48 @@ def _generate_with_openai(prompt: str, model: str | None) -> ReportGenerationRes
     return None
 
 
+def _generate_with_openrouter(prompt: str, model: str | None) -> ReportGenerationResult | None:
+    api_key = _get_secret("OPENROUTER_API_KEY")
+    if not api_key:
+        print(
+            "OpenRouter unavailable: OPENROUTER_API_KEY is not set in the environment or local_settings.py. Trying next report option.",
+            file=sys.stderr,
+        )
+        return None
+    selected_model = str(_get_setting("OPENROUTER_MODEL", model or "openai/gpt-5-mini"))
+    base_url = str(_get_setting("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")).rstrip("/")
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+        )
+        response = client.responses.create(
+            model=selected_model,
+            input=[
+                {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
+                {"role": "user", "content": [{"type": "text", "text": prompt}]},
+            ],
+            extra_headers={
+                "HTTP-Referer": str(_get_setting("OPENROUTER_HTTP_REFERER", "http://localhost")),
+                "X-Title": str(_get_setting("OPENROUTER_APP_NAME", "AgenticNetSec")),
+            },
+        )
+        if response.output_text:
+            print(f"OpenRouter request succeeded using model {selected_model}.", file=sys.stderr)
+            return _result_from_text(
+                text=response.output_text,
+                provider="openrouter",
+                model=selected_model,
+                usage_payload=response,
+            )
+    except Exception as exc:
+        print(f"OpenRouter request failed: {exc}. Trying next report option.", file=sys.stderr)
+        return None
+    return None
+
+
 def _generate_with_groq(prompt: str, model: str | None) -> ReportGenerationResult | None:
     api_key = _get_secret("GROQ_API_KEY")
     if not api_key:
@@ -798,31 +840,66 @@ def _generate_with_ollama(prompt: str, model: str | None) -> ReportGenerationRes
     return None
 
 
+def _resolve_provider_chain(provider: str) -> list[str]:
+    normalized = (provider or "auto").strip().lower()
+    if normalized == "auto":
+        return ["openrouter", "gemini", "openai", "groq", "ollama"]
+    if normalized == "openrouter":
+        return ["openrouter", "gemini", "openai", "groq", "ollama"]
+    if normalized == "gemini":
+        return ["gemini", "openrouter", "openai", "groq", "ollama"]
+    if normalized == "openai":
+        return ["openai", "openrouter", "gemini", "groq", "ollama"]
+    if normalized == "groq":
+        return ["groq", "openrouter", "gemini", "openai", "ollama"]
+    if normalized == "ollama":
+        return ["ollama", "openrouter", "gemini", "openai", "groq"]
+    return [normalized]
+
+
+def _model_for_provider(provider: str, model: str | None) -> str | None:
+    if model:
+        return model
+    if provider == "openrouter":
+        return str(_get_setting("OPENROUTER_MODEL", "openai/gpt-5-mini"))
+    if provider == "gemini":
+        return str(_get_setting("GEMINI_MODEL", "gemini-2.5-flash"))
+    if provider == "openai":
+        return str(_get_setting("OPENAI_MODEL", "gpt-5-mini"))
+    if provider == "groq":
+        return str(_get_setting("GROQ_MODEL", "openai/gpt-oss-20b"))
+    if provider == "ollama":
+        return str(_get_setting("OLLAMA_MODEL", "qwen2.5:7b-instruct"))
+    return model
+
+
+def _generate_with_provider(prompt: str, provider: str, model: str | None) -> ReportGenerationResult | None:
+    if provider == "openrouter":
+        return _generate_with_openrouter(prompt, _model_for_provider(provider, model))
+    if provider == "gemini":
+        return _generate_with_gemini(prompt, _model_for_provider(provider, model))
+    if provider == "groq":
+        return _generate_with_groq(prompt, _model_for_provider(provider, model))
+    if provider == "ollama":
+        return _generate_with_ollama(prompt, _model_for_provider(provider, model))
+    if provider == "openai":
+        return _generate_with_openai(prompt, _model_for_provider(provider, model))
+    return None
+
+
 def generate_report_result(
     summary: dict[str, Any],
     findings: dict[str, Any],
     *,
-    provider: str = "gemini",
+    provider: str = "openrouter",
     model: str | None = None,
     use_ai: bool = True,
     require_ai: bool = False,
 ) -> ReportGenerationResult:
     prompt = build_prompt(summary, findings)
     if use_ai:
-        if provider == "gemini":
-            result = _generate_with_gemini(prompt, model)
-            if result:
-                return result
-        elif provider == "groq":
-            result = _generate_with_groq(prompt, model)
-            if result:
-                return result
-        elif provider == "ollama":
-            result = _generate_with_ollama(prompt, model)
-            if result:
-                return result
-        elif provider == "openai":
-            result = _generate_with_openai(prompt, model)
+        for candidate_provider in _resolve_provider_chain(provider):
+            result = _generate_with_provider(prompt, candidate_provider, model)
             if result:
                 return result
         if require_ai:
@@ -839,7 +916,7 @@ def generate_report(
     summary: dict[str, Any],
     findings: dict[str, Any],
     *,
-    provider: str = "gemini",
+    provider: str = "openrouter",
     model: str | None = None,
     use_ai: bool = True,
     require_ai: bool = False,
@@ -858,27 +935,17 @@ def generate_results_report(
     aggregate: dict[str, Any],
     records: list[dict[str, Any]],
     *,
-    provider: str = "gemini",
+    provider: str = "openrouter",
     model: str | None = None,
     use_ai: bool = True,
     require_ai: bool = False,
 ) -> str:
-    prompt = build_results_prompt(aggregate, records, compact=(provider in {"groq", "ollama"}))
+    provider_chain = _resolve_provider_chain(provider)
+    effective_provider = provider_chain[0] if provider_chain else provider
+    prompt = build_results_prompt(aggregate, records, compact=(effective_provider in {"groq", "ollama"}))
     if use_ai:
-        if provider == "gemini":
-            result = _generate_with_gemini(prompt, model)
-            if result:
-                return result.text
-        elif provider == "groq":
-            result = _generate_with_groq(prompt, model)
-            if result:
-                return result.text
-        elif provider == "ollama":
-            result = _generate_with_ollama(prompt, model)
-            if result:
-                return result.text
-        elif provider == "openai":
-            result = _generate_with_openai(prompt, model)
+        for candidate_provider in provider_chain:
+            result = _generate_with_provider(prompt, candidate_provider, model)
             if result:
                 return result.text
         if require_ai:
@@ -977,10 +1044,12 @@ def main() -> int:
     results_file = DEFAULT_RESULTS_FILE
     aggregate_file = DEFAULT_AGGREGATE_FILE
     report_file = DEFAULT_REPORT_FILE
-    provider = str(_get_setting("REPORT_PROVIDER", "gemini"))
+    provider = str(_get_setting("REPORT_PROVIDER", "openrouter"))
     model = _get_setting("REPORT_MODEL", None)
     if not model:
-        if provider == "ollama":
+        if provider == "openrouter":
+            model = _get_setting("OPENROUTER_MODEL", "openai/gpt-5-mini")
+        elif provider == "ollama":
             model = _get_setting("OLLAMA_MODEL", "qwen2.5:7b-instruct")
         elif provider == "groq":
             model = _get_setting("GROQ_MODEL", "openai/gpt-oss-20b")
@@ -991,7 +1060,13 @@ def main() -> int:
 
     print(f"Reading results from {results_file}")
     print(f"Report provider: {provider} | model: {model}")
-    if provider == "gemini":
+    if provider == "openrouter":
+        key_source = _get_secret_source("OPENROUTER_API_KEY")
+        if key_source:
+            print(f"OpenRouter key detected from {key_source}")
+        else:
+            print("OpenRouter key not detected in OPENROUTER_API_KEY")
+    elif provider == "gemini":
         key_source = _get_gemini_api_key_source()
         if key_source:
             print(f"Gemini key detected from {key_source}")
