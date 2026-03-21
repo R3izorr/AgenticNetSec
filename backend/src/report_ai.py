@@ -506,23 +506,47 @@ def _generate_with_openai(prompt: str, model: str | None) -> ReportGenerationRes
         from openai import OpenAI
 
         client = OpenAI(api_key=api_key)
-        response = client.responses.create(
-            model=selected_model,
-            input=[
-                {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
-                {"role": "user", "content": [{"type": "text", "text": prompt}]},
-            ],
-        )
-        if response.output_text:
-            print(f"OpenAI request succeeded using model {selected_model}.", file=sys.stderr)
-            return _result_from_text(
-                text=response.output_text,
-                provider="openai",
-                model=selected_model,
-                usage_payload=response,
-            )
+        retry_attempts = max(1, _get_setting_int("OPENAI_RETRY_ATTEMPTS", 3))
+        retry_delay = max(0.5, _get_setting_float("OPENAI_RETRY_DELAY_SECONDS", 2.0))
+        for attempt in range(1, retry_attempts + 1):
+            try:
+                response = client.responses.create(
+                    model=selected_model,
+                    input=[
+                        {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
+                        {"role": "user", "content": [{"type": "text", "text": prompt}]},
+                    ],
+                )
+                if response.output_text:
+                    print(f"OpenAI request succeeded using model {selected_model}.", file=sys.stderr)
+                    return _result_from_text(
+                        text=response.output_text,
+                        provider="openai",
+                        model=selected_model,
+                        usage_payload=response,
+                    )
+                print(
+                    f"OpenAI model {selected_model} returned no text on attempt {attempt}/{retry_attempts}.",
+                    file=sys.stderr,
+                )
+                break
+            except Exception as exc:
+                is_last_attempt = attempt >= retry_attempts
+                if _is_transient_api_error(exc) and not is_last_attempt:
+                    sleep_seconds = retry_delay * attempt
+                    print(
+                        f"OpenAI transient failure on {selected_model} attempt {attempt}/{retry_attempts}: {exc}. Retrying in {sleep_seconds:.1f}s.",
+                        file=sys.stderr,
+                    )
+                    time.sleep(sleep_seconds)
+                    continue
+                print(
+                    f"OpenAI request failed on model {selected_model} attempt {attempt}/{retry_attempts}: {exc}.",
+                    file=sys.stderr,
+                )
+                break
     except Exception as exc:
-        print(f"OpenAI request failed: {exc}. Using fallback report.", file=sys.stderr)
+        print(f"OpenAI client setup failed: {exc}. Using fallback report.", file=sys.stderr)
         return None
     return None
 
@@ -544,27 +568,48 @@ def _generate_with_openrouter(prompt: str, model: str | None) -> ReportGeneratio
             api_key=api_key,
             base_url=base_url,
         )
-        response = client.responses.create(
-            model=selected_model,
-            input=[
-                {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
-                {"role": "user", "content": [{"type": "text", "text": prompt}]},
-            ],
-            extra_headers={
-                "HTTP-Referer": str(_get_setting("OPENROUTER_HTTP_REFERER", "http://localhost")),
-                "X-Title": str(_get_setting("OPENROUTER_APP_NAME", "AgenticNetSec")),
-            },
-        )
-        if response.output_text:
-            print(f"OpenRouter request succeeded using model {selected_model}.", file=sys.stderr)
-            return _result_from_text(
-                text=response.output_text,
-                provider="openrouter",
-                model=selected_model,
-                usage_payload=response,
-            )
+        retry_attempts = max(1, _get_setting_int("OPENROUTER_RETRY_ATTEMPTS", 3))
+        retry_delay = max(0.5, _get_setting_float("OPENROUTER_RETRY_DELAY_SECONDS", 2.0))
+        for attempt in range(1, retry_attempts + 1):
+            try:
+                response = client.responses.create(
+                    model=selected_model,
+                    input=f"{SYSTEM_PROMPT}\n\n{prompt}",
+                    extra_headers={
+                        "HTTP-Referer": str(_get_setting("OPENROUTER_HTTP_REFERER", "http://localhost")),
+                        "X-Title": str(_get_setting("OPENROUTER_APP_NAME", "AgenticNetSec")),
+                    },
+                )
+                if response.output_text:
+                    print(f"OpenRouter request succeeded using model {selected_model}.", file=sys.stderr)
+                    return _result_from_text(
+                        text=response.output_text,
+                        provider="openrouter",
+                        model=selected_model,
+                        usage_payload=response,
+                    )
+                print(
+                    f"OpenRouter model {selected_model} returned no text on attempt {attempt}/{retry_attempts}.",
+                    file=sys.stderr,
+                )
+                break
+            except Exception as exc:
+                is_last_attempt = attempt >= retry_attempts
+                if _is_transient_api_error(exc) and not is_last_attempt:
+                    sleep_seconds = retry_delay * attempt
+                    print(
+                        f"OpenRouter transient failure on {selected_model} attempt {attempt}/{retry_attempts}: {exc}. Retrying in {sleep_seconds:.1f}s.",
+                        file=sys.stderr,
+                    )
+                    time.sleep(sleep_seconds)
+                    continue
+                print(
+                    f"OpenRouter request failed on model {selected_model} attempt {attempt}/{retry_attempts}: {exc}. Trying next report option.",
+                    file=sys.stderr,
+                )
+                break
     except Exception as exc:
-        print(f"OpenRouter request failed: {exc}. Trying next report option.", file=sys.stderr)
+        print(f"OpenRouter client setup failed: {exc}. Trying next report option.", file=sys.stderr)
         return None
     return None
 
@@ -585,20 +630,44 @@ def _generate_with_groq(prompt: str, model: str | None) -> ReportGenerationResul
             api_key=api_key,
             base_url=str(_get_setting("GROQ_BASE_URL", "https://api.groq.com/openai/v1")),
         )
-        response = client.responses.create(
-            model=selected_model,
-            input=f"{SYSTEM_PROMPT}\n\n{prompt}",
-        )
-        if response.output_text:
-            print(f"Groq request succeeded using model {selected_model}.", file=sys.stderr)
-            return _result_from_text(
-                text=response.output_text,
-                provider="groq",
-                model=selected_model,
-                usage_payload=response,
-            )
+        retry_attempts = max(1, _get_setting_int("GROQ_RETRY_ATTEMPTS", 3))
+        retry_delay = max(0.5, _get_setting_float("GROQ_RETRY_DELAY_SECONDS", 2.0))
+        for attempt in range(1, retry_attempts + 1):
+            try:
+                response = client.responses.create(
+                    model=selected_model,
+                    input=f"{SYSTEM_PROMPT}\n\n{prompt}",
+                )
+                if response.output_text:
+                    print(f"Groq request succeeded using model {selected_model}.", file=sys.stderr)
+                    return _result_from_text(
+                        text=response.output_text,
+                        provider="groq",
+                        model=selected_model,
+                        usage_payload=response,
+                    )
+                print(
+                    f"Groq model {selected_model} returned no text on attempt {attempt}/{retry_attempts}.",
+                    file=sys.stderr,
+                )
+                break
+            except Exception as exc:
+                is_last_attempt = attempt >= retry_attempts
+                if _is_transient_api_error(exc) and not is_last_attempt:
+                    sleep_seconds = retry_delay * attempt
+                    print(
+                        f"Groq transient failure on {selected_model} attempt {attempt}/{retry_attempts}: {exc}. Retrying in {sleep_seconds:.1f}s.",
+                        file=sys.stderr,
+                    )
+                    time.sleep(sleep_seconds)
+                    continue
+                print(
+                    f"Groq request failed on model {selected_model} attempt {attempt}/{retry_attempts}: {exc}.",
+                    file=sys.stderr,
+                )
+                break
     except Exception as exc:
-        print(f"Groq request failed: {exc}. Using fallback report.", file=sys.stderr)
+        print(f"Groq client setup failed: {exc}. Using fallback report.", file=sys.stderr)
         return None
     return None
 
@@ -669,6 +738,24 @@ def _is_transient_gemini_error(exc: Exception) -> bool:
         "DEADLINE_EXCEEDED",
         "TIMEOUT",
         "TIMED OUT",
+    ]
+    return any(marker in message for marker in transient_markers)
+
+
+def _is_transient_api_error(exc: Exception) -> bool:
+    message = str(exc).upper()
+    transient_markers = [
+        "429",
+        "500",
+        "502",
+        "503",
+        "504",
+        "TIMEOUT",
+        "TIMED OUT",
+        "RATE LIMIT",
+        "CONNECTION RESET",
+        "TEMPORAR",
+        "UNAVAILABLE",
     ]
     return any(marker in message for marker in transient_markers)
 
@@ -857,8 +944,8 @@ def _resolve_provider_chain(provider: str) -> list[str]:
     return [normalized]
 
 
-def _model_for_provider(provider: str, model: str | None) -> str | None:
-    if model:
+def _model_for_provider(provider: str, model: str | None, preferred_provider: str | None = None) -> str | None:
+    if model and (preferred_provider is None or provider == preferred_provider):
         return model
     if provider == "openrouter":
         return str(_get_setting("OPENROUTER_MODEL", "openai/gpt-5-mini"))
@@ -873,17 +960,23 @@ def _model_for_provider(provider: str, model: str | None) -> str | None:
     return model
 
 
-def _generate_with_provider(prompt: str, provider: str, model: str | None) -> ReportGenerationResult | None:
+def _generate_with_provider(
+    prompt: str,
+    provider: str,
+    model: str | None,
+    *,
+    preferred_provider: str | None = None,
+) -> ReportGenerationResult | None:
     if provider == "openrouter":
-        return _generate_with_openrouter(prompt, _model_for_provider(provider, model))
+        return _generate_with_openrouter(prompt, _model_for_provider(provider, model, preferred_provider))
     if provider == "gemini":
-        return _generate_with_gemini(prompt, _model_for_provider(provider, model))
+        return _generate_with_gemini(prompt, _model_for_provider(provider, model, preferred_provider))
     if provider == "groq":
-        return _generate_with_groq(prompt, _model_for_provider(provider, model))
+        return _generate_with_groq(prompt, _model_for_provider(provider, model, preferred_provider))
     if provider == "ollama":
-        return _generate_with_ollama(prompt, _model_for_provider(provider, model))
+        return _generate_with_ollama(prompt, _model_for_provider(provider, model, preferred_provider))
     if provider == "openai":
-        return _generate_with_openai(prompt, _model_for_provider(provider, model))
+        return _generate_with_openai(prompt, _model_for_provider(provider, model, preferred_provider))
     return None
 
 
@@ -898,8 +991,14 @@ def generate_report_result(
 ) -> ReportGenerationResult:
     prompt = build_prompt(summary, findings)
     if use_ai:
+        preferred_provider = _resolve_provider_chain(provider)[0]
         for candidate_provider in _resolve_provider_chain(provider):
-            result = _generate_with_provider(prompt, candidate_provider, model)
+            result = _generate_with_provider(
+                prompt,
+                candidate_provider,
+                model,
+                preferred_provider=preferred_provider,
+            )
             if result:
                 return result
         if require_ai:
@@ -944,8 +1043,14 @@ def generate_results_report(
     effective_provider = provider_chain[0] if provider_chain else provider
     prompt = build_results_prompt(aggregate, records, compact=(effective_provider in {"groq", "ollama"}))
     if use_ai:
+        preferred_provider = provider_chain[0] if provider_chain else provider
         for candidate_provider in provider_chain:
-            result = _generate_with_provider(prompt, candidate_provider, model)
+            result = _generate_with_provider(
+                prompt,
+                candidate_provider,
+                model,
+                preferred_provider=preferred_provider,
+            )
             if result:
                 return result.text
         if require_ai:
