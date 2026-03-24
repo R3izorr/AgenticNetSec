@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Button } from "@/components/ui/button"
 
 export function CopyButton({
   value,
@@ -22,12 +23,8 @@ export function CopyButton({
   }
 
   return (
-    <button
-      type="button"
-      onClick={onCopy}
-      className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
-    >
+    <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onCopy}>
       {copied ? "Copied" : label}
-    </button>
+    </Button>
   )
 }

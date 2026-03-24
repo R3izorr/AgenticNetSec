@@ -2,12 +2,19 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+
+import { InlineNotice } from "@/components/common/inline-notice"
 import { SectionCard } from "@/components/common/section-card"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { useToast } from "@/components/ui/toast"
+import { adaptJobStatus } from "@/lib/adapters/analysis"
 import { createAnalysisJob } from "@/lib/api/analysis"
 import { isApiError } from "@/lib/api/client"
-import { adaptJobStatus } from "@/lib/adapters/analysis"
-import { useToast } from "@/components/ui/toast"
 
 export default function NewAnalysisPage() {
   const router = useRouter()
@@ -74,131 +81,129 @@ export default function NewAnalysisPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <SectionCard
         title="Submit Analysis"
         subtitle="Provide exactly one input source: file upload or pcap_path."
       >
-        <form className="space-y-5" onSubmit={onSubmit}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => {
-                setInputMode("file")
-                setPcapPath("")
-              }}
-              className={`rounded-lg border px-4 py-3 text-left transition ${
-                inputMode === "file"
-                  ? "border-primary/40 bg-primary/10"
-                  : "border-border hover:bg-muted"
-              }`}
-            >
-              <p className="text-sm font-medium">Upload PCAP File</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Use local file input and send multipart upload.
-              </p>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
+        <form className="flex flex-col gap-5" onSubmit={onSubmit}>
+          <div className="flex flex-col gap-3">
+            <Label>Input source</Label>
+            <ToggleGroup
+              type="single"
+              value={inputMode}
+              variant="outline"
+              className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2"
+              onValueChange={(value) => {
+                if (!value) {
+                  return
+                }
+
+                if (value === "file") {
+                  setInputMode("file")
+                  setPcapPath("")
+                  return
+                }
+
                 setInputMode("path")
                 setFile(undefined)
               }}
-              className={`rounded-lg border px-4 py-3 text-left transition ${
-                inputMode === "path"
-                  ? "border-primary/40 bg-primary/10"
-                  : "border-border hover:bg-muted"
-              }`}
             >
-              <p className="text-sm font-medium">Use pcap_path</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Provide a backend-readable filesystem path.
-              </p>
-            </button>
+              <ToggleGroupItem value="file" className="h-auto items-start justify-start px-4 py-3 text-left">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-foreground">Upload PCAP File</span>
+                  <span className="text-xs text-muted-foreground">
+                    Use local file input and send multipart upload.
+                  </span>
+                </div>
+              </ToggleGroupItem>
+              <ToggleGroupItem value="path" className="h-auto items-start justify-start px-4 py-3 text-left">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-foreground">Use pcap_path</span>
+                  <span className="text-xs text-muted-foreground">
+                    Provide a backend-readable filesystem path.
+                  </span>
+                </div>
+              </ToggleGroupItem>
+            </ToggleGroup>
           </div>
 
           {inputMode === "file" ? (
-            <div className="space-y-2">
-              <label htmlFor="pcap-file" className="text-sm font-medium">
-                PCAP file
-              </label>
-              <input
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="pcap-file">PCAP file</Label>
+              <Input
                 id="pcap-file"
                 type="file"
                 accept=".pcap,.pcapng"
                 onChange={(event) => setFile(event.target.files?.[0])}
-                className="block w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
+                className="h-auto bg-card py-2"
               />
             </div>
           ) : (
-            <div className="space-y-2">
-              <label htmlFor="pcap-path" className="text-sm font-medium">
-                pcap_path
-              </label>
-              <input
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="pcap-path">pcap_path</Label>
+              <Input
                 id="pcap-path"
                 type="text"
                 value={pcapPath}
                 onChange={(event) => setPcapPath(event.target.value)}
                 placeholder="C:\\captures\\case1.pcap"
-                className="block w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"
+                className="bg-card"
               />
             </div>
           )}
 
-          <details className="rounded-lg border border-border bg-background/40 p-4">
+          <Separator />
+
+          <details className="rounded-lg border border-border/70 bg-background/40 p-4">
             <summary className="cursor-pointer text-sm font-medium">Advanced options</summary>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Provider</span>
-                <input
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="provider">Provider</Label>
+                <Input
+                  id="provider"
                   type="text"
                   value={provider}
                   onChange={(event) => setProvider(event.target.value)}
-                  className="block w-full rounded-md border border-input bg-card px-2 py-1.5"
+                  className="bg-card"
                 />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Model (optional)</span>
-                <input
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="model">Model (optional)</Label>
+                <Input
+                  id="model"
                   type="text"
                   value={model}
                   onChange={(event) => setModel(event.target.value)}
-                  className="block w-full rounded-md border border-input bg-card px-2 py-1.5"
+                  className="bg-card"
                 />
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
+              </div>
+              <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-card/60 px-3 py-2">
+                <Checkbox
+                  id="use-ai"
                   checked={useAi}
-                  onChange={(event) => setUseAi(event.target.checked)}
+                  onCheckedChange={(checked) => setUseAi(checked === true)}
                 />
-                <span>use_ai</span>
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
+                <Label htmlFor="use-ai">use_ai</Label>
+              </div>
+              <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-card/60 px-3 py-2">
+                <Checkbox
+                  id="require-ai"
                   checked={requireAi}
-                  onChange={(event) => setRequireAi(event.target.checked)}
+                  onCheckedChange={(checked) => setRequireAi(checked === true)}
                 />
-                <span>require_ai</span>
-              </label>
+                <Label htmlFor="require-ai">require_ai</Label>
+              </div>
             </div>
           </details>
 
-          {formError ? (
-            <p className="rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-sm text-red-200">
-              {formError}
-            </p>
-          ) : null}
+          {formError ? <InlineNotice variant="error">{formError}</InlineNotice> : null}
 
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={submitting}>
               {submitting ? "Submitting..." : "Start Analysis"}
             </Button>
-            <p className="text-xs text-muted-foreground">
-              Analysis runs autonomously after submission.
-            </p>
+            <p className="text-xs text-muted-foreground">Analysis runs autonomously after submission.</p>
           </div>
         </form>
       </SectionCard>

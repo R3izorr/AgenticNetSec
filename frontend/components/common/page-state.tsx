@@ -1,3 +1,18 @@
+import { Button } from "@/components/ui/button"
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+
 export function LoadingState({
   title = "Loading",
   description,
@@ -6,14 +21,18 @@ export function LoadingState({
   description?: string
 }) {
   return (
-    <section className="rounded-xl border border-border bg-card p-6">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      {description ? <p className="mt-2 text-sm text-muted-foreground">{description}</p> : null}
-      <div className="mt-4 space-y-3">
-        <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
-        <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
-        <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-      </div>
+    <section>
+      <Card className="border border-border/70 bg-card/95 shadow-sm">
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          {description ? <CardDescription>{description}</CardDescription> : null}
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="h-4 w-1/2" />
+          <Skeleton className="h-4 w-3/4" />
+        </CardContent>
+      </Card>
     </section>
   )
 }
@@ -28,18 +47,25 @@ export function ErrorState({
   onRetry?: () => void
 }) {
   return (
-    <section className="rounded-xl border border-red-500/30 bg-red-500/5 p-6">
-      <h2 className="text-lg font-semibold text-red-300">{title}</h2>
-      {description ? <p className="mt-2 text-sm text-red-200/80">{description}</p> : null}
-      {onRetry ? (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-4 rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-200 hover:bg-red-500/10"
-        >
-          Retry
-        </button>
-      ) : null}
+    <section>
+      <Card className="border border-destructive/30 bg-card/95 shadow-sm">
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <Alert variant="destructive" className="border-destructive/30 bg-destructive/5">
+            <AlertTitle>{title}</AlertTitle>
+            {description ? <AlertDescription>{description}</AlertDescription> : null}
+          </Alert>
+          {onRetry ? (
+            <div>
+              <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+                Retry
+              </Button>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
     </section>
   )
 }
@@ -47,14 +73,21 @@ export function ErrorState({
 export function EmptyState({
   title,
   description,
+  action,
 }: {
   title: string
   description?: string
+  action?: React.ReactNode
 }) {
   return (
-    <section className="rounded-xl border border-border bg-card p-6">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      {description ? <p className="mt-2 text-sm text-muted-foreground">{description}</p> : null}
+    <section>
+      <Card className="border border-border/70 bg-card/95 shadow-sm">
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          {description ? <CardDescription>{description}</CardDescription> : null}
+        </CardHeader>
+        {action ? <CardContent>{action}</CardContent> : null}
+      </Card>
     </section>
   )
 }

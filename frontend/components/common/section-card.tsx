@@ -1,4 +1,12 @@
 import { cn } from "@/lib/utils"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 
 export function SectionCard({
   title,
@@ -14,15 +22,17 @@ export function SectionCard({
   className?: string
 }) {
   return (
-    <section className={cn("rounded-xl border border-border bg-card p-5", className)}>
-      <header className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold">{title}</h2>
-          {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
-        </div>
-        {actions ? <div>{actions}</div> : null}
-      </header>
-      {children}
+    <section>
+      <Card className={cn("border border-border/70 bg-card/95 shadow-sm", className)}>
+        <CardHeader className="gap-2 border-b border-border/60">
+          <div>
+            <CardTitle>{title}</CardTitle>
+            {subtitle ? <CardDescription>{subtitle}</CardDescription> : null}
+          </div>
+          {actions ? <CardAction>{actions}</CardAction> : null}
+        </CardHeader>
+        <CardContent className="pt-4">{children}</CardContent>
+      </Card>
     </section>
   )
 }

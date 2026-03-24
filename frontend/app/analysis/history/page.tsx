@@ -3,17 +3,19 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import type { Column, ColumnDef } from "@tanstack/react-table"
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { EmptyState, ErrorState, LoadingState } from "@/components/common/page-state"
+import { InlineNotice } from "@/components/common/inline-notice"
 import { SectionCard } from "@/components/common/section-card"
 import { StatusBadge } from "@/components/common/status-badge"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/toast"
 import { getJobHistory } from "@/lib/api/analysis"
 import { isApiError } from "@/lib/api/client"
-import { useToast } from "@/components/ui/toast"
-import type { JobStatus } from "@/lib/types/analysis"
 import { formatDateTime } from "@/lib/format"
+import type { JobStatus } from "@/lib/types/analysis"
 import { DataTable } from "./data-table"
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 
 function SortableHeader({
   column,
@@ -45,38 +47,26 @@ function SortableHeader({
 export const columns: ColumnDef<JobStatus>[] = [
   {
     accessorKey: "analysisJobId",
-    header: ({ column }) => (
-      <SortableHeader column={column} title="Job ID" />
-    ),
+    header: ({ column }) => <SortableHeader column={column} title="Job ID" />,
     cell: ({ getValue }) => (
-      <span className="font-mono text-xs text-foreground/80">
-        {getValue<string>()}
-      </span>
+      <span className="font-mono text-xs text-foreground/80">{getValue<string>()}</span>
     ),
   },
   {
     accessorKey: "status",
-    header: ({ column }) => (
-      <SortableHeader column={column} title="Status" />
-    ),
+    header: ({ column }) => <SortableHeader column={column} title="Status" />,
     cell: ({ getValue }) => <StatusBadge value={getValue<string>()} />,
   },
   {
     accessorKey: "currentPhase",
-    header: ({ column }) => (
-      <SortableHeader column={column} title="Phase" />
-    ),
+    header: ({ column }) => <SortableHeader column={column} title="Phase" />,
     cell: ({ getValue }) => (
-      <span className="text-sm text-foreground/70">
-        {getValue<string>() || "-"}
-      </span>
+      <span className="text-sm text-foreground/70">{getValue<string>() || "-"}</span>
     ),
   },
   {
     accessorKey: "progress",
-    header: ({ column }) => (
-      <SortableHeader column={column} title="Progress" />
-    ),
+    header: ({ column }) => <SortableHeader column={column} title="Progress" />,
     cell: ({ getValue }) => {
       const value = getValue<number | null | undefined>()
       return (
@@ -88,38 +78,24 @@ export const columns: ColumnDef<JobStatus>[] = [
   },
   {
     accessorKey: "guardrailState",
-    header: ({ column }) => (
-      <SortableHeader column={column} title="Guardrail" />
-    ),
+    header: ({ column }) => <SortableHeader column={column} title="Guardrail" />,
     cell: ({ getValue }) => {
       const value = getValue<string | null | undefined>()
-      return value ? (
-        <StatusBadge value={value} />
-      ) : (
-        <span className="text-sm text-muted-foreground">-</span>
-      )
+      return value ? <StatusBadge value={value} /> : <span className="text-sm text-muted-foreground">-</span>
     },
   },
   {
     accessorKey: "createdAt",
-    header: ({ column }) => (
-      <SortableHeader column={column} title="Created" />
-    ),
+    header: ({ column }) => <SortableHeader column={column} title="Created" />,
     cell: ({ getValue }) => (
-      <span className="text-xs text-muted-foreground">
-        {formatDateTime(getValue<string>())}
-      </span>
+      <span className="text-xs text-muted-foreground">{formatDateTime(getValue<string>())}</span>
     ),
   },
   {
     accessorKey: "updatedAt",
-    header: ({ column }) => (
-      <SortableHeader column={column} title="Updated" />
-    ),
+    header: ({ column }) => <SortableHeader column={column} title="Updated" />,
     cell: ({ getValue }) => (
-      <span className="text-xs text-muted-foreground">
-        {formatDateTime(getValue<string>())}
-      </span>
+      <span className="text-xs text-muted-foreground">{formatDateTime(getValue<string>())}</span>
     ),
   },
   {
@@ -141,76 +117,79 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadHistory = useCallback(
-    async () => {
-      setLoading(true)
-      setError(null)
+  const loadHistory = useCallback(async () => {
+    setLoading(true)
+    setError(null)
 
-      try {
-        const response = await getJobHistory()
-        console.log(response)
-        setTableData(response.jobs ?? [])
-      } catch (err) {
-        const message = isApiError(err)
-          ? err.detail || err.message
-          : err instanceof Error
-            ? err.message
-            : "Failed to load job history"
+    try {
+      const response = await getJobHistory()
+      setTableData(response.jobs ?? [])
+    } catch (err) {
+      const message = isApiError(err)
+        ? err.detail || err.message
+        : err instanceof Error
+          ? err.message
+          : "Failed to load job history"
 
-        setTableData([])
-        setError(message)
+      setTableData([])
+      setError(message)
 
-        pushToast({
-          variant: "error",
-          title: "Failed to load history",
-          description: message,
-        })
-      } finally {
-        setLoading(false)
-      }
-    },
-    [pushToast]
-  )
+      pushToast({
+        variant: "error",
+        title: "Failed to load history",
+        description: message,
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [pushToast])
 
   useEffect(() => {
-    loadHistory()
+    void loadHistory()
   }, [loadHistory])
 
-  return (
-    <div className="space-y-6">
-      <SectionCard
-        title="PCAP Ingestion History"
-        subtitle="View all submitted analyses"
-      >
-        {error && (
-          <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <LoadingState
+          title="Loading ingestion history"
+          description="Fetching submitted analyses and their current state."
+        />
+      </div>
+    )
+  }
 
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="space-y-2 text-center">
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-border border-t-primary" />
-              <p className="text-sm text-muted-foreground">Loading jobs...</p>
-            </div>
-          </div>
-        ) : tableData.length > 0 ? (
-          <>
-            <div className="overflow-x-auto">
-              <DataTable columns={columns} data={tableData} />
-            </div>
+  if (error && !tableData.length) {
+    return (
+      <div className="flex flex-col gap-6">
+        <ErrorState title="Unable to load history" description={error} onRetry={() => void loadHistory()} />
+      </div>
+    )
+  }
 
-        
-          </>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-sm text-muted-foreground">No jobs found</p>
-            <Button asChild className="mt-4">
+  if (!tableData.length) {
+    return (
+      <div className="flex flex-col gap-6">
+        <EmptyState
+          title="PCAP Ingestion History"
+          description="No jobs have been submitted yet."
+          action={
+            <Button asChild>
               <Link href="/analysis/new">Create Your First Analysis</Link>
             </Button>
-          </div>
-        )}
+          }
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <SectionCard title="PCAP Ingestion History" subtitle="View all submitted analyses">
+        <div className="flex flex-col gap-4">
+          {error ? <InlineNotice variant="error">{error}</InlineNotice> : null}
+          <DataTable columns={columns} data={tableData} />
+        </div>
       </SectionCard>
     </div>
   )

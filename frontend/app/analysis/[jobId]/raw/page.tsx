@@ -3,15 +3,24 @@
 import Link from "next/link"
 import { useCallback, useState } from "react"
 import { useParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { CopyButton } from "@/components/common/copy-button"
+
+import { ArtifactPanel } from "@/components/common/artifact-panel"
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/page-state"
 import { KeyValueGrid } from "@/components/common/key-value-grid"
 import { SectionCard } from "@/components/common/section-card"
+import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useArtifact } from "@/hooks/use-artifact"
-import { getGuardrailAudit, getMetrics, getReportJson, getReportMarkdown } from "@/lib/api/analysis"
+import {
+  getGuardrailAudit,
+  getMetrics,
+  getReportJson,
+  getReportMarkdown,
+} from "@/lib/api/analysis"
 import { adaptGuardrailAudit, adaptRunMetrics } from "@/lib/adapters/analysis"
 import { formatNumber, titleCase } from "@/lib/format"
+
+const rowClassName = "flex items-center justify-between rounded-md border border-border/70 bg-background/40 px-3 py-2 text-sm"
 
 type RawTab = "report" | "markdown" | "metrics" | "guardrails"
 
@@ -20,10 +29,7 @@ export default function AnalysisRawPage() {
   const jobId = decodeURIComponent(params.jobId)
   const [tab, setTab] = useState<RawTab>("report")
 
-  const reportState = useArtifact(
-    useCallback(() => getReportJson(jobId), [jobId]),
-    [jobId]
-  )
+  const reportState = useArtifact(useCallback(() => getReportJson(jobId), [jobId]), [jobId])
 
   const markdownState = useArtifact(
     useCallback(async () => {
@@ -49,257 +55,12 @@ export default function AnalysisRawPage() {
     [jobId]
   )
 
-  function renderReportTab() {
-    if (reportState.loading && !reportState.data) {
-      return <LoadingState title="Loading report.json" />
-    }
-    if (reportState.notReady && !reportState.data) {
-      return (
-        <EmptyState
-          title="report.json not ready"
-          description="The job may still be running. Retry after a few seconds."
-        />
-      )
-    }
-    if (!reportState.data && reportState.error) {
-      return (
-        <ErrorState
-          title="Unable to load report.json"
-          description={reportState.error}
-          onRetry={() => void reportState.reload()}
-        />
-      )
-    }
-    if (!reportState.data) {
-      return <EmptyState title="No report.json data" />
-    }
-
-    const text = JSON.stringify(reportState.data, null, 2)
-    return (
-      <SectionCard title="report.json" actions={<CopyButton value={text} label="Copy JSON" />}>
-        <pre className="max-h-[70vh] overflow-auto rounded-lg border border-border bg-background/40 p-3 text-xs">
-          {text}
-        </pre>
-      </SectionCard>
-    )
-  }
-
-  function renderMarkdownTab() {
-    if (markdownState.loading && !markdownState.data) {
-      return <LoadingState title="Loading report.md" />
-    }
-    if (markdownState.notReady && !markdownState.data) {
-      return (
-        <EmptyState
-          title="report.md not ready"
-          description="The job may still be running. Retry after a few seconds."
-        />
-      )
-    }
-    if (!markdownState.data && markdownState.error) {
-      return (
-        <ErrorState
-          title="Unable to load report.md"
-          description={markdownState.error}
-          onRetry={() => void markdownState.reload()}
-        />
-      )
-    }
-    if (!markdownState.data) {
-      return <EmptyState title="No report.md data" />
-    }
-
-    const markdown = markdownState.data
-    return (
-      <SectionCard
-        title="report.md"
-        actions={<CopyButton value={markdown} label="Copy Markdown" />}
-      >
-        <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-background/40 p-3 text-sm">
-          {markdown || "No markdown content."}
-        </pre>
-      </SectionCard>
-    )
-  }
-
-  function renderMetricsTab() {
-    if (metricsState.loading && !metricsState.data) {
-      return <LoadingState title="Loading metrics" />
-    }
-    if (metricsState.notReady && !metricsState.data) {
-      return (
-        <EmptyState
-          title="metrics not ready"
-          description="The job may still be running. Retry after a few seconds."
-        />
-      )
-    }
-    if (!metricsState.data && metricsState.error) {
-      return (
-        <ErrorState
-          title="Unable to load metrics"
-          description={metricsState.error}
-          onRetry={() => void metricsState.reload()}
-        />
-      )
-    }
-    if (!metricsState.data) {
-      return <EmptyState title="No metrics data" />
-    }
-
-    const metrics = metricsState.data
-    const metricsJson = JSON.stringify(metrics, null, 2)
-
-    return (
-      <div className="space-y-4">
-        <SectionCard title="metrics" actions={<CopyButton value={metricsJson} label="Copy Metrics" />}>
-          <KeyValueGrid
-            items={[
-              { label: "Status", value: metrics.status },
-              { label: "Runtime (s)", value: formatNumber(metrics.runtimeSecondsTotal, 3) },
-              { label: "Provider", value: metrics.provider },
-              { label: "Model", value: metrics.model },
-              { label: "Fallback Used", value: metrics.fallbackUsed ? "Yes" : "No" },
-              {
-                label: "CPU Peak (%)",
-                value: metrics.cpuPercentPeak === null ? "N/A" : formatNumber(metrics.cpuPercentPeak, 2),
-              },
-              {
-                label: "RAM Peak (MB)",
-                value: metrics.ramMbPeak === null ? "N/A" : formatNumber(metrics.ramMbPeak, 2),
-              },
-              { label: "LLM Tokens In", value: formatNumber(metrics.llmTokensIn, 0) },
-              { label: "LLM Tokens Out", value: formatNumber(metrics.llmTokensOut, 0) },
-              { label: "Compute Cost", value: `$${formatNumber(metrics.costCompute, 6)}` },
-              { label: "LLM Cost", value: `$${formatNumber(metrics.costLlm, 6)}` },
-              { label: "Storage Cost", value: `$${formatNumber(metrics.costStorage, 6)}` },
-              {
-                label: "Estimated Total Cost",
-                value: `$${formatNumber(metrics.estimatedCostTotal, 6)}`,
-              },
-            ]}
-          />
-        </SectionCard>
-
-        <SectionCard title="Artifact Sizes">
-          <div className="space-y-2">
-            {Object.entries(metrics.artifactBytes).map(([name, value]) => (
-              <div
-                key={name}
-                className="flex items-center justify-between rounded-md border border-border bg-background/40 px-3 py-2 text-sm"
-              >
-                <span>{titleCase(name.replaceAll("_", " "))}</span>
-                <span>{formatNumber(value, 0)} bytes</span>
-              </div>
-            ))}
-            {!Object.keys(metrics.artifactBytes).length ? (
-              <p className="text-sm text-muted-foreground">No artifact size data available.</p>
-            ) : null}
-          </div>
-        </SectionCard>
-
-        <SectionCard title="Cost Assumptions">
-          <pre className="max-h-[30vh] overflow-auto rounded-lg border border-border bg-background/40 p-3 text-xs">
-            {JSON.stringify(metrics.costAssumptions, null, 2)}
-          </pre>
-        </SectionCard>
-
-        <SectionCard title="Phase Timings">
-          <div className="space-y-2">
-            {Object.entries(metrics.phaseTimingsSeconds).map(([phase, value]) => (
-              <div
-                key={phase}
-                className="flex items-center justify-between rounded-md border border-border bg-background/40 px-3 py-2 text-sm"
-              >
-                <span>{titleCase(phase)}</span>
-                <span>{formatNumber(value, 3)} s</span>
-              </div>
-            ))}
-            {!Object.keys(metrics.phaseTimingsSeconds).length ? (
-              <p className="text-sm text-muted-foreground">No phase timing data available.</p>
-            ) : null}
-          </div>
-        </SectionCard>
-
-        <SectionCard title="Raw metrics JSON">
-          <pre className="max-h-[60vh] overflow-auto rounded-lg border border-border bg-background/40 p-3 text-xs">
-            {metricsJson}
-          </pre>
-        </SectionCard>
-      </div>
-    )
-  }
-
-  function renderGuardrailAuditTab() {
-    if (guardrailAuditState.loading && !guardrailAuditState.data) {
-      return <LoadingState title="Loading guardrail audit" />
-    }
-    if (guardrailAuditState.notReady && !guardrailAuditState.data) {
-      return (
-        <EmptyState
-          title="guardrail audit not ready"
-          description="The job may still be running. Retry after a few seconds."
-        />
-      )
-    }
-    if (!guardrailAuditState.data && guardrailAuditState.error) {
-      return (
-        <ErrorState
-          title="Unable to load guardrail audit"
-          description={guardrailAuditState.error}
-          onRetry={() => void guardrailAuditState.reload()}
-        />
-      )
-    }
-    if (!guardrailAuditState.data) {
-      return <EmptyState title="No guardrail audit data" />
-    }
-
-    const audit = guardrailAuditState.data
-    const auditJson = JSON.stringify(audit, null, 2)
-
-    return (
-      <div className="space-y-4">
-        <SectionCard title="Guardrail Audit" actions={<CopyButton value={auditJson} label="Copy Audit" />}>
-          <KeyValueGrid
-            items={[
-              { label: "Human Review Required", value: audit.humanReviewRequired },
-              { label: "Read Only Mode", value: audit.readOnlyMode ? "Yes" : "No" },
-              { label: "Contradictions", value: audit.contradictions.length ? audit.contradictions.join(", ") : "None" },
-            ]}
-          />
-        </SectionCard>
-
-        <SectionCard title="Claim Checks">
-          <pre className="max-h-[40vh] overflow-auto rounded-lg border border-border bg-background/40 p-3 text-xs">
-            {JSON.stringify(audit.claimChecks, null, 2)}
-          </pre>
-        </SectionCard>
-
-        <SectionCard title="Raw guardrail audit JSON">
-          <pre className="max-h-[60vh] overflow-auto rounded-lg border border-border bg-background/40 p-3 text-xs">
-            {auditJson}
-          </pre>
-        </SectionCard>
-      </div>
-    )
-  }
-
-  function renderBody() {
-    if (tab === "report") {
-      return renderReportTab()
-    }
-    if (tab === "markdown") {
-      return renderMarkdownTab()
-    }
-    if (tab === "guardrails") {
-      return renderGuardrailAuditTab()
-    }
-    return renderMetricsTab()
-  }
-
   return (
-    <div className="space-y-6">
+    <Tabs
+      value={tab}
+      onValueChange={(value) => setTab(value as RawTab)}
+      className="flex flex-col gap-6"
+    >
       <SectionCard
         title="Raw Artifacts"
         subtitle={`Job ${jobId}`}
@@ -314,30 +75,257 @@ export default function AnalysisRawPage() {
           </div>
         }
       >
-        <div className="flex flex-wrap gap-2">
-          {([
-            ["report", "report.json"],
-            ["markdown", "report.md"],
-            ["metrics", "metrics"],
-            ["guardrails", "guardrail_audit.json"],
-          ] as const).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              className={`rounded-md border px-3 py-1.5 text-sm transition ${
-                tab === key
-                  ? "border-primary/40 bg-primary/10"
-                  : "border-border text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <TabsList variant="line" className="flex h-auto flex-wrap items-center gap-2 p-0">
+          <TabsTrigger value="report" className="h-8 flex-none rounded-md border border-border px-3">
+            report.json
+          </TabsTrigger>
+          <TabsTrigger value="markdown" className="h-8 flex-none rounded-md border border-border px-3">
+            report.md
+          </TabsTrigger>
+          <TabsTrigger value="metrics" className="h-8 flex-none rounded-md border border-border px-3">
+            metrics
+          </TabsTrigger>
+          <TabsTrigger value="guardrails" className="h-8 flex-none rounded-md border border-border px-3">
+            guardrail_audit.json
+          </TabsTrigger>
+        </TabsList>
       </SectionCard>
 
-      {renderBody()}
-    </div>
+      <TabsContent value="report">
+        {reportState.loading && !reportState.data ? (
+          <LoadingState title="Loading report.json" />
+        ) : reportState.notReady && !reportState.data ? (
+          <EmptyState
+            title="report.json not ready"
+            description="The job may still be running. Retry after a few seconds."
+          />
+        ) : !reportState.data && reportState.error ? (
+          <ErrorState
+            title="Unable to load report.json"
+            description={reportState.error}
+            onRetry={() => void reportState.reload()}
+          />
+        ) : !reportState.data ? (
+          <EmptyState title="No report.json data" />
+        ) : (
+          <ArtifactPanel
+            title="report.json"
+            copyValue={JSON.stringify(reportState.data, null, 2)}
+            copyLabel="Copy JSON"
+          >
+            <pre className="max-h-[70vh] overflow-auto text-xs">
+              {JSON.stringify(reportState.data, null, 2)}
+            </pre>
+          </ArtifactPanel>
+        )}
+      </TabsContent>
+
+      <TabsContent value="markdown">
+        {markdownState.loading && !markdownState.data ? (
+          <LoadingState title="Loading report.md" />
+        ) : markdownState.notReady && !markdownState.data ? (
+          <EmptyState
+            title="report.md not ready"
+            description="The job may still be running. Retry after a few seconds."
+          />
+        ) : !markdownState.data && markdownState.error ? (
+          <ErrorState
+            title="Unable to load report.md"
+            description={markdownState.error}
+            onRetry={() => void markdownState.reload()}
+          />
+        ) : !markdownState.data ? (
+          <EmptyState title="No report.md data" />
+        ) : (
+          <ArtifactPanel title="report.md" copyValue={markdownState.data} copyLabel="Copy Markdown">
+            <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap text-sm">
+              {markdownState.data || "No markdown content."}
+            </pre>
+          </ArtifactPanel>
+        )}
+      </TabsContent>
+
+      <TabsContent value="metrics">
+        {metricsState.loading && !metricsState.data ? (
+          <LoadingState title="Loading metrics" />
+        ) : metricsState.notReady && !metricsState.data ? (
+          <EmptyState
+            title="metrics not ready"
+            description="The job may still be running. Retry after a few seconds."
+          />
+        ) : !metricsState.data && metricsState.error ? (
+          <ErrorState
+            title="Unable to load metrics"
+            description={metricsState.error}
+            onRetry={() => void metricsState.reload()}
+          />
+        ) : !metricsState.data ? (
+          <EmptyState title="No metrics data" />
+        ) : (
+          <div className="flex flex-col gap-4">
+            <SectionCard
+              title="metrics"
+              actions={
+                <Button variant="outline" size="sm" onClick={() => void navigator.clipboard.writeText(JSON.stringify(metricsState.data, null, 2))}>
+                  Copy Metrics
+                </Button>
+              }
+            >
+              <KeyValueGrid
+                items={[
+                  { label: "Status", value: metricsState.data.status },
+                  {
+                    label: "Runtime (s)",
+                    value: formatNumber(metricsState.data.runtimeSecondsTotal, 3),
+                  },
+                  { label: "Provider", value: metricsState.data.provider },
+                  { label: "Model", value: metricsState.data.model },
+                  { label: "Fallback Used", value: metricsState.data.fallbackUsed ? "Yes" : "No" },
+                  {
+                    label: "CPU Peak (%)",
+                    value:
+                      metricsState.data.cpuPercentPeak === null
+                        ? "N/A"
+                        : formatNumber(metricsState.data.cpuPercentPeak, 2),
+                  },
+                  {
+                    label: "RAM Peak (MB)",
+                    value:
+                      metricsState.data.ramMbPeak === null
+                        ? "N/A"
+                        : formatNumber(metricsState.data.ramMbPeak, 2),
+                  },
+                  { label: "LLM Tokens In", value: formatNumber(metricsState.data.llmTokensIn, 0) },
+                  { label: "LLM Tokens Out", value: formatNumber(metricsState.data.llmTokensOut, 0) },
+                  {
+                    label: "Compute Cost",
+                    value: `$${formatNumber(metricsState.data.costCompute, 6)}`,
+                  },
+                  { label: "LLM Cost", value: `$${formatNumber(metricsState.data.costLlm, 6)}` },
+                  {
+                    label: "Storage Cost",
+                    value: `$${formatNumber(metricsState.data.costStorage, 6)}`,
+                  },
+                  {
+                    label: "Estimated Total Cost",
+                    value: `$${formatNumber(metricsState.data.estimatedCostTotal, 6)}`,
+                  },
+                ]}
+              />
+            </SectionCard>
+
+            <SectionCard title="Artifact Sizes">
+              <div className="flex flex-col gap-2">
+                {Object.entries(metricsState.data.artifactBytes).map(([name, value]) => (
+                  <div key={name} className={rowClassName}>
+                    <span>{titleCase(name.replaceAll("_", " "))}</span>
+                    <span>{formatNumber(value, 0)} bytes</span>
+                  </div>
+                ))}
+                {!Object.keys(metricsState.data.artifactBytes).length ? (
+                  <p className="text-sm text-muted-foreground">No artifact size data available.</p>
+                ) : null}
+              </div>
+            </SectionCard>
+
+            <ArtifactPanel
+              title="Cost Assumptions"
+              copyValue={JSON.stringify(metricsState.data.costAssumptions, null, 2)}
+              copyLabel="Copy Cost Assumptions"
+            >
+              <pre className="max-h-[30vh] overflow-auto text-xs">
+                {JSON.stringify(metricsState.data.costAssumptions, null, 2)}
+              </pre>
+            </ArtifactPanel>
+
+            <SectionCard title="Phase Timings">
+              <div className="flex flex-col gap-2">
+                {Object.entries(metricsState.data.phaseTimingsSeconds).map(([phase, value]) => (
+                  <div key={phase} className={rowClassName}>
+                    <span>{titleCase(phase)}</span>
+                    <span>{formatNumber(value, 3)} s</span>
+                  </div>
+                ))}
+                {!Object.keys(metricsState.data.phaseTimingsSeconds).length ? (
+                  <p className="text-sm text-muted-foreground">No phase timing data available.</p>
+                ) : null}
+              </div>
+            </SectionCard>
+
+            <ArtifactPanel
+              title="Raw metrics JSON"
+              copyValue={JSON.stringify(metricsState.data, null, 2)}
+              copyLabel="Copy Metrics JSON"
+            >
+              <pre className="max-h-[60vh] overflow-auto text-xs">
+                {JSON.stringify(metricsState.data, null, 2)}
+              </pre>
+            </ArtifactPanel>
+          </div>
+        )}
+      </TabsContent>
+
+      <TabsContent value="guardrails">
+        {guardrailAuditState.loading && !guardrailAuditState.data ? (
+          <LoadingState title="Loading guardrail audit" />
+        ) : guardrailAuditState.notReady && !guardrailAuditState.data ? (
+          <EmptyState
+            title="guardrail audit not ready"
+            description="The job may still be running. Retry after a few seconds."
+          />
+        ) : !guardrailAuditState.data && guardrailAuditState.error ? (
+          <ErrorState
+            title="Unable to load guardrail audit"
+            description={guardrailAuditState.error}
+            onRetry={() => void guardrailAuditState.reload()}
+          />
+        ) : !guardrailAuditState.data ? (
+          <EmptyState title="No guardrail audit data" />
+        ) : (
+          <div className="flex flex-col gap-4">
+            <SectionCard title="Guardrail Audit">
+              <KeyValueGrid
+                items={[
+                  {
+                    label: "Human Review Required",
+                    value: guardrailAuditState.data.humanReviewRequired,
+                  },
+                  {
+                    label: "Read Only Mode",
+                    value: guardrailAuditState.data.readOnlyMode ? "Yes" : "No",
+                  },
+                  {
+                    label: "Contradictions",
+                    value: guardrailAuditState.data.contradictions.length
+                      ? guardrailAuditState.data.contradictions.join(", ")
+                      : "None",
+                  },
+                ]}
+              />
+            </SectionCard>
+
+            <ArtifactPanel
+              title="Claim Checks"
+              copyValue={JSON.stringify(guardrailAuditState.data.claimChecks, null, 2)}
+              copyLabel="Copy Claim Checks"
+            >
+              <pre className="max-h-[40vh] overflow-auto text-xs">
+                {JSON.stringify(guardrailAuditState.data.claimChecks, null, 2)}
+              </pre>
+            </ArtifactPanel>
+
+            <ArtifactPanel
+              title="Raw guardrail audit JSON"
+              copyValue={JSON.stringify(guardrailAuditState.data, null, 2)}
+              copyLabel="Copy Audit JSON"
+            >
+              <pre className="max-h-[60vh] overflow-auto text-xs">
+                {JSON.stringify(guardrailAuditState.data, null, 2)}
+              </pre>
+            </ArtifactPanel>
+          </div>
+        )}
+      </TabsContent>
+    </Tabs>
   )
 }

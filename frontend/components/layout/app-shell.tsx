@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 const navLinks = [
@@ -39,18 +40,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {navLinks.map((link) => {
               const active = pathname === link.href
               return (
-                <Link
+                <Button
                   key={link.href}
-                  href={link.href}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-sm transition-colors",
-                    active
-                      ? "bg-primary/20 text-foreground"
-                      : "text-muted-foreground hover:bg-muted"
-                  )}
+                  asChild
+                  size="sm"
+                  variant={active ? "secondary" : "ghost"}
+                  className={cn(active && "shadow-sm")}
                 >
-                  {link.label}
-                </Link>
+                  <Link href={link.href}>{link.label}</Link>
+                </Button>
               )
             })}
           </nav>
@@ -59,12 +57,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <label htmlFor="jump-job-id" className="sr-only">
               Jump to Job ID
             </label>
-            <input
+            <Input
               id="jump-job-id"
               value={jobId}
               onChange={(event) => setJobId(event.target.value)}
               placeholder="Jump to Job ID"
-              className="h-8 w-44 rounded-md border border-input bg-card px-2 text-sm outline-none focus:border-ring"
+              className="h-8 w-44 bg-card"
             />
             <Button type="submit" size="sm">
               Open
