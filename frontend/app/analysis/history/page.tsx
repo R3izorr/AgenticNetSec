@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import type { Column, ColumnDef } from "@tanstack/react-table"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
@@ -10,10 +10,18 @@ import { InlineNotice } from "@/components/common/inline-notice"
 import { SectionCard } from "@/components/common/section-card"
 import { StatusBadge } from "@/components/common/status-badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useToast } from "@/components/ui/toast"
 import { getJobHistory } from "@/lib/api/analysis"
 import { isApiError } from "@/lib/api/client"
-import { formatDateTime } from "@/lib/format"
+import { formatDateTime, formatNumber, formatPhaseLabel } from "@/lib/format"
 import type { JobStatus } from "@/lib/types/analysis"
 import { DataTable } from "./data-table"
 
@@ -53,6 +61,16 @@ export const columns: ColumnDef<JobStatus>[] = [
     ),
   },
   {
+    accessorKey: "sourceName",
+    header: ({ column }) => <SortableHeader column={column} title="Source" />,
+    cell: ({ row }) => (
+      <div className="flex flex-col gap-1">
+        <span className="text-sm">{row.original.sourceName ?? "N/A"}</span>
+        <span className="text-xs text-muted-foreground">{row.original.sourceType ?? "unknown"}</span>
+      </div>
+    ),
+  },
+  {
     accessorKey: "status",
     header: ({ column }) => <SortableHeader column={column} title="Status" />,
     cell: ({ getValue }) => <StatusBadge value={getValue<string>()} />,
@@ -61,7 +79,7 @@ export const columns: ColumnDef<JobStatus>[] = [
     accessorKey: "currentPhase",
     header: ({ column }) => <SortableHeader column={column} title="Phase" />,
     cell: ({ getValue }) => (
-      <span className="text-sm text-foreground/70">{getValue<string>() || "-"}</span>
+      <span className="text-sm text-foreground/70">{formatPhaseLabel(getValue<string>() || "")}</span>
     ),
   },
   {
@@ -77,23 +95,40 @@ export const columns: ColumnDef<JobStatus>[] = [
     },
   },
   {
-    accessorKey: "guardrailState",
-    header: ({ column }) => <SortableHeader column={column} title="Guardrail" />,
+    accessorKey: "riskLevel",
+    header: ({ column }) => <SortableHeader column={column} title="Risk" />,
     cell: ({ getValue }) => {
       const value = getValue<string | null | undefined>()
       return value ? <StatusBadge value={value} /> : <span className="text-sm text-muted-foreground">-</span>
     },
   },
   {
-    accessorKey: "createdAt",
-    header: ({ column }) => <SortableHeader column={column} title="Created" />,
-    cell: ({ getValue }) => (
-      <span className="text-xs text-muted-foreground">{formatDateTime(getValue<string>())}</span>
-    ),
+    accessorKey: "confidenceScore",
+    header: ({ column }) => <SortableHeader column={column} title="Confidence" />,
+    cell: ({ getValue }) => {
+      const value = getValue<number | null | undefined>()
+      return value === null || value === undefined ? (
+        <span className="text-sm text-muted-foreground">-</span>
+      ) : (
+        <span className="text-sm text-foreground/70">{formatNumber(value, 3)}</span>
+      )
+    },
   },
   {
-    accessorKey: "updatedAt",
-    header: ({ column }) => <SortableHeader column={column} title="Updated" />,
+    accessorKey: "runtimeSecondsTotal",
+    header: ({ column }) => <SortableHeader column={column} title="Runtime (s)" />,
+    cell: ({ getValue }) => {
+      const value = getValue<number | null | undefined>()
+      return value === null || value === undefined ? (
+        <span className="text-sm text-muted-foreground">-</span>
+      ) : (
+        <span className="text-sm text-foreground/70">{formatNumber(value, 3)}</span>
+      )
+    },
+  },
+  {
+    accessorKey: "createdAt",
+    header: ({ column }) => <SortableHeader column={column} title="Created" />,
     cell: ({ getValue }) => (
       <span className="text-xs text-muted-foreground">{formatDateTime(getValue<string>())}</span>
     ),
@@ -116,6 +151,8 @@ export default function HistoryPage() {
   const [tableData, setTableData] = useState<JobStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
 
   const loadHistory = useCallback(async () => {
     setLoading(true)
@@ -147,6 +184,29 @@ export default function HistoryPage() {
   useEffect(() => {
     void loadHistory()
   }, [loadHistory])
+
+  const filteredData = useMemo(() => {
+    return tableData.filter((job) => {
+      const matchesStatus = statusFilter === "all" || job.status === statusFilter
+      if (!matchesStatus) {
+        return false
+      }
+
+      if (!search.trim()) {
+        return true
+      }
+
+      const needle = search.trim().toLowerCase()
+      return [
+        job.analysisJobId,
+        job.sourceName ?? "",
+        job.sourcePath ?? "",
+        job.currentPhase,
+        job.status,
+        job.riskLevel ?? "",
+      ].some((value) => value.toLowerCase().includes(needle))
+    })
+  }, [search, statusFilter, tableData])
 
   if (loading) {
     return (
@@ -185,10 +245,48 @@ export default function HistoryPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <SectionCard title="PCAP Ingestion History" subtitle="View all submitted analyses">
+      <SectionCard title="PCAP Ingestion History" subtitle="View submitted analyses with source, runtime, and risk context.">
         <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search job ID, source, path, phase, or risk"
+              className="md:max-w-sm"
+            />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="md:w-48">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="queued">Queued</SelectItem>
+                <SelectItem value="running">Running</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="button" variant="outline" onClick={() => void loadHistory()}>
+              Refresh
+            </Button>
+          </div>
           {error ? <InlineNotice variant="error">{error}</InlineNotice> : null}
-          <DataTable columns={columns} data={tableData} />
+          {!filteredData.length ? (
+            <EmptyState
+              title="No matching jobs"
+              description="Try a broader search or clear the status filter."
+              action={
+                <Button type="button" variant="outline" onClick={() => {
+                  setSearch("")
+                  setStatusFilter("all")
+                }}>
+                  Clear Filters
+                </Button>
+              }
+            />
+          ) : (
+            <DataTable columns={columns} data={filteredData} />
+          )}
         </div>
       </SectionCard>
     </div>

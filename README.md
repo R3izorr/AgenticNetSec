@@ -1,4 +1,4 @@
-﻿# AgenticNetSec
+# AgenticNetSec
 
 Backend-first forensic analyzer with a Next.js frontend shell.
 
@@ -10,7 +10,7 @@ The agent is read-only by design: it analyzes PCAP evidence and writes report ar
 - `backend/api/`: REST API (`/api/v1/analysis` async job flow)
 - `backend/scripts/`: CLI tools (`run.py`, `batch_analyze.py`, `summarize_results.py`, `verify_findings.py`, `run_api.py`)
 - `backend/config/`: local settings template
-- `backend/tests/`: schema/guardrail tests
+- `backend/tests/`: schema/guardrail/API tests
 - `frontend/`: Next.js + React + Tailwind UI
 - `outputs/`: reports, metrics, and analysis job artifacts
 - `docs/`: project requirements and checklist
@@ -38,9 +38,16 @@ Run REST API service:
 .\.venv\Scripts\python backend/scripts/run_api.py
 ```
 
+Dev auto-reload is now opt-in:
+
+```bash
+.\.venv\Scripts\python backend/scripts/run_api.py --reload
+```
+
 ### REST endpoints
 
 - `POST /api/v1/analysis`
+- `GET /api/v1/analysis`
 - `GET /api/v1/analysis/{job_id}`
 - `GET /api/v1/analysis/{job_id}/report.json`
 - `GET /api/v1/analysis/{job_id}/report.md`
@@ -49,11 +56,12 @@ Run REST API service:
 
 ## Output Location
 
-Generated outputs are stored in `outputs/`.
+Generated outputs are stored in `outputs/`. Each analysis job also persists `job.json` alongside its artifacts in `outputs/analysis_jobs/<job_id>/` so history survives API restarts.
 
 ## Demo-Ready Additions
 
-- Evidence-backed findings now include MITRE ATT&CK mappings, evidence reference IDs, sampled frame numbers, and Wireshark filters.
-- Guardrail decisions now emit `guardrail_audit.json` with consistency checks, contradictions, and explicit read-only mode.
-- Runtime metrics now capture provider/model, fallback state, artifact sizes, and token-aware LLM cost when provider metadata is available.
+- Evidence-backed findings include MITRE ATT&CK mappings, evidence reference IDs, sampled frame numbers, and Wireshark filters.
+- Guardrail decisions emit `guardrail_audit.json` with consistency checks, contradictions, and explicit read-only mode.
+- Runtime metrics capture provider/model, fallback state, artifact sizes, and token-aware LLM cost when provider metadata is available.
+- Job status/history responses now include persisted source metadata, artifact readiness, runtime summary, confidence, and risk context.
 - Benchmark planning material lives in `docs/BenchmarkManifest.json`, and `backend/scripts/run_benchmark.py` can generate demo-friendly benchmark summaries.

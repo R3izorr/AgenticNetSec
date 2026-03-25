@@ -6,11 +6,13 @@ import { useParams } from "next/navigation"
 
 import { ArtifactPanel } from "@/components/common/artifact-panel"
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/page-state"
+import { InlineNotice } from "@/components/common/inline-notice"
 import { KeyValueGrid } from "@/components/common/key-value-grid"
 import { SectionCard } from "@/components/common/section-card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useArtifact } from "@/hooks/use-artifact"
+import { useJobStatus } from "@/hooks/use-job-status"
 import {
   getGuardrailAudit,
   getMetrics,
@@ -24,19 +26,52 @@ const rowClassName = "flex items-center justify-between rounded-md border border
 
 type RawTab = "report" | "markdown" | "metrics" | "guardrails"
 
+function NotReadyState({
+  title,
+  description,
+  onRetry,
+  onRefreshJob,
+}: {
+  title: string
+  description: string
+  onRetry: () => void
+  onRefreshJob: () => void
+}) {
+  return (
+    <EmptyState
+      title={title}
+      description={description}
+      action={
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+            Retry Now
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onRefreshJob}>
+            Refresh Job Status
+          </Button>
+        </div>
+      }
+    />
+  )
+}
+
 export default function AnalysisRawPage() {
   const params = useParams<{ jobId: string }>()
   const jobId = decodeURIComponent(params.jobId)
   const [tab, setTab] = useState<RawTab>("report")
+  const { job, refresh, isPolling } = useJobStatus(jobId)
 
-  const reportState = useArtifact(useCallback(() => getReportJson(jobId), [jobId]), [jobId])
+  const reportState = useArtifact(useCallback(() => getReportJson(jobId), [jobId]), [jobId], {
+    pollWhileNotReady: isPolling,
+  })
 
   const markdownState = useArtifact(
     useCallback(async () => {
       const payload = await getReportMarkdown(jobId)
       return payload.markdown
     }, [jobId]),
-    [jobId]
+    [jobId],
+    { pollWhileNotReady: isPolling }
   )
 
   const metricsState = useArtifact(
@@ -44,7 +79,8 @@ export default function AnalysisRawPage() {
       const payload = await getMetrics(jobId)
       return adaptRunMetrics(payload)
     }, [jobId]),
-    [jobId]
+    [jobId],
+    { pollWhileNotReady: isPolling }
   )
 
   const guardrailAuditState = useArtifact(
@@ -52,7 +88,8 @@ export default function AnalysisRawPage() {
       const payload = await getGuardrailAudit(jobId)
       return adaptGuardrailAudit(payload)
     }, [jobId]),
-    [jobId]
+    [jobId],
+    { pollWhileNotReady: isPolling }
   )
 
   return (
@@ -61,6 +98,12 @@ export default function AnalysisRawPage() {
       onValueChange={(value) => setTab(value as RawTab)}
       className="flex flex-col gap-6"
     >
+      {job?.status !== "completed" ? (
+        <InlineNotice variant="warning" title="Artifacts Pending">
+          Raw artifacts are still being generated. The page is polling while the job remains queued or running.
+        </InlineNotice>
+      ) : null}
+
       <SectionCard
         title="Raw Artifacts"
         subtitle={`Job ${jobId}`}
@@ -95,9 +138,11 @@ export default function AnalysisRawPage() {
         {reportState.loading && !reportState.data ? (
           <LoadingState title="Loading report.json" />
         ) : reportState.notReady && !reportState.data ? (
-          <EmptyState
+          <NotReadyState
             title="report.json not ready"
-            description="The job may still be running. Retry after a few seconds."
+            description="The job may still be running."
+            onRetry={() => void reportState.reload()}
+            onRefreshJob={() => void refresh()}
           />
         ) : !reportState.data && reportState.error ? (
           <ErrorState
@@ -124,9 +169,11 @@ export default function AnalysisRawPage() {
         {markdownState.loading && !markdownState.data ? (
           <LoadingState title="Loading report.md" />
         ) : markdownState.notReady && !markdownState.data ? (
-          <EmptyState
+          <NotReadyState
             title="report.md not ready"
-            description="The job may still be running. Retry after a few seconds."
+            description="The job may still be running."
+            onRetry={() => void markdownState.reload()}
+            onRefreshJob={() => void refresh()}
           />
         ) : !markdownState.data && markdownState.error ? (
           <ErrorState
@@ -149,9 +196,11 @@ export default function AnalysisRawPage() {
         {metricsState.loading && !metricsState.data ? (
           <LoadingState title="Loading metrics" />
         ) : metricsState.notReady && !metricsState.data ? (
-          <EmptyState
+          <NotReadyState
             title="metrics not ready"
-            description="The job may still be running. Retry after a few seconds."
+            description="The job may still be running."
+            onRetry={() => void metricsState.reload()}
+            onRefreshJob={() => void refresh()}
           />
         ) : !metricsState.data && metricsState.error ? (
           <ErrorState
@@ -269,9 +318,11 @@ export default function AnalysisRawPage() {
         {guardrailAuditState.loading && !guardrailAuditState.data ? (
           <LoadingState title="Loading guardrail audit" />
         ) : guardrailAuditState.notReady && !guardrailAuditState.data ? (
-          <EmptyState
+          <NotReadyState
             title="guardrail audit not ready"
-            description="The job may still be running. Retry after a few seconds."
+            description="The job may still be running."
+            onRetry={() => void guardrailAuditState.reload()}
+            onRefreshJob={() => void refresh()}
           />
         ) : !guardrailAuditState.data && guardrailAuditState.error ? (
           <ErrorState

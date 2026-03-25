@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { POLL_INTERVAL_MS } from "@/lib/constants"
 import { isApiError } from "@/lib/api/client"
 
 interface ArtifactState<T> {
@@ -11,7 +12,16 @@ interface ArtifactState<T> {
   reload: () => Promise<void>
 }
 
-export function useArtifact<T>(loader: () => Promise<T>, deps: unknown[]): ArtifactState<T> {
+interface UseArtifactOptions {
+  pollWhileNotReady?: boolean
+  pollIntervalMs?: number
+}
+
+export function useArtifact<T>(
+  loader: () => Promise<T>,
+  deps: unknown[],
+  options?: UseArtifactOptions
+): ArtifactState<T> {
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -42,6 +52,18 @@ export function useArtifact<T>(loader: () => Promise<T>, deps: unknown[]): Artif
     void reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
+
+  useEffect(() => {
+    if (!options?.pollWhileNotReady || !notReady) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      void reload()
+    }, options.pollIntervalMs ?? POLL_INTERVAL_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [notReady, options?.pollIntervalMs, options?.pollWhileNotReady, reload])
 
   return {
     data,

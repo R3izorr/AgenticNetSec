@@ -1,7 +1,17 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Any, List
 from pydantic import BaseModel, Field
+
+
+class JobMetadata(BaseModel):
+    filename: str | None = None
+    path: str | None = None
+    size_bytes: int | None = None
+    packet_count: int | None = None
+    flow_count: int | None = None
+    capture_start: str | None = None
+    capture_end: str | None = None
 
 
 class HeaderBlock(BaseModel):
@@ -9,6 +19,7 @@ class HeaderBlock(BaseModel):
     timestamp: str
     analyst_mode: str = "Autonomous Agent"
     data_sources: List[str]
+    metadata: JobMetadata | None = None
 
 
 class EvidenceRef(BaseModel):
@@ -98,3 +109,14 @@ class JobStatusResponse(BaseModel):
     progress: float
     guardrail_state: str
     error: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    source_type: str | None = None
+    source_name: str | None = None
+    source_path: str | None = None
+    metadata: JobMetadata | None = None
+    artifact_ready: dict[str, bool] = Field(default_factory=dict)
+    attack_type: str | None = None
+    risk_level: str | None = None
+    confidence_score: float | None = None
+    runtime_seconds_total: float | None = None

@@ -24,6 +24,10 @@ const badgeConfig: Record<
     variant: "destructive",
     className: "border-red-500/40 bg-red-500/10 text-red-300",
   },
+  pass: {
+    variant: "outline",
+    className: "border-green-500/40 bg-green-500/10 text-green-300",
+  },
   yes: {
     variant: "destructive",
     className: "border-red-500/40 bg-red-500/10 text-red-300",
@@ -31,6 +35,18 @@ const badgeConfig: Record<
   no: {
     variant: "outline",
     className: "border-green-500/40 bg-green-500/10 text-green-300",
+  },
+  low: {
+    variant: "outline",
+    className: "border-green-500/40 bg-green-500/10 text-green-300",
+  },
+  medium: {
+    variant: "outline",
+    className: "border-yellow-500/40 bg-yellow-500/10 text-yellow-300",
+  },
+  high: {
+    variant: "destructive",
+    className: "border-red-500/40 bg-red-500/10 text-red-300",
   },
 }
 

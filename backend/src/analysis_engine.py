@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 import uuid
 
 from scapy.all import DNS, DNSQR, IP, Raw, TCP, UDP, PcapReader
@@ -57,6 +57,7 @@ class AnalysisArtifacts:
     report_markdown: str
     metrics: dict
     guardrail_audit: dict
+    metadata: dict[str, Any]
 
 
 class AnalysisEngine:
@@ -73,14 +74,19 @@ class AnalysisEngine:
             }
         )
 
-    def run(self, req: AnalysisRequest) -> AnalysisArtifacts:
+    def run(self, req: AnalysisRequest, progress_callback: Callable[[str, float], None] | None = None) -> AnalysisArtifacts:
         tracker = MetricsTracker()
+
+        if progress_callback:
+            progress_callback("ingest", 0.15)
 
         with tracker.phase("ingest"):
             self.guardrails.validate_input(req.pcap_path)
             input_validity = self.guardrails.describe_input(req.pcap_path)
             metadata = self._extract_metadata(req.pcap_path)
             plan = self.planner.create_plan(metadata, req.use_ai)
+        if progress_callback:
+            progress_callback("parse", 0.35)
 
         with tracker.phase("parse"):
             summary = self.executor.execute(
@@ -89,6 +95,8 @@ class AnalysisEngine:
                 req.pcap_path,
                 policy=ToolPolicy(timeout_seconds=180, retries=1),
             )
+        if progress_callback:
+            progress_callback("analysis", 0.55)
 
         with tracker.phase("analysis"):
             findings = self.executor.execute(
@@ -116,6 +124,8 @@ class AnalysisEngine:
                     findings,
                     metadata,
                 )
+        if progress_callback:
+            progress_callback("reason", 0.75)
 
         with tracker.phase("reason"):
             report_findings = {**findings, "zero_day_heuristics": zero_day}
@@ -146,6 +156,8 @@ class AnalysisEngine:
             markdown_report = report_result.text
             if deep_dive:
                 markdown_report = f"{markdown_report}\n\n{render_deep_dive_markdown(deep_dive)}"
+        if progress_callback:
+            progress_callback("report", 0.9)
 
         with tracker.phase("report"):
             structured, guardrail_audit = self._build_forensic_report(
@@ -197,6 +209,7 @@ class AnalysisEngine:
             report_markdown=markdown_report,
             metrics=metrics.model_dump(),
             guardrail_audit=guardrail_audit_payload,
+            metadata=metadata,
         )
 
     def _extract_metadata(self, pcap_path: str) -> dict[str, Any]:
@@ -995,3 +1008,6 @@ class AnalysisEngine:
                 if len(results) >= limit:
                     break
         return results
+
+
+

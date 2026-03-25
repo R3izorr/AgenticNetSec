@@ -1,3 +1,20 @@
+export interface JobMetadataTransport {
+  filename?: string | null
+  path?: string | null
+  size_bytes?: number | null
+  packet_count?: number | null
+  flow_count?: number | null
+  capture_start?: string | null
+  capture_end?: string | null
+}
+
+export interface JobArtifactReadyTransport {
+  report_json?: boolean
+  report_markdown?: boolean
+  metrics?: boolean
+  guardrail_audit?: boolean
+}
+
 export interface JobStatusResponseTransport {
   analysis_job_id: string
   status: string
@@ -7,6 +24,15 @@ export interface JobStatusResponseTransport {
   error?: string | null
   created_at?: string
   updated_at?: string
+  source_type?: string | null
+  source_name?: string | null
+  source_path?: string | null
+  metadata?: JobMetadataTransport | null
+  artifact_ready?: JobArtifactReadyTransport | null
+  attack_type?: string | null
+  risk_level?: string | null
+  confidence_score?: number | null
+  runtime_seconds_total?: number | null
 }
 
 export interface HeaderBlockTransport {
@@ -14,6 +40,7 @@ export interface HeaderBlockTransport {
   timestamp: string
   analyst_mode: string
   data_sources: string[]
+  metadata?: JobMetadataTransport | null
 }
 
 export interface EvidenceBlockTransport {

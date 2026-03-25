@@ -1,5 +1,22 @@
 export type JobTerminalStatus = "completed" | "failed"
 
+export interface JobMetadata {
+  filename: string | null
+  path: string | null
+  sizeBytes: number | null
+  packetCount: number | null
+  flowCount: number | null
+  captureStart: string | null
+  captureEnd: string | null
+}
+
+export interface JobArtifactReady {
+  reportJson: boolean
+  reportMarkdown: boolean
+  metrics: boolean
+  guardrailAudit: boolean
+}
+
 export interface JobStatus {
   analysisJobId: string
   status: string
@@ -9,6 +26,15 @@ export interface JobStatus {
   error: string | null
   createdAt?: string
   updatedAt?: string
+  sourceType: string | null
+  sourceName: string | null
+  sourcePath: string | null
+  metadata: JobMetadata
+  artifactReady: JobArtifactReady
+  attackType: string | null
+  riskLevel: string | null
+  confidenceScore: number | null
+  runtimeSecondsTotal: number | null
 }
 
 export interface ReportHeader {
@@ -16,6 +42,7 @@ export interface ReportHeader {
   timestamp: string
   analystMode: string
   dataSources: string[]
+  metadata: JobMetadata
 }
 
 export interface ReportEvidence {

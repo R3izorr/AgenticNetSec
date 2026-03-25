@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 from pathlib import Path
@@ -16,7 +16,7 @@ if str(SRC_DIR) not in sys.path:
 
 from analysis_engine import AnalysisEngine, AnalysisRequest
 from forensic_schema import JobStatusResponse
-from .job_store import JobStore
+from .job_store import JobRecord, JobStore
 
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 UPLOADS_DIR = OUTPUTS_DIR / "uploads"
@@ -44,11 +44,42 @@ def _to_bool(value: Any, default: bool) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def _serialize_job(job: JobRecord) -> dict[str, Any]:
+    return {
+        "analysis_job_id": job.analysis_job_id,
+        "status": job.status,
+        "current_phase": job.current_phase,
+        "progress": job.progress,
+        "guardrail_state": job.guardrail_state,
+        "error": job.error,
+        "created_at": job.created_at,
+        "updated_at": job.updated_at,
+        "source_type": job.source_type,
+        "source_name": job.source_name,
+        "source_path": job.source_path,
+        "metadata": job.metadata,
+        "artifact_ready": job.artifact_ready,
+        "attack_type": job.attack_type,
+        "risk_level": job.risk_level,
+        "confidence_score": job.confidence_score,
+        "runtime_seconds_total": job.runtime_seconds_total,
+    }
+
+
 async def _run_job(job_id: str, req: AnalysisRequest) -> None:
+    last_phase = "queued"
+    last_progress = 0.0
+
+    def on_progress(phase: str, progress: float) -> None:
+        nonlocal last_phase, last_progress
+        last_phase = phase
+        last_progress = progress
+        job_store.update(job_id, status="running", current_phase=phase, progress=progress)
+
     try:
-        job_store.update(job_id, status="running", current_phase="pipeline", progress=0.2)
+        job_store.update(job_id, status="running", current_phase="ingest", progress=0.05)
         loop = asyncio.get_running_loop()
-        artifacts = await loop.run_in_executor(None, engine.run, req)
+        artifacts = await loop.run_in_executor(None, engine.run, req, on_progress)
 
         job_store.save_artifact(job_id, "report.json", artifacts.report_json)
         job_store.save_artifact(job_id, "report.md", artifacts.report_markdown)
@@ -64,13 +95,18 @@ async def _run_job(job_id: str, req: AnalysisRequest) -> None:
             current_phase="completed",
             progress=1.0,
             guardrail_state=guardrail_state,
+            metadata=artifacts.metadata,
+            attack_type=(artifacts.report_json.get("impact") or {}).get("attack_type"),
+            risk_level=(artifacts.report_json.get("impact") or {}).get("risk_level"),
+            confidence_score=(artifacts.report_json.get("findings") or {}).get("confidence_score"),
+            runtime_seconds_total=artifacts.metrics.get("runtime_seconds_total"),
         )
     except Exception as exc:  # noqa: BLE001
         job_store.update(
             job_id,
             status="failed",
-            current_phase="failed",
-            progress=1.0,
+            current_phase=last_phase,
+            progress=last_progress,
             guardrail_state="error",
             error=str(exc),
         )
@@ -102,10 +138,20 @@ async def create_analysis_job(
         dest = UPLOADS_DIR / f"upload_{int(time.time())}_{safe_name}"
         dest.write_bytes(await file.read())
         target_path = str(dest)
+        source_type = "upload"
+        source_name = safe_name
+        source_path = target_path
     else:
         target_path = str(Path(pcap_path).expanduser().resolve())
+        source_type = "path"
+        source_name = Path(target_path).name
+        source_path = target_path
 
-    job = job_store.create_job()
+    job = job_store.create_job(
+        source_type=source_type,
+        source_name=source_name,
+        source_path=source_path,
+    )
 
     req = AnalysisRequest(
         pcap_path=target_path,
@@ -117,12 +163,7 @@ async def create_analysis_job(
 
     asyncio.create_task(_run_job(job.analysis_job_id, req))
 
-    return {
-        "analysis_job_id": job.analysis_job_id,
-        "status": job.status,
-        "current_phase": job.current_phase,
-        "progress": job.progress,
-    }
+    return _serialize_job(job)
 
 
 @app.get("/api/v1/analysis/{job_id}", response_model=JobStatusResponse)
@@ -130,14 +171,7 @@ async def get_job_status(job_id: str):
     job = job_store.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return JobStatusResponse(
-        analysis_job_id=job.analysis_job_id,
-        status=job.status,
-        current_phase=job.current_phase,
-        progress=job.progress,
-        guardrail_state=job.guardrail_state,
-        error=job.error,
-    )
+    return JobStatusResponse(**_serialize_job(job))
 
 
 @app.get("/api/v1/analysis/{job_id}/report.json")
@@ -182,24 +216,8 @@ async def get_guardrail_audit(job_id: str):
 
 @app.get("/api/v1/analysis")
 async def list_jobs():
-    """List all analysis jobs, ordered by creation time (newest first)."""
     all_jobs = job_store.list_jobs()
-    print(all_jobs)
-    # Convert to dict format
     return {
         "total": len(all_jobs),
-        "jobs": [
-            {
-                "analysis_job_id": job.analysis_job_id,
-                "status": job.status,
-                "current_phase": job.current_phase,
-                "progress": job.progress,
-                "guardrail_state": job.guardrail_state,
-                "created_at": job.created_at,
-                "updated_at": job.updated_at,
-                "error": job.error,
-            }
-            for job in all_jobs
-        ],
+        "jobs": [_serialize_job(job) for job in all_jobs],
     }
-

@@ -1,10 +1,19 @@
 import type {
   ForensicReportTransport,
   GuardrailAuditTransport,
+  JobArtifactReadyTransport,
+  JobMetadataTransport,
   JobStatusResponseTransport,
   RunMetricsTransport,
 } from "@/lib/transport/analysis"
-import type { ForensicReport, GuardrailAudit, JobStatus, RunMetrics } from "@/lib/types/analysis"
+import type {
+  ForensicReport,
+  GuardrailAudit,
+  JobArtifactReady,
+  JobMetadata,
+  JobStatus,
+  RunMetrics,
+} from "@/lib/types/analysis"
 
 function safeArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
@@ -15,6 +24,10 @@ function safeArray(value: unknown): string[] {
 
 function safeNumber(value: unknown, fallback = 0): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback
+}
+
+function safeNullableNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
 function safeNumberArray(value: unknown): number[] {
@@ -47,6 +60,29 @@ function safePrimitiveRecord(
   return output
 }
 
+function adaptJobMetadata(transport?: JobMetadataTransport | null): JobMetadata {
+  return {
+    filename: transport?.filename ?? null,
+    path: transport?.path ?? null,
+    sizeBytes: safeNullableNumber(transport?.size_bytes),
+    packetCount: safeNullableNumber(transport?.packet_count),
+    flowCount: safeNullableNumber(transport?.flow_count),
+    captureStart: transport?.capture_start ?? null,
+    captureEnd: transport?.capture_end ?? null,
+  }
+}
+
+function adaptArtifactReady(
+  transport?: JobArtifactReadyTransport | null
+): JobArtifactReady {
+  return {
+    reportJson: Boolean(transport?.report_json),
+    reportMarkdown: Boolean(transport?.report_markdown),
+    metrics: Boolean(transport?.metrics),
+    guardrailAudit: Boolean(transport?.guardrail_audit),
+  }
+}
+
 export function adaptJobStatus(transport: JobStatusResponseTransport): JobStatus {
   return {
     analysisJobId: transport.analysis_job_id,
@@ -57,6 +93,15 @@ export function adaptJobStatus(transport: JobStatusResponseTransport): JobStatus
     error: transport.error ?? null,
     createdAt: transport.created_at,
     updatedAt: transport.updated_at,
+    sourceType: transport.source_type ?? null,
+    sourceName: transport.source_name ?? null,
+    sourcePath: transport.source_path ?? null,
+    metadata: adaptJobMetadata(transport.metadata),
+    artifactReady: adaptArtifactReady(transport.artifact_ready),
+    attackType: transport.attack_type ?? null,
+    riskLevel: transport.risk_level ?? null,
+    confidenceScore: safeNullableNumber(transport.confidence_score),
+    runtimeSecondsTotal: safeNullableNumber(transport.runtime_seconds_total),
   }
 }
 
@@ -69,6 +114,7 @@ export function adaptForensicReport(
       timestamp: transport.header?.timestamp ?? "N/A",
       analystMode: transport.header?.analyst_mode ?? "Autonomous Agent",
       dataSources: safeArray(transport.header?.data_sources),
+      metadata: adaptJobMetadata(transport.header?.metadata),
     },
     evidence: {
       keyPacketsFlows: safeArray(transport.evidence?.key_packets_flows),

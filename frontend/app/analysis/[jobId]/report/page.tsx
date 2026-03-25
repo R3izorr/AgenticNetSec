@@ -6,15 +6,21 @@ import { useParams } from "next/navigation"
 
 import { BulletList } from "@/components/common/bullet-list"
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/page-state"
+import { InlineNotice } from "@/components/common/inline-notice"
 import { KeyValueGrid } from "@/components/common/key-value-grid"
 import { SectionCard } from "@/components/common/section-card"
 import { StatusBadge } from "@/components/common/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useArtifact } from "@/hooks/use-artifact"
+import { useJobStatus } from "@/hooks/use-job-status"
 import { adaptForensicReport } from "@/lib/adapters/analysis"
 import { getReportJson } from "@/lib/api/analysis"
-import { formatDateTime, formatNumber } from "@/lib/format"
+import {
+  formatBytes,
+  formatDateTime,
+  formatNumber,
+} from "@/lib/format"
 
 const sectionLinks = [
   { id: "summary", label: "Summary" },
@@ -47,13 +53,16 @@ function InsetPanel({
 export default function AnalysisReportPage() {
   const params = useParams<{ jobId: string }>()
   const jobId = decodeURIComponent(params.jobId)
+  const { job, refresh, isPolling } = useJobStatus(jobId)
 
   const loadReport = useCallback(async () => {
     const payload = await getReportJson(jobId)
     return adaptForensicReport(payload)
   }, [jobId])
 
-  const reportState = useArtifact(loadReport, [loadReport])
+  const reportState = useArtifact(loadReport, [loadReport], {
+    pollWhileNotReady: isPolling,
+  })
 
   if (reportState.loading && !reportState.data) {
     return <LoadingState title="Loading report" description={`Job: ${jobId}`} />
@@ -64,6 +73,16 @@ export default function AnalysisReportPage() {
       <EmptyState
         title="Report not ready"
         description="The analysis job has not finished writing report.json yet."
+        action={
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void reportState.reload()}>
+              Retry Now
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => void refresh()}>
+              Refresh Job Status
+            </Button>
+          </div>
+        }
       />
     )
   }
@@ -86,6 +105,12 @@ export default function AnalysisReportPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {job?.status !== "completed" ? (
+        <InlineNotice variant="warning" title="Artifacts Pending">
+          The report view is polling while the backend finishes the job. Current status: {job?.status ?? "unknown"}.
+        </InlineNotice>
+      ) : null}
+
       <SectionCard
         title="Forensic Report"
         subtitle={`Job ${jobId}`}
@@ -118,6 +143,29 @@ export default function AnalysisReportPage() {
                 { label: "Timestamp", value: formatDateTime(report.header.timestamp) },
                 { label: "Analyst Mode", value: report.header.analystMode },
                 { label: "Data Sources", value: report.header.dataSources.join(", ") || "N/A" },
+                { label: "Filename", value: report.header.metadata.filename ?? job?.metadata.filename ?? "N/A" },
+                {
+                  label: "File Size",
+                  value: formatBytes(report.header.metadata.sizeBytes ?? job?.metadata.sizeBytes),
+                },
+                {
+                  label: "Packets / Flows",
+                  value:
+                    report.header.metadata.packetCount === null && report.header.metadata.flowCount === null
+                      ? job?.metadata.packetCount === null && job?.metadata.flowCount === null
+                        ? "N/A"
+                        : `${job?.metadata.packetCount ?? "?"} / ${job?.metadata.flowCount ?? "?"}`
+                      : `${report.header.metadata.packetCount ?? "?"} / ${report.header.metadata.flowCount ?? "?"}`,
+                },
+                {
+                  label: "Capture Window",
+                  value:
+                    report.header.metadata.captureStart && report.header.metadata.captureEnd
+                      ? `${formatDateTime(report.header.metadata.captureStart)} -> ${formatDateTime(report.header.metadata.captureEnd)}`
+                      : job?.metadata.captureStart && job.metadata.captureEnd
+                        ? `${formatDateTime(job.metadata.captureStart)} -> ${formatDateTime(job.metadata.captureEnd)}`
+                        : "N/A",
+                },
               ]}
             />
             <InsetPanel label="Analyst Summary (Markdown)">

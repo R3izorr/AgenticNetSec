@@ -39,29 +39,26 @@ Create `.env.local` from `.env.example` when needed.
 
 - `/` overview/landing
 - `/analysis/new` submit PCAP file or `pcap_path`
-- `/analysis/[jobId]` async status + polling
+- `/analysis/[jobId]` async status, metadata, and artifact readiness
 - `/analysis/[jobId]/report` analyst-facing structured report
-- `/analysis/[jobId]/raw` raw artifacts (`report.json`, `report.md`, metrics)
+- `/analysis/[jobId]/raw` raw artifacts (`report.json`, `report.md`, metrics, guardrail audit`)
+- `/analysis/history` persisted job history with search/filtering
 
 ## API Contract Assumptions
 
-Only these backend endpoints are used:
+The frontend uses these backend endpoints:
 
 - `POST /api/v1/analysis`
+- `GET /api/v1/analysis`
 - `GET /api/v1/analysis/{job_id}`
 - `GET /api/v1/analysis/{job_id}/report.json`
 - `GET /api/v1/analysis/{job_id}/report.md`
 - `GET /api/v1/analysis/{job_id}/metrics`
+- `GET /api/v1/analysis/{job_id}/guardrail-audit`
 
 ### Behavior notes
 
 - `analysis_job_id` is treated as canonical identifier.
-- Artifact `409` means "not ready yet" and is handled as a retryable UI state.
-- `404` and failed job states are surfaced as explicit error states.
+- Job status responses may include source metadata, runtime summary, confidence, risk, and artifact readiness flags.
+- Artifact `409` means "not ready yet" and is handled as a retryable/polling UI state.
 - Polling interval for job status is 3 seconds while status is `queued` or `running`.
-
-## Deferred (Phase 2)
-
-- Dashboard aggregate analytics
-- Server-backed job history listing
-- Settings page for runtime configuration
