@@ -1,4 +1,4 @@
-﻿# Backend
+# Backend
 
 Core forensic analysis code lives here.
 
@@ -24,12 +24,21 @@ python backend/scripts/run_api.py
 
 API base URL: `http://localhost:8000`
 
+Important note:
+
+- `http://localhost:8000/` returning `404 Not Found` is expected
+- this backend does not define a root landing page
+- use `http://localhost:8000/docs` for the FastAPI docs UI
+- use `http://localhost:8000/api/v1/analysis` for the analysis API
+
 ### REST Endpoints (v1)
 
 - `POST /api/v1/analysis`
+- `GET /api/v1/analysis`
 - `GET /api/v1/analysis/{job_id}`
 - `GET /api/v1/analysis/{job_id}/report.json`
 - `GET /api/v1/analysis/{job_id}/report.md`
 - `GET /api/v1/analysis/{job_id}/metrics`
+- `GET /api/v1/analysis/{job_id}/guardrail-audit`
 
 Generated job artifacts are written to `outputs/analysis_jobs/<job_id>/`.

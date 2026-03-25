@@ -86,29 +86,55 @@ The backend API runs on:
 
 - `http://localhost:8000`
 
+Important backend note:
+
+- opening `http://localhost:8000/` will return `404 Not Found`
+- that is expected because the backend does not define a root `/` page
+- use `http://localhost:8000/docs` for FastAPI docs
+- use `http://localhost:8000/api/v1/analysis` for the API surface
+
 Supported REST endpoints:
 
 - `POST /api/v1/analysis`
+- `GET /api/v1/analysis`
 - `GET /api/v1/analysis/{job_id}`
 - `GET /api/v1/analysis/{job_id}/report.json`
 - `GET /api/v1/analysis/{job_id}/report.md`
 - `GET /api/v1/analysis/{job_id}/metrics`
 - `GET /api/v1/analysis/{job_id}/guardrail-audit`
 
-## Run the Next.js Frontend
+## Frontend Startup Modes
 
-From the repository root:
+### User Acceptance Testing / Demo
+
+Use the stable production frontend path:
+
+```powershell
+cd frontend
+cmd /c npm run build
+cmd /c npm run start
+```
+
+This is the preferred path for:
+
+- demo runs
+- stakeholder walkthroughs
+- UAT validation
+
+### Development Only
+
+Use dev mode only for active frontend development:
 
 ```powershell
 cd frontend
 cmd /c npm run dev
 ```
 
-Open:
+Important dev-mode warning:
 
-- `http://localhost:3000`
-
-The frontend expects the backend API at `http://localhost:8000` unless overridden by `NEXT_PUBLIC_API_BASE_URL`.
+- hydration warnings can appear in dev mode even when production works
+- this repo does not register a service worker
+- stale service workers or cached assets from another project on `http://localhost:3000` can interfere with dev mode
 
 ## Test the Backend
 
@@ -159,22 +185,25 @@ Recommended quick verification path:
 .\.venv\Scripts\python backend/scripts/run_api.py
 ```
 
-2. Start the frontend in a second terminal:
+2. Start the frontend in a second terminal with the production path:
 
 ```powershell
 cd frontend
-cmd /c npm run dev
+cmd /c npm run build
+cmd /c npm run start
 ```
 
 3. Open `http://localhost:3000` and submit a smoke PCAP through the UI.
 
-4. Or run a smoke file directly through CLI:
+4. If you want to inspect the backend directly, use `http://localhost:8000/docs` instead of `http://localhost:8000/`.
+
+5. Or run a smoke file directly through CLI:
 
 ```powershell
 .\.venv\Scripts\python backend/scripts/run.py outputs/smoke_inputs/suspicious_scan_small.pcap --no-ai
 ```
 
-5. Verify artifacts were produced.
+6. Verify artifacts were produced.
 
 ## Output Artifacts
 
@@ -194,6 +223,34 @@ Additional project outputs may also appear under:
 - `outputs/`
 
 ## Troubleshooting
+
+### `http://localhost:8000/` shows `404 Not Found`
+
+That is expected. This backend does not expose a root landing page.
+
+Use one of these instead:
+
+- `http://localhost:8000/docs`
+- `http://localhost:8000/api/v1/analysis`
+- `http://localhost:3000`
+
+### `npm run dev` shows hydration or service-worker problems
+
+This is usually an environment issue rather than an AgenticNetSec bug.
+
+Key points:
+
+- `npm run dev` is more sensitive than `npm run start`
+- this repo does not register a service worker
+- another project previously served on `http://localhost:3000` can leave behind stale service workers or cached assets
+
+Recommended cleanup steps:
+
+1. Open browser site settings or devtools for `http://localhost:3000`.
+2. Unregister any service worker for that origin.
+3. Clear site data and cache for `http://localhost:3000`.
+4. Restart the frontend server.
+5. Hard refresh the page.
 
 ### Python packages missing
 

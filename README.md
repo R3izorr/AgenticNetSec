@@ -22,7 +22,7 @@ python -m virtualenv .venv
 .\.venv\Scripts\python -m pip install -r requirements.txt
 ```
 
-For a full Windows-first setup, run, and verification walkthrough, see [README_RUN_TEST.md](d:/AgenticNetSec/README_RUN_TEST.md).
+For a full Windows-first setup, run, and verification walkthrough, see [README_RUN_TEST.md](/d:/Github%20Projects/AgenticNetSec/README_RUN_TEST.md) and [Full_System_User_Testing_Guide.md](/d:/Github%20Projects/AgenticNetSec/docs/Full_System_User_Testing_Guide.md).
 
 ## Run
 
@@ -43,6 +43,17 @@ Dev auto-reload is now opt-in:
 ```bash
 .\.venv\Scripts\python backend/scripts/run_api.py --reload
 ```
+
+Backend URL note:
+
+- `http://localhost:8000/` returns `404 Not Found` by design
+- use `http://localhost:8000/docs` for FastAPI docs
+- use `http://localhost:3000` for the actual frontend user-testing flow
+
+Frontend UAT note:
+
+- prefer `npm run build` followed by `npm run start` for demos, stakeholder walkthroughs, and UAT
+- keep `npm run dev` for active frontend development only because localhost cache or stale service-worker state from another project can make dev mode noisy
 
 ### REST endpoints
 

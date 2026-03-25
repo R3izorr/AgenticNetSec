@@ -1,3 +1,5 @@
+"use client"
+
 import Link from "next/link"
 
 import { SectionCard } from "@/components/common/section-card"
@@ -5,12 +7,16 @@ import { Button } from "@/components/ui/button"
 
 const highlights = [
   {
+    title: "Command Dashboard",
+    description: "Open a demo-ready command view with recent jobs, risk ranking, runtime summaries, and guardrail outcomes.",
+  },
+  {
     title: "PCAP Ingestion",
     description: "Submit one PCAP file or one pcap_path and trigger autonomous execution.",
   },
   {
     title: "Async Job Tracking",
-    description: "Observe queued/running/completed/failed lifecycle with 3-second polling.",
+    description: "Observe queued, running, completed, and failed lifecycle phases backed by the API.",
   },
   {
     title: "Structured Forensic Report",
@@ -18,11 +24,11 @@ const highlights = [
   },
   {
     title: "Raw Artifacts & Metrics",
-    description: "Inspect report.json, markdown output, and runtime/cost metrics for demo credibility.",
+    description: "Inspect report.json, markdown output, and runtime or cost metrics for demo credibility.",
   },
   {
     title: "Ingestion History",
-    description: "View all submitted PCAP analyses with status, timestamps, and quick access to details.",
+    description: "View all submitted PCAP analyses with source, timestamps, risk, and quick access to details.",
   },
 ]
 
@@ -37,14 +43,16 @@ export default function HomePage() {
             Autonomous Network Forensic Analysis Frontend
           </h1>
           <p className="text-sm text-muted-foreground sm:text-base">
-            Built for submission demos: submit PCAPs, monitor asynchronous analysis, and present
-            analyst-ready findings with guardrails and runtime/cost visibility.
+            Built for submission demos: start on the dashboard, jump into recent analyses, and present analyst-ready findings with guardrails plus runtime visibility.
           </p>
           <div className="flex flex-wrap items-center gap-2 pt-2">
             <Button asChild>
-              <Link href="/analysis/new">Start Analysis</Link>
+              <Link href="/dashboard">Open Dashboard</Link>
             </Button>
             <Button variant="outline" asChild>
+              <Link href="/analysis/new">Start Analysis</Link>
+            </Button>
+            <Button variant="ghost" asChild>
               <Link href="/analysis/history">View History</Link>
             </Button>
           </div>

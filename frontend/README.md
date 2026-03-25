@@ -12,6 +12,27 @@ Next.js App Router frontend aligned to the current backend async REST contract.
 
 ## Run
 
+### User Acceptance Testing / Demo
+
+From repository root:
+
+```bash
+cd frontend
+npm install
+npm run build
+npm run start
+```
+
+Open `http://localhost:3000`.
+
+This is the preferred path for:
+
+- demo runs
+- stakeholder walkthroughs
+- UAT validation
+
+### Development Only
+
 From repository root:
 
 ```bash
@@ -20,7 +41,19 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Important dev-mode warning:
+
+- hydration warnings can appear in `npm run dev` even when production works
+- this repo does not register a service worker
+- stale service workers or cached assets from another project on `http://localhost:3000` can interfere with dev mode
+
+If dev mode starts acting strangely, clear browser site data for `http://localhost:3000`, unregister any service worker on that origin, restart the dev server, and hard refresh the page.
+
+Backend note:
+
+- the frontend expects the backend API at `http://localhost:8000`
+- `http://localhost:8000/` returning `404 Not Found` is normal
+- use `http://localhost:8000/docs` if you want to inspect the backend directly
 
 ## Build Checks
 
@@ -38,6 +71,7 @@ Create `.env.local` from `.env.example` when needed.
 ## Routes (v1 scope)
 
 - `/` overview/landing
+- `/dashboard` demo-ready summary view
 - `/analysis/new` submit PCAP file or `pcap_path`
 - `/analysis/[jobId]` async status, metadata, and artifact readiness
 - `/analysis/[jobId]/report` analyst-facing structured report

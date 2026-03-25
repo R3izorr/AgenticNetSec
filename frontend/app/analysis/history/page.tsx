@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import type { Column, ColumnDef } from "@tanstack/react-table"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
@@ -18,11 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useToast } from "@/components/ui/toast"
-import { getJobHistory } from "@/lib/api/analysis"
-import { isApiError } from "@/lib/api/client"
 import { formatDateTime, formatNumber, formatPhaseLabel } from "@/lib/format"
 import type { JobStatus } from "@/lib/types/analysis"
+import { useJobHistory } from "@/hooks/use-job-history"
 import { DataTable } from "./data-table"
 
 function SortableHeader({
@@ -146,47 +144,12 @@ export const columns: ColumnDef<JobStatus>[] = [
 ]
 
 export default function HistoryPage() {
-  const { pushToast } = useToast()
-
-  const [tableData, setTableData] = useState<JobStatus[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { jobs, loading, error, refresh } = useJobHistory()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
 
-  const loadHistory = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await getJobHistory()
-      setTableData(response.jobs ?? [])
-    } catch (err) {
-      const message = isApiError(err)
-        ? err.detail || err.message
-        : err instanceof Error
-          ? err.message
-          : "Failed to load job history"
-
-      setTableData([])
-      setError(message)
-
-      pushToast({
-        variant: "error",
-        title: "Failed to load history",
-        description: message,
-      })
-    } finally {
-      setLoading(false)
-    }
-  }, [pushToast])
-
-  useEffect(() => {
-    void loadHistory()
-  }, [loadHistory])
-
   const filteredData = useMemo(() => {
-    return tableData.filter((job) => {
+    return jobs.filter((job) => {
       const matchesStatus = statusFilter === "all" || job.status === statusFilter
       if (!matchesStatus) {
         return false
@@ -206,7 +169,7 @@ export default function HistoryPage() {
         job.riskLevel ?? "",
       ].some((value) => value.toLowerCase().includes(needle))
     })
-  }, [search, statusFilter, tableData])
+  }, [jobs, search, statusFilter])
 
   if (loading) {
     return (
@@ -219,15 +182,15 @@ export default function HistoryPage() {
     )
   }
 
-  if (error && !tableData.length) {
+  if (error && !jobs.length) {
     return (
       <div className="flex flex-col gap-6">
-        <ErrorState title="Unable to load history" description={error} onRetry={() => void loadHistory()} />
+        <ErrorState title="Unable to load history" description={error} onRetry={() => void refresh()} />
       </div>
     )
   }
 
-  if (!tableData.length) {
+  if (!jobs.length) {
     return (
       <div className="flex flex-col gap-6">
         <EmptyState
@@ -266,7 +229,7 @@ export default function HistoryPage() {
                 <SelectItem value="failed">Failed</SelectItem>
               </SelectContent>
             </Select>
-            <Button type="button" variant="outline" onClick={() => void loadHistory()}>
+            <Button type="button" variant="outline" onClick={() => void refresh()}>
               Refresh
             </Button>
           </div>
