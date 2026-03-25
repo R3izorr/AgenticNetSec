@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { getAnalysisJobStatus } from "@/lib/api/analysis"
 import { isApiError } from "@/lib/api/client"
 import { adaptJobStatus } from "@/lib/adapters/analysis"
-import { POLL_INTERVAL_MS } from "@/lib/constants"
+import { useAppSettings } from "@/components/providers/app-settings-provider"
 import type { JobStatus } from "@/lib/types/analysis"
 
 const POLLING_STATUSES = new Set(["queued", "running"])
 
 export function useJobStatus(jobId: string) {
+  const { resolvedPollIntervalMs } = useAppSettings()
   const [job, setJob] = useState<JobStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -51,10 +52,10 @@ export function useJobStatus(jobId: string) {
 
     const timer = window.setTimeout(() => {
       void refresh()
-    }, POLL_INTERVAL_MS)
+    }, resolvedPollIntervalMs)
 
     return () => window.clearTimeout(timer)
-  }, [refresh, shouldPoll, job?.status, job?.currentPhase, job?.progress])
+  }, [refresh, resolvedPollIntervalMs, shouldPoll, job?.status, job?.currentPhase, job?.progress])
 
   return {
     job,

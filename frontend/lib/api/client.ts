@@ -1,3 +1,5 @@
+import { getConfiguredApiBaseUrl } from "@/lib/settings"
+
 export type ApiErrorCode =
   | "bad_request"
   | "not_found"
@@ -21,6 +23,10 @@ export class ApiError extends Error {
 }
 
 function getBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    return getConfiguredApiBaseUrl()
+  }
+
   return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
 }
 

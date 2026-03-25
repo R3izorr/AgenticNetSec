@@ -9,6 +9,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react"
 import type { CSSProperties } from "react"
+import { useAppSettings } from "@/components/providers/app-settings-provider"
 
 const toasterStyle = {
   "--normal-bg": "var(--popover)",
@@ -18,9 +19,11 @@ const toasterStyle = {
 } as CSSProperties
 
 const Toaster = ({ ...props }: ToasterProps) => {
+  const { settings } = useAppSettings()
+
   return (
     <Sonner
-      theme="dark"
+      theme={settings.theme}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

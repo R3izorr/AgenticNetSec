@@ -1,8 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { POLL_INTERVAL_MS } from "@/lib/constants"
 import { isApiError } from "@/lib/api/client"
+import { useAppSettings } from "@/components/providers/app-settings-provider"
 
 interface ArtifactState<T> {
   data: T | null
@@ -22,6 +22,7 @@ export function useArtifact<T>(
   deps: unknown[],
   options?: UseArtifactOptions
 ): ArtifactState<T> {
+  const { resolvedPollIntervalMs } = useAppSettings()
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -60,10 +61,10 @@ export function useArtifact<T>(
 
     const timer = window.setTimeout(() => {
       void reload()
-    }, options.pollIntervalMs ?? POLL_INTERVAL_MS)
+    }, options.pollIntervalMs ?? resolvedPollIntervalMs)
 
     return () => window.clearTimeout(timer)
-  }, [notReady, options?.pollIntervalMs, options?.pollWhileNotReady, reload])
+  }, [notReady, options?.pollIntervalMs, options?.pollWhileNotReady, reload, resolvedPollIntervalMs])
 
   return {
     data,

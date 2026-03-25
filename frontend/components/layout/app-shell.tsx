@@ -12,6 +12,7 @@ const navLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/analysis/new", label: "New Analysis" },
   { href: "/analysis/history", label: "History" },
+  { href: "/settings", label: "Settings" },
 ]
 
 export function AppShell({ children }: { children: React.ReactNode }) {
