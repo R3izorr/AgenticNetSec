@@ -59,33 +59,273 @@ class ReportGenerationResult:
     fallback_used: bool = False
 
 
-def build_prompt(summary: dict[str, Any], findings: dict[str, Any]) -> str:
-    flow = findings.get("suspected_attack_flow") or ((findings.get("deep_dive") or {}).get("suspected_attack_flow"))
+REPORT_SECTIONS = [
+    ("Initial Access", "initial_access"),
+    ("Lateral Movement & Discovery", "lateral_movement_discovery"),
+    ("Exfiltration", "exfiltration"),
+    ("Payload Deployment", "payload_deployment"),
+    ("Confidence / Gaps", "confidence_gaps"),
+]
+
+
+def _take(items: list[Any] | None, limit: int) -> list[Any]:
+    return list(items or [])[:limit]
+
+
+def _compact_patient_zero(candidate: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not candidate:
+        return None
+    return {
+        "internal_ip": candidate.get("internal_ip"),
+        "external_ip": candidate.get("external_ip"),
+        "confidence_score": candidate.get("confidence_score"),
+        "rdp_packets": candidate.get("rdp_packets"),
+        "handshake_complete": candidate.get("handshake_complete"),
+        "post_login_unique_internal_targets": candidate.get("post_login_unique_internal_targets"),
+        "post_login_follow_on_seconds": candidate.get("post_login_follow_on_seconds"),
+        "sample_events": _take(candidate.get("sample_events"), 3),
+    }
+
+
+def _compact_flow_hypothesis(flow: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not flow:
+        return None
+    stages = []
+    for stage in _take(flow.get("stages"), 8):
+        stages.append(
+            {
+                "stage": stage.get("stage"),
+                "supported": stage.get("supported"),
+                "weakly_supported": stage.get("weakly_supported"),
+                "confidence": stage.get("confidence"),
+                "first_seen": stage.get("first_seen"),
+                "evidence_summary": _take(stage.get("evidence_summary"), 3),
+            }
+        )
+    return {
+        "focus_host": flow.get("focus_host"),
+        "strongest_external_ip": flow.get("strongest_external_ip"),
+        "likely_path": flow.get("likely_path"),
+        "summary": flow.get("summary"),
+        "stages": stages,
+    }
+
+
+def _field_guide() -> str:
     return dedent(
-        f"""
-        Apex Global Logistics incident evidence is below.
-
-        PCAP Summary:
-        {json.dumps(summary, indent=2)}
-
-        Structured Findings:
-        {json.dumps(findings, indent=2)}
-
-        Structured Flow Hypothesis:
-        {json.dumps(flow, indent=2) if flow else "None provided"}
-
-        If a structured flow hypothesis is provided, use it as an evidence-backed hypothesis map.
-        Do not treat unsupported stages as proven.
+        """
+        Field guide:
+        - patient_zero_candidate: strongest external-to-internal remote access hypothesis.
+        - suspicious_external_port_scanners: external reconnaissance evidence, not confirmed access.
+        - suspicious_smb_rpc_scanners: noisy internal SMB/RPC discovery.
+        - possible_dcerpc_account_changes: admin/account/group activity indicators, still heuristic.
+        - possible_outbound_exfil_flows: suspicious outbound bulk transfer candidates.
+        - manual_payload_deployment_candidates: correlated internal RDP + SMB/DCERPC/admin-share deployment evidence.
+        - suspected_attack_flow: stage-by-stage hypothesis map. Treat weakly_supported stages as hints, not proof.
         """
     ).strip()
 
 
-def build_results_prompt(
-    aggregate: dict[str, Any],
-    records: list[dict[str, Any]],
-    *,
-    compact: bool = False,
-) -> str:
+def _compact_single_context(summary: dict[str, Any], findings: dict[str, Any]) -> dict[str, Any]:
+    flow = findings.get("suspected_attack_flow") or ((findings.get("deep_dive") or {}).get("suspected_attack_flow"))
+    external_rdp = findings.get("external_rdp", {})
+    external_scans = findings.get("external_port_scans", {})
+    smb_rpc = findings.get("smb_rpc_scans", {})
+    dcerpc = findings.get("dcerpc_account_activity", {})
+    temp_sh = findings.get("temp_sh_traffic", {})
+    large_http = findings.get("large_http_posts", {})
+    exfil = findings.get("outbound_exfiltration_candidates", {})
+    rdp_spread = findings.get("rdp_payload_deployment", {})
+    manual_drop = findings.get("manual_payload_deployment", {})
+    zero_day = findings.get("zero_day_heuristics", {})
+
+    return {
+        "pcap_summary": {
+            "total_packets": summary.get("total_packets"),
+            "top_ips": _take(summary.get("top_ips"), 5),
+            "top_ports": _take(summary.get("top_ports"), 8),
+            "protocols": summary.get("protocols"),
+            "average_packet_size": summary.get("average_packet_size"),
+            "unusual_ports": _take(summary.get("unusual_ports"), 8),
+            "unusual_protocols": _take(summary.get("unusual_protocols"), 8),
+            "scan_candidates": _take(summary.get("scan_candidates"), 5),
+        },
+        "high_signal_findings": {
+            "patient_zero_candidate": _compact_patient_zero(external_rdp.get("patient_zero_candidate")),
+            "external_reconnaissance": [
+                {
+                    "src_ip": item.get("src_ip"),
+                    "unique_targets": item.get("unique_targets"),
+                    "unique_ports": item.get("unique_ports"),
+                    "syn_only_ratio": item.get("syn_only_ratio"),
+                    "sample_events": _take(item.get("sample_events"), 3),
+                }
+                for item in _take([src for src in external_scans.get("sources", []) if src.get("suspicious")], 3)
+            ],
+            "smb_rpc_scanners": [
+                {
+                    "src_ip": item.get("src_ip"),
+                    "unique_targets": item.get("unique_targets"),
+                    "attempt_count": item.get("attempt_count"),
+                    "duration_seconds": item.get("duration_seconds"),
+                    "sample_events": _take(item.get("sample_events"), 3),
+                }
+                for item in _take([src for src in smb_rpc.get("scanners", []) if src.get("suspicious")], 3)
+            ],
+            "dcerpc_account_changes": [
+                {
+                    "src_ip": item.get("src_ip"),
+                    "dst_ip": item.get("dst_ip"),
+                    "marker": item.get("marker"),
+                    "sample_events": _take(item.get("sample_events"), 2),
+                }
+                for item in _take(dcerpc.get("changes"), 4)
+            ],
+            "temp_sh_hits": [
+                {
+                    "src_ip": item.get("src_ip"),
+                    "dst_ip": item.get("dst_ip"),
+                    "indicator_type": item.get("indicator_type"),
+                    "value": item.get("value"),
+                }
+                for item in _take(temp_sh.get("hits"), 4)
+            ],
+            "large_http_uploads": [
+                {
+                    "src_ip": item.get("src_ip"),
+                    "dst_ip": item.get("dst_ip"),
+                    "host": item.get("host"),
+                    "inferred_upload_bytes": item.get("inferred_upload_bytes"),
+                }
+                for item in _take(large_http.get("uploads"), 4)
+            ],
+            "outbound_exfil_flows": [
+                {
+                    "src_ip": item.get("src_ip"),
+                    "dst_ip": item.get("dst_ip"),
+                    "dst_port": item.get("dst_port"),
+                    "total_bytes": item.get("total_bytes"),
+                    "severity": item.get("severity"),
+                    "archive_hits": item.get("archive_hits"),
+                    "temp_sh_mentions": item.get("temp_sh_mentions"),
+                    "sample_events": _take(item.get("sample_events"), 2),
+                }
+                for item in _take(exfil.get("flows"), 4)
+            ],
+            "internal_rdp_spread": [
+                {
+                    "src_ip": item.get("src_ip"),
+                    "unique_targets": item.get("unique_targets"),
+                    "attempt_count": item.get("attempt_count"),
+                    "sample_events": _take(item.get("sample_events"), 3),
+                }
+                for item in _take([src for src in rdp_spread.get("spreaders", []) if src.get("suspicious")], 3)
+            ],
+            "manual_payload_deployment_candidates": [
+                {
+                    "src_ip": item.get("src_ip"),
+                    "unique_targets": item.get("unique_targets"),
+                    "targets_with_smb_rpc": item.get("targets_with_smb_rpc"),
+                    "targets_with_admin_share_markers": item.get("targets_with_admin_share_markers"),
+                    "targets_with_remote_exec_markers": item.get("targets_with_remote_exec_markers"),
+                    "manual_drop_score": item.get("manual_drop_score"),
+                    "sample_events": _take(item.get("sample_events"), 3),
+                }
+                for item in _take([src for src in manual_drop.get("candidates", []) if src.get("suspicious")], 3)
+            ],
+        },
+        "zero_day_heuristics": zero_day,
+        "suspected_attack_flow": _compact_flow_hypothesis(flow),
+    }
+
+
+def _compact_record_for_batch(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "file": item.get("file"),
+        "packet_count": item.get("packet_count"),
+        "patient_zero_candidate": _compact_patient_zero(item.get("patient_zero_candidate")),
+        "external_port_scans": [
+            {
+                "src_ip": source.get("src_ip"),
+                "unique_targets": source.get("unique_targets"),
+                "unique_ports": source.get("unique_ports"),
+                "syn_only_ratio": source.get("syn_only_ratio"),
+            }
+            for source in _take(item.get("suspicious_external_port_scanners"), 2)
+        ],
+        "smb_rpc_scanners": [
+            {
+                "src_ip": scanner.get("src_ip"),
+                "unique_targets": scanner.get("unique_targets"),
+                "attempts": scanner.get("attempt_count"),
+                "duration_seconds": scanner.get("duration_seconds"),
+            }
+            for scanner in _take(item.get("suspicious_smb_rpc_scanners"), 2)
+        ],
+        "dcerpc_account_markers": [
+            {
+                "src_ip": change.get("src_ip"),
+                "dst_ip": change.get("dst_ip"),
+                "marker": change.get("marker"),
+            }
+            for change in _take(item.get("possible_dcerpc_account_changes"), 3)
+        ],
+        "temp_sh_hits": [
+            {
+                "indicator_type": hit.get("indicator_type"),
+                "src_ip": hit.get("src_ip"),
+                "dst_ip": hit.get("dst_ip"),
+                "value": hit.get("value"),
+            }
+            for hit in _take(item.get("temp_sh_hits"), 3)
+        ],
+        "outbound_exfil_flows": [
+            {
+                "src_ip": flow.get("src_ip"),
+                "dst_ip": flow.get("dst_ip"),
+                "dst_port": flow.get("dst_port"),
+                "total_bytes": flow.get("total_bytes"),
+                "severity": flow.get("severity"),
+                "archive_hits": flow.get("archive_hits"),
+                "temp_sh_mentions": flow.get("temp_sh_mentions"),
+            }
+            for flow in _take(item.get("possible_outbound_exfil_flows"), 2)
+        ],
+        "large_http_uploads": [
+            {
+                "src_ip": upload.get("src_ip"),
+                "dst_ip": upload.get("dst_ip"),
+                "host": upload.get("host"),
+                "inferred_upload_bytes": upload.get("inferred_upload_bytes"),
+            }
+            for upload in _take(item.get("large_http_uploads"), 2)
+        ],
+        "internal_rdp_spread": [
+            {
+                "src_ip": spreader.get("src_ip"),
+                "unique_targets": spreader.get("unique_targets"),
+                "attempt_count": spreader.get("attempt_count"),
+            }
+            for spreader in _take(item.get("suspicious_internal_rdp_spread"), 2)
+        ],
+        "manual_payload_deployment_candidates": [
+            {
+                "src_ip": candidate.get("src_ip"),
+                "unique_targets": candidate.get("unique_targets"),
+                "targets_with_smb_rpc": candidate.get("targets_with_smb_rpc"),
+                "targets_with_admin_share_markers": candidate.get("targets_with_admin_share_markers"),
+                "targets_with_remote_exec_markers": candidate.get("targets_with_remote_exec_markers"),
+                "manual_drop_score": candidate.get("manual_drop_score"),
+            }
+            for candidate in _take(item.get("manual_payload_deployment_candidates"), 2)
+        ],
+        "deep_dive_focus_host": item.get("deep_dive_focus_host"),
+        "deep_dive_ingress_external_ip": item.get("deep_dive_ingress_external_ip"),
+        "suspected_attack_flow": _compact_flow_hypothesis((item.get("deep_dive") or {}).get("suspected_attack_flow")),
+    }
+
+
+def _compact_batch_context(aggregate: dict[str, Any], records: list[dict[str, Any]]) -> dict[str, Any]:
     top_records = sorted(
         records,
         key=lambda item: (
@@ -97,121 +337,10 @@ def build_results_prompt(
             len(item.get("large_http_uploads", [])),
         ),
         reverse=True,
-    )[:12]
+    )[:10]
 
-    def compact_patient_zero(candidate: dict[str, Any] | None) -> dict[str, Any] | None:
-        if not candidate:
-            return None
-        return {
-            "internal_ip": candidate.get("internal_ip"),
-            "external_ip": candidate.get("external_ip"),
-            "confidence_score": candidate.get("confidence_score"),
-            "rdp_packets": candidate.get("rdp_packets"),
-            "established": candidate.get("handshake_complete"),
-            "post_login_unique_internal_targets": candidate.get("post_login_unique_internal_targets"),
-        }
-
-    def compact_record(item: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "file": item.get("file"),
-            "packet_count": item.get("packet_count"),
-            "patient_zero_candidate": compact_patient_zero(item.get("patient_zero_candidate")),
-            "suspicious_external_rdp_count": item.get("suspicious_external_rdp_count", 0),
-            "external_port_scans": [
-                {
-                    "src_ip": source.get("src_ip"),
-                    "unique_targets": source.get("unique_targets"),
-                    "unique_ports": source.get("unique_ports"),
-                    "syn_only_ratio": source.get("syn_only_ratio"),
-                }
-                for source in item.get("suspicious_external_port_scanners", [])[:2]
-            ],
-            "suspicious_vpn_count": item.get("suspicious_vpn_count", 0),
-            "smb_rpc_scanners": [
-                {
-                    "src_ip": scanner.get("src_ip"),
-                    "unique_targets": scanner.get("unique_targets"),
-                    "attempts": scanner.get("attempt_count"),
-                    "duration_seconds": scanner.get("duration_seconds"),
-                }
-                for scanner in item.get("suspicious_smb_rpc_scanners", [])[:2]
-            ],
-            "dcerpc_account_markers": [
-                {
-                    "src_ip": change.get("src_ip"),
-                    "dst_ip": change.get("dst_ip"),
-                    "marker": change.get("marker"),
-                }
-                for change in item.get("possible_dcerpc_account_changes", [])[:3]
-            ],
-            "temp_sh_hits": [
-                {
-                    "indicator_type": hit.get("indicator_type"),
-                    "src_ip": hit.get("src_ip"),
-                    "dst_ip": hit.get("dst_ip"),
-                    "value": hit.get("value"),
-                }
-                for hit in item.get("temp_sh_hits", [])[:3]
-            ],
-            "outbound_exfil_flows": [
-                {
-                    "src_ip": flow.get("src_ip"),
-                    "dst_ip": flow.get("dst_ip"),
-                    "dst_port": flow.get("dst_port"),
-                    "total_bytes": flow.get("total_bytes"),
-                    "severity": flow.get("severity"),
-                    "archive_hits": flow.get("archive_hits"),
-                    "temp_sh_mentions": flow.get("temp_sh_mentions"),
-                }
-                for flow in item.get("possible_outbound_exfil_flows", [])[:2]
-            ],
-            "large_http_uploads": [
-                {
-                    "src_ip": upload.get("src_ip"),
-                    "dst_ip": upload.get("dst_ip"),
-                    "host": upload.get("host"),
-                    "inferred_upload_bytes": upload.get("inferred_upload_bytes"),
-                }
-                for upload in item.get("large_http_uploads", [])[:2]
-            ],
-            "internal_rdp_spread": [
-                {
-                    "src_ip": spreader.get("src_ip"),
-                    "unique_targets": spreader.get("unique_targets"),
-                    "attempt_count": spreader.get("attempt_count"),
-                }
-                for spreader in item.get("suspicious_internal_rdp_spread", [])[:2]
-            ],
-            "manual_payload_deployment_candidates": [
-                {
-                    "src_ip": candidate.get("src_ip"),
-                    "unique_targets": candidate.get("unique_targets"),
-                    "targets_with_smb_rpc": candidate.get("targets_with_smb_rpc"),
-                    "targets_with_admin_share_markers": candidate.get("targets_with_admin_share_markers"),
-                    "targets_with_remote_exec_markers": candidate.get("targets_with_remote_exec_markers"),
-                    "manual_drop_score": candidate.get("manual_drop_score"),
-                }
-                for candidate in item.get("manual_payload_deployment_candidates", [])[:2]
-            ],
-            "deep_dive_focus_host": item.get("deep_dive_focus_host"),
-            "deep_dive_ingress_external_ip": item.get("deep_dive_ingress_external_ip"),
-        }
-
-    category_examples = {
-        "patient_zero_candidates": [compact_record(item) for item in top_records[: (3 if compact else 6)]],
-        "external_port_scan_records": [compact_record(item) for item in records if item.get("suspicious_external_port_scanners")][: (3 if compact else 5)],
-        "smb_rpc_scan_records": [compact_record(item) for item in records if item.get("suspicious_smb_rpc_scanners")][: (3 if compact else 6)],
-        "dcerpc_account_records": [compact_record(item) for item in records if item.get("possible_dcerpc_account_changes")][: (3 if compact else 5)],
-        "temp_sh_records": [compact_record(item) for item in records if item.get("temp_sh_hits")][: (3 if compact else 5)],
-        "outbound_exfil_records": [compact_record(item) for item in records if item.get("possible_outbound_exfil_flows")][: (3 if compact else 5)],
-        "large_upload_records": [compact_record(item) for item in records if item.get("large_http_uploads")][: (2 if compact else 4)],
-        "internal_rdp_spread_records": [compact_record(item) for item in records if item.get("suspicious_internal_rdp_spread")][: (3 if compact else 5)],
-        "manual_payload_deployment_records": [compact_record(item) for item in records if item.get("manual_payload_deployment_candidates")][: (3 if compact else 5)],
-        "deep_dive_records": [compact_record(item) for item in records if item.get("deep_dive")][: (2 if compact else 4)],
-    }
-    prompt_aggregate = aggregate
-    if compact:
-        prompt_aggregate = {
+    return {
+        "aggregate_summary": {
             "file_count": aggregate.get("file_count"),
             "files_with_external_rdp": aggregate.get("files_with_external_rdp"),
             "files_with_external_port_scans": aggregate.get("files_with_external_port_scans"),
@@ -223,22 +352,69 @@ def build_results_prompt(
             "files_with_large_http_uploads": aggregate.get("files_with_large_http_uploads"),
             "files_with_internal_rdp_spread": aggregate.get("files_with_internal_rdp_spread"),
             "files_with_manual_payload_deployment": aggregate.get("files_with_manual_payload_deployment"),
-            "top_patient_zero_candidates": aggregate.get("top_patient_zero_candidates", [])[:3],
+            "top_patient_zero_candidates": _take(aggregate.get("top_patient_zero_candidates"), 5),
+            "top_deep_dive_focus_hosts": _take(aggregate.get("top_deep_dive_focus_hosts"), 5),
             "attack_flow": aggregate.get("attack_flow"),
             "interesting_files": {
-                key: value[:5]
+                key: _take(value, 8)
                 for key, value in (aggregate.get("interesting_files") or {}).items()
             },
-        }
+        },
+        "representative_records": {
+            "top_overall": [_compact_record_for_batch(item) for item in top_records[:4]],
+            "external_reconnaissance": [
+                _compact_record_for_batch(item)
+                for item in _take([item for item in records if item.get("suspicious_external_port_scanners")], 3)
+            ],
+            "discovery": [
+                _compact_record_for_batch(item)
+                for item in _take([item for item in records if item.get("suspicious_smb_rpc_scanners")], 4)
+            ],
+            "administrative_activity": [
+                _compact_record_for_batch(item)
+                for item in _take([item for item in records if item.get("possible_dcerpc_account_changes")], 4)
+            ],
+            "exfiltration": [
+                _compact_record_for_batch(item)
+                for item in _take([item for item in records if item.get("possible_outbound_exfil_flows") or item.get("temp_sh_hits")], 4)
+            ],
+            "payload_deployment": [
+                _compact_record_for_batch(item)
+                for item in _take([item for item in records if item.get("manual_payload_deployment_candidates")], 4)
+            ],
+        },
+    }
+
+
+def build_prompt(summary: dict[str, Any], findings: dict[str, Any]) -> str:
+    context = _compact_single_context(summary, findings)
+    return dedent(
+        f"""
+        Apex Global Logistics incident evidence is below.
+
+        {_field_guide()}
+
+        Compact Evidence Context:
+        {json.dumps(context, indent=2)}
+        """
+    ).strip()
+
+
+def build_results_prompt(
+    aggregate: dict[str, Any],
+    records: list[dict[str, Any]],
+    *,
+    compact: bool = False,
+) -> str:
+    prompt_context = _compact_batch_context(aggregate, records)
     return dedent(
         f"""
         Apex Global Logistics incident evidence from a multi-file PCAP scan is below.
 
-        Aggregate Summary:
-        {json.dumps(prompt_aggregate, indent=2)}
+        {_field_guide()}
 
-        Representative Records By Category:
-        {json.dumps(category_examples, indent=2)}
+        Compact Evidence Context:
+        {json.dumps(prompt_context, indent=2)}
 
         Write a structured incident report with these sections:
         1. Initial Access
@@ -502,6 +678,7 @@ def _generate_with_openai(prompt: str, model: str | None) -> ReportGenerationRes
         )
         return None
     selected_model = str(_get_setting("OPENAI_MODEL", model or "gpt-5-mini"))
+    max_output_tokens = max(200, _get_setting_int("OPENAI_MAX_OUTPUT_TOKENS", _get_setting_int("REPORT_MAX_OUTPUT_TOKENS", 1200)))
     try:
         from openai import OpenAI
 
@@ -512,6 +689,7 @@ def _generate_with_openai(prompt: str, model: str | None) -> ReportGenerationRes
             try:
                 response = client.responses.create(
                     model=selected_model,
+                    max_output_tokens=max_output_tokens,
                     input=[
                         {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
                         {"role": "user", "content": [{"type": "text", "text": prompt}]},
@@ -561,6 +739,7 @@ def _generate_with_openrouter(prompt: str, model: str | None) -> ReportGeneratio
         return None
     selected_model = str(_get_setting("OPENROUTER_MODEL", model or "openai/gpt-5-mini"))
     base_url = str(_get_setting("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")).rstrip("/")
+    max_output_tokens = max(200, _get_setting_int("OPENROUTER_MAX_OUTPUT_TOKENS", _get_setting_int("REPORT_MAX_OUTPUT_TOKENS", 900)))
     try:
         from openai import OpenAI
 
@@ -574,6 +753,7 @@ def _generate_with_openrouter(prompt: str, model: str | None) -> ReportGeneratio
             try:
                 response = client.responses.create(
                     model=selected_model,
+                    max_output_tokens=max_output_tokens,
                     input=f"{SYSTEM_PROMPT}\n\n{prompt}",
                     extra_headers={
                         "HTTP-Referer": str(_get_setting("OPENROUTER_HTTP_REFERER", "http://localhost")),
@@ -623,6 +803,7 @@ def _generate_with_groq(prompt: str, model: str | None) -> ReportGenerationResul
         )
         return None
     selected_model = str(_get_setting("GROQ_MODEL", model or "openai/gpt-oss-20b"))
+    max_output_tokens = max(200, _get_setting_int("GROQ_MAX_OUTPUT_TOKENS", _get_setting_int("REPORT_MAX_OUTPUT_TOKENS", 1200)))
     try:
         from openai import OpenAI
 
@@ -636,6 +817,7 @@ def _generate_with_groq(prompt: str, model: str | None) -> ReportGenerationResul
             try:
                 response = client.responses.create(
                     model=selected_model,
+                    max_output_tokens=max_output_tokens,
                     input=f"{SYSTEM_PROMPT}\n\n{prompt}",
                 )
                 if response.output_text:
@@ -980,6 +1162,231 @@ def _generate_with_provider(
     return None
 
 
+def _generate_best_result(
+    prompt: str,
+    *,
+    provider: str,
+    model: str | None,
+    require_ai: bool,
+) -> ReportGenerationResult | None:
+    provider_chain = _resolve_provider_chain(provider)
+    preferred_provider = provider_chain[0] if provider_chain else provider
+    for candidate_provider in provider_chain:
+        result = _generate_with_provider(
+            prompt,
+            candidate_provider,
+            model,
+            preferred_provider=preferred_provider,
+        )
+        if result:
+            return result
+    if require_ai:
+        raise RuntimeError(f"{provider} report generation failed")
+    return None
+
+
+def _combine_results(
+    *,
+    text: str,
+    results: list[ReportGenerationResult],
+    fallback_used: bool = False,
+    fallback_provider: str = "fallback",
+    fallback_model: str = "fallback",
+) -> ReportGenerationResult:
+    if not results:
+        return _result_from_text(
+            text=text,
+            provider=fallback_provider,
+            model=fallback_model,
+            fallback_used=fallback_used,
+        )
+    providers = {result.provider for result in results}
+    models = {result.model for result in results}
+    return ReportGenerationResult(
+        text=text.strip(),
+        provider=results[0].provider if len(providers) == 1 else "mixed",
+        model=results[0].model if len(models) == 1 else "mixed",
+        llm_tokens_in=sum(result.llm_tokens_in for result in results),
+        llm_tokens_out=sum(result.llm_tokens_out for result in results),
+        fallback_used=fallback_used or any(result.fallback_used for result in results),
+    )
+
+
+def _build_section_prompt(
+    *,
+    section_title: str,
+    context: dict[str, Any],
+    case_scope: str,
+) -> str:
+    return dedent(
+        f"""
+        {SYSTEM_PROMPT}
+
+        Write only the body for the report section titled "{section_title}" for a {case_scope}.
+        Do not include the heading itself.
+        Keep it concise and operational.
+        Distinguish direct evidence from heuristic inference.
+        If evidence is weak or absent, say so clearly.
+
+        {_field_guide()}
+
+        Compact Evidence Context:
+        {json.dumps(context, indent=2)}
+        """
+    ).strip()
+
+
+def _section_context(context: dict[str, Any], section_key: str, case_scope: str) -> dict[str, Any]:
+    if case_scope == "single-PCAP incident":
+        signals = context.get("high_signal_findings", {})
+        base = {
+            "pcap_summary": {
+                "total_packets": (context.get("pcap_summary") or {}).get("total_packets"),
+                "scan_candidates": (context.get("pcap_summary") or {}).get("scan_candidates"),
+            },
+            "suspected_attack_flow": context.get("suspected_attack_flow"),
+        }
+        if section_key == "initial_access":
+            base["relevant_findings"] = {
+                "patient_zero_candidate": signals.get("patient_zero_candidate"),
+                "external_reconnaissance": signals.get("external_reconnaissance"),
+            }
+        elif section_key == "lateral_movement_discovery":
+            base["relevant_findings"] = {
+                "external_reconnaissance": signals.get("external_reconnaissance"),
+                "smb_rpc_scanners": signals.get("smb_rpc_scanners"),
+                "dcerpc_account_changes": signals.get("dcerpc_account_changes"),
+                "internal_rdp_spread": signals.get("internal_rdp_spread"),
+            }
+        elif section_key == "exfiltration":
+            base["relevant_findings"] = {
+                "temp_sh_hits": signals.get("temp_sh_hits"),
+                "large_http_uploads": signals.get("large_http_uploads"),
+                "outbound_exfil_flows": signals.get("outbound_exfil_flows"),
+            }
+        elif section_key == "payload_deployment":
+            base["relevant_findings"] = {
+                "internal_rdp_spread": signals.get("internal_rdp_spread"),
+                "manual_payload_deployment_candidates": signals.get("manual_payload_deployment_candidates"),
+                "dcerpc_account_changes": signals.get("dcerpc_account_changes"),
+            }
+        else:
+            base["relevant_findings"] = {
+                "patient_zero_candidate": signals.get("patient_zero_candidate"),
+                "smb_rpc_scanners": signals.get("smb_rpc_scanners"),
+                "outbound_exfil_flows": signals.get("outbound_exfil_flows"),
+                "manual_payload_deployment_candidates": signals.get("manual_payload_deployment_candidates"),
+                "zero_day_heuristics": context.get("zero_day_heuristics"),
+            }
+        return base
+
+    aggregate_summary = context.get("aggregate_summary", {})
+    representative_records = context.get("representative_records", {})
+    base = {
+        "aggregate_summary": {
+            "file_count": aggregate_summary.get("file_count"),
+            "attack_flow": aggregate_summary.get("attack_flow"),
+        }
+    }
+    if section_key == "initial_access":
+        base["aggregate_signals"] = {
+            "files_with_external_rdp": aggregate_summary.get("files_with_external_rdp"),
+            "files_with_vpn_like_ingress": aggregate_summary.get("files_with_vpn_like_ingress"),
+            "top_patient_zero_candidates": aggregate_summary.get("top_patient_zero_candidates"),
+        }
+        base["representative_records"] = representative_records.get("top_overall")
+    elif section_key == "lateral_movement_discovery":
+        base["aggregate_signals"] = {
+            "files_with_external_port_scans": aggregate_summary.get("files_with_external_port_scans"),
+            "files_with_smb_rpc_scanning": aggregate_summary.get("files_with_smb_rpc_scanning"),
+            "files_with_dcerpc_account_markers": aggregate_summary.get("files_with_dcerpc_account_markers"),
+        }
+        base["representative_records"] = {
+            "external_reconnaissance": representative_records.get("external_reconnaissance"),
+            "discovery": representative_records.get("discovery"),
+            "administrative_activity": representative_records.get("administrative_activity"),
+        }
+    elif section_key == "exfiltration":
+        base["aggregate_signals"] = {
+            "files_with_temp_sh_hits": aggregate_summary.get("files_with_temp_sh_hits"),
+            "files_with_outbound_exfil_candidates": aggregate_summary.get("files_with_outbound_exfil_candidates"),
+            "files_with_large_http_uploads": aggregate_summary.get("files_with_large_http_uploads"),
+        }
+        base["representative_records"] = representative_records.get("exfiltration")
+    elif section_key == "payload_deployment":
+        base["aggregate_signals"] = {
+            "files_with_internal_rdp_spread": aggregate_summary.get("files_with_internal_rdp_spread"),
+            "files_with_manual_payload_deployment": aggregate_summary.get("files_with_manual_payload_deployment"),
+        }
+        base["representative_records"] = representative_records.get("payload_deployment")
+    else:
+        base["aggregate_signals"] = {
+            "top_deep_dive_focus_hosts": aggregate_summary.get("top_deep_dive_focus_hosts"),
+            "interesting_files": aggregate_summary.get("interesting_files"),
+        }
+        base["representative_records"] = representative_records.get("top_overall")
+    return base
+
+
+def _compose_report(section_bodies: dict[str, str], *, attack_flow: str | None = None) -> str:
+    lines = ["# Incident Report", ""]
+    if attack_flow:
+        lines.extend(["Attack Flow:", attack_flow, ""])
+    for title, key in REPORT_SECTIONS:
+        lines.extend([f"## {title}", section_bodies.get(key, "No material evidence was summarized for this section."), ""])
+    return "\n".join(lines).strip()
+
+
+def _generate_sectioned_report(
+    *,
+    context: dict[str, Any],
+    provider: str,
+    model: str | None,
+    use_ai: bool,
+    require_ai: bool,
+    case_scope: str,
+    attack_flow: str | None = None,
+    fallback_text: str,
+) -> ReportGenerationResult:
+    if not use_ai:
+        return _result_from_text(
+            text=fallback_text,
+            provider=provider,
+            model=str(model or _get_setting("REPORT_MODEL", "fallback")),
+            fallback_used=True,
+        )
+
+    section_results: list[ReportGenerationResult] = []
+    section_bodies: dict[str, str] = {}
+    for section_title, section_key in REPORT_SECTIONS:
+        scoped_context = _section_context(context, section_key, case_scope)
+        prompt = _build_section_prompt(
+            section_title=section_title,
+            context=scoped_context,
+            case_scope=case_scope,
+        )
+        result = _generate_best_result(
+            prompt,
+            provider=provider,
+            model=model,
+            require_ai=require_ai,
+        )
+        if not result:
+            return _result_from_text(
+                text=fallback_text,
+                provider=provider,
+                model=str(model or _get_setting("REPORT_MODEL", "fallback")),
+                fallback_used=True,
+            )
+        section_results.append(result)
+        section_bodies[section_key] = result.text.strip()
+
+    return _combine_results(
+        text=_compose_report(section_bodies, attack_flow=attack_flow),
+        results=section_results,
+    )
+
+
 def generate_report_result(
     summary: dict[str, Any],
     findings: dict[str, Any],
@@ -989,25 +1396,17 @@ def generate_report_result(
     use_ai: bool = True,
     require_ai: bool = False,
 ) -> ReportGenerationResult:
-    prompt = build_prompt(summary, findings)
-    if use_ai:
-        preferred_provider = _resolve_provider_chain(provider)[0]
-        for candidate_provider in _resolve_provider_chain(provider):
-            result = _generate_with_provider(
-                prompt,
-                candidate_provider,
-                model,
-                preferred_provider=preferred_provider,
-            )
-            if result:
-                return result
-        if require_ai:
-            raise RuntimeError(f"{provider} report generation failed")
-    return _result_from_text(
-        text=_fallback_report(summary, findings),
+    compact_context = _compact_single_context(summary, findings)
+    flow = compact_context.get("suspected_attack_flow") or {}
+    return _generate_sectioned_report(
+        context=compact_context,
         provider=provider,
-        model=str(model or _get_setting("REPORT_MODEL", "fallback")),
-        fallback_used=True,
+        model=model,
+        use_ai=use_ai,
+        require_ai=require_ai,
+        case_scope="single-PCAP incident",
+        attack_flow=flow.get("likely_path"),
+        fallback_text=_fallback_report(summary, findings),
     )
 
 
@@ -1039,23 +1438,18 @@ def generate_results_report(
     use_ai: bool = True,
     require_ai: bool = False,
 ) -> str:
-    provider_chain = _resolve_provider_chain(provider)
-    effective_provider = provider_chain[0] if provider_chain else provider
-    prompt = build_results_prompt(aggregate, records, compact=(effective_provider in {"groq", "ollama"}))
-    if use_ai:
-        preferred_provider = provider_chain[0] if provider_chain else provider
-        for candidate_provider in provider_chain:
-            result = _generate_with_provider(
-                prompt,
-                candidate_provider,
-                model,
-                preferred_provider=preferred_provider,
-            )
-            if result:
-                return result.text
-        if require_ai:
-            raise RuntimeError(f"{provider} report generation failed")
-    return _fallback_results_report(aggregate, records)
+    compact_context = _compact_batch_context(aggregate, records)
+    result = _generate_sectioned_report(
+        context=compact_context,
+        provider=provider,
+        model=model,
+        use_ai=use_ai,
+        require_ai=require_ai,
+        case_scope="multi-file PCAP campaign",
+        attack_flow=(aggregate.get("attack_flow") or {}).get("likely_path"),
+        fallback_text=_fallback_results_report(aggregate, records),
+    )
+    return result.text
 
 
 def _load_results(results_file: Path) -> list[dict[str, Any]]:

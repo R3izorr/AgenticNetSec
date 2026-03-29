@@ -22,9 +22,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 if __name__ == "__main__":
     args = build_parser().parse_args()
-    uvicorn.run(
-        "backend.api.app:app",
-        host=args.host,
-        port=args.port,
-        reload=args.reload,
-    )
+    run_kwargs = {
+        "app": "backend.api.app:app",
+        "host": args.host,
+        "port": args.port,
+        "reload": args.reload,
+    }
+    if args.reload:
+        run_kwargs["reload_dirs"] = [str(PROJECT_ROOT / "backend")]
+
+    uvicorn.run(**run_kwargs)
