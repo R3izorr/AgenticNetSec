@@ -50,6 +50,7 @@ The backend is the forensic analysis engine for AgenticNetSec. It supports:
 - optional external tools for analyst verification:
   - `tshark`
   - Wireshark
+  - Docker, if you want to use the bundled forensic sandbox instead of a host `tshark`
 
 ## Install
 
@@ -112,6 +113,36 @@ Optional fallback providers can also be configured in the same file:
 
 Environment variables are also supported and take precedence over `local_settings.py`.
 
+### Optional sandbox verification
+
+The backend now supports an optional second-stage `tshark` verification pass. This is meant to complement the current Scapy-based analyzer, not replace it.
+
+Useful environment variables:
+
+```bash
+export AGENTIC_SANDBOX_VERIFY=1
+export AGENTIC_SANDBOX_MODE=auto
+export AGENTIC_SANDBOX_IMAGE=agenticnetsec-forensics-sandbox
+export AGENTIC_SANDBOX_TIMEOUT=120
+```
+
+Modes:
+
+- `auto`
+  - prefer host `tshark`, then fall back to the Docker sandbox image if available
+- `host`
+  - require local `tshark`
+- `docker`
+  - require the bundled Docker sandbox image
+
+The sandbox verifier returns compact summaries for:
+
+- remote management traffic including WinRM
+- internal 135/445 scan verification
+- outbound HTTP or `temp.sh` verification
+
+This keeps token usage under control by avoiding raw packet dumps in model context.
+
 ## Run The API
 
 From the repository root:
@@ -159,6 +190,12 @@ Single PCAP with deep dive:
 python backend/scripts/run.py /path/to/file.pcap --dive
 ```
 
+Single PCAP with sandbox verification enabled:
+
+```bash
+AGENTIC_SANDBOX_VERIFY=1 python backend/scripts/run.py /path/to/file.pcap --dive --no-ai
+```
+
 ## Batch / Offline Analysis
 
 Analyze a file range:
@@ -171,6 +208,36 @@ Analyze with deep dive:
 
 ```bash
 python backend/scripts/batch_analyze.py --start 1 --end 30 --workers 4 --dive --force
+```
+
+Analyze a full corpus with optional sandbox verification:
+
+```bash
+AGENTIC_SANDBOX_VERIFY=1 python backend/scripts/batch_analyze.py --start 1 --end 129 --workers 4 --dive
+```
+
+Enrich an existing `scan_results.jsonl` file afterward by reading each record's `path` and running sandbox verification without rerunning the base analyzer:
+
+```bash
+AGENTIC_SANDBOX_VERIFY=1 python backend/scripts/enrich_results_with_sandbox.py outputs/scan_results.jsonl --output-file outputs/scan_results.sandbox.jsonl
+```
+
+Use AI to decide which of A/B/C/D is weak before running targeted `tshark` checks:
+
+```bash
+AGENTIC_SANDBOX_VERIFY=1 python backend/scripts/enrich_results_with_sandbox.py outputs/scan_results.jsonl --use-ai --provider auto --limit 20 --output-file outputs/scan_results.sandbox.jsonl
+```
+
+Use Gemini to write the case summary, then OpenRouter to generate custom `tshark` plans for weak ABCD sections:
+
+```bash
+AGENTIC_SANDBOX_VERIFY=1 python backend/scripts/enrich_results_with_sandbox.py outputs/scan_results.jsonl --ai-tshark --summary-provider gemini --planner-provider openrouter --limit 20 --output-file outputs/scan_results.ai-tshark.jsonl
+```
+
+Reuse an existing report instead of calling Gemini for the summary stage:
+
+```bash
+AGENTIC_SANDBOX_VERIFY=1 python backend/scripts/enrich_results_with_sandbox.py outputs/scan_results.jsonl --ai-tshark --summary-file outputs/incident_report.md --planner-provider openrouter --limit 20 --force --output-file outputs/scan_results.ai-tshark.jsonl
 ```
 
 Summarize batch results:
@@ -200,6 +267,30 @@ python backend/scripts/verify_findings.py payload --results-file outputs/scan_re
 ```
 
 If `tshark` is installed, these pivots can also be used to validate findings manually.
+
+## Sandbox
+
+The repository includes a lightweight forensic sandbox at `backend/sandbox/`.
+
+Build it:
+
+```bash
+backend/sandbox/bin/build-sandbox.sh
+```
+
+Run ad hoc `tshark` inside the sandbox:
+
+```bash
+backend/sandbox/bin/run-tshark.sh /path/to/file.pcap -Y 'tcp.port == 5985 || tcp.port == 5986'
+```
+
+Recommended workflow:
+
+1. Run the normal analyzer across the full PCAP set.
+2. Enable sandbox verification for follow-up runs or high-signal files.
+3. Use the compact sandbox summaries to confirm WinRM, scan fan-out, or `temp.sh` hypotheses.
+
+You can also do step 2 after the fact by enriching an existing JSONL results file, since each record stores the original PCAP path.
 
 ## Generated Artifacts
 

@@ -1,4 +1,4 @@
-import { getConfiguredApiBaseUrl } from "@/lib/settings"
+import { getConfiguredApiBaseUrl, getDefaultApiBaseUrl } from "@/lib/settings"
 
 export type ApiErrorCode =
   | "bad_request"
@@ -27,7 +27,7 @@ function getBaseUrl(): string {
     return getConfiguredApiBaseUrl()
   }
 
-  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
+  return getDefaultApiBaseUrl()
 }
 
 function buildUrl(path: string): string {

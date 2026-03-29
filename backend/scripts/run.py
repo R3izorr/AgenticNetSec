@@ -38,6 +38,7 @@ def main() -> int:
         from detectors import collect_all_findings
         from deep_dive import build_deep_dive, render_deep_dive_markdown
         from report_ai import generate_report
+        from sandbox_verifier import run_sandbox_verification, sandbox_verification_enabled
     except ModuleNotFoundError as exc:
         parser.error(f"Missing dependency: {exc.name}. Install requirements with `python3 -m pip install -r requirements.txt`.")
 
@@ -45,13 +46,15 @@ def main() -> int:
     summary = analyze_pcap_summary(pcap_path)
     findings = collect_all_findings(pcap_path)
     deep_dive = build_deep_dive(pcap_path, findings) if args.dive else None
+    sandbox = run_sandbox_verification(pcap_path, findings) if sandbox_verification_enabled() else None
     report_findings = (
         {
             **findings,
             "deep_dive": deep_dive,
             "suspected_attack_flow": (deep_dive or {}).get("suspected_attack_flow"),
+            "sandbox_verification": sandbox,
         }
-        if deep_dive
+        if (deep_dive or sandbox)
         else findings
     )
     report = generate_report(
@@ -67,6 +70,8 @@ def main() -> int:
     bundle = {"pcap_path": pcap_path, "summary": summary, "findings": findings, "report": report}
     if deep_dive:
         bundle["deep_dive"] = deep_dive
+    if sandbox:
+        bundle["sandbox_verification"] = sandbox
 
     print(report)
 

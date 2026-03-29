@@ -132,6 +132,7 @@ export default function NewAnalysisPage() {
             <div className="flex flex-col gap-2">
               <Label htmlFor="pcap-file">PCAP file</Label>
               <Input
+                key="pcap-file-input"
                 id="pcap-file"
                 type="file"
                 accept=".pcap,.pcapng"
@@ -143,6 +144,7 @@ export default function NewAnalysisPage() {
             <div className="flex flex-col gap-2">
               <Label htmlFor="pcap-path">pcap_path</Label>
               <Input
+                key="pcap-path-input"
                 id="pcap-path"
                 type="text"
                 value={pcapPath}

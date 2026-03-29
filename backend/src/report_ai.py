@@ -138,6 +138,7 @@ def _compact_single_context(summary: dict[str, Any], findings: dict[str, Any]) -
     rdp_spread = findings.get("rdp_payload_deployment", {})
     manual_drop = findings.get("manual_payload_deployment", {})
     zero_day = findings.get("zero_day_heuristics", {})
+    sandbox = findings.get("sandbox_verification", {})
 
     return {
         "pcap_summary": {
@@ -235,6 +236,13 @@ def _compact_single_context(summary: dict[str, Any], findings: dict[str, Any]) -
             ],
         },
         "zero_day_heuristics": zero_day,
+        "sandbox_verification": {
+            "status": sandbox.get("status"),
+            "mode": sandbox.get("mode"),
+            "notable_observations": _take(sandbox.get("notable_observations"), 5),
+            "verified_winrm_pairs": _take((sandbox.get("remote_management") or {}).get("verified_winrm_pairs"), 3),
+            "verified_temp_sh_flows": _take((sandbox.get("exfiltration") or {}).get("verified_temp_sh_flows"), 3),
+        },
         "suspected_attack_flow": _compact_flow_hypothesis(flow),
     }
 
@@ -669,6 +677,59 @@ def _result_from_text(
     )
 
 
+def _extract_text_from_response_payload(response: Any) -> str:
+    output_text = getattr(response, "output_text", None)
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text.strip()
+
+    choices = getattr(response, "choices", None)
+    if choices:
+        for choice in choices:
+            message = getattr(choice, "message", None)
+            if not message:
+                continue
+            content = getattr(message, "content", None)
+            if isinstance(content, str) and content.strip():
+                return content.strip()
+            if isinstance(content, list):
+                text_parts = []
+                for part in content:
+                    if isinstance(part, dict):
+                        text = part.get("text")
+                        if text:
+                            text_parts.append(str(text))
+                    else:
+                        text = getattr(part, "text", None)
+                        if text:
+                            text_parts.append(str(text))
+                if text_parts:
+                    return "\n".join(part.strip() for part in text_parts if part and str(part).strip()).strip()
+
+    output = getattr(response, "output", None)
+    if isinstance(output, list):
+        text_parts = []
+        for item in output:
+            content = item.get("content") if isinstance(item, dict) else getattr(item, "content", None)
+            if not content:
+                continue
+            if isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict):
+                        text = part.get("text")
+                        if text:
+                            text_parts.append(str(text))
+                    else:
+                        text = getattr(part, "text", None)
+                        if text:
+                            text_parts.append(str(text))
+            elif isinstance(content, str) and content.strip():
+                text_parts.append(content)
+        if text_parts:
+            return "\n".join(part.strip() for part in text_parts if part and str(part).strip()).strip()
+
+    return ""
+
+
 def _generate_with_openai(prompt: str, model: str | None) -> ReportGenerationResult | None:
     api_key = _get_secret("OPENAI_API_KEY")
     if not api_key:
@@ -677,7 +738,7 @@ def _generate_with_openai(prompt: str, model: str | None) -> ReportGenerationRes
             file=sys.stderr,
         )
         return None
-    selected_model = str(_get_setting("OPENAI_MODEL", model or "gpt-5-mini"))
+    selected_model = str(model or _get_setting("OPENAI_MODEL", "gpt-5-mini"))
     max_output_tokens = max(200, _get_setting_int("OPENAI_MAX_OUTPUT_TOKENS", _get_setting_int("REPORT_MAX_OUTPUT_TOKENS", 1200)))
     try:
         from openai import OpenAI
@@ -690,15 +751,13 @@ def _generate_with_openai(prompt: str, model: str | None) -> ReportGenerationRes
                 response = client.responses.create(
                     model=selected_model,
                     max_output_tokens=max_output_tokens,
-                    input=[
-                        {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
-                        {"role": "user", "content": [{"type": "text", "text": prompt}]},
-                    ],
+                    input=prompt,
                 )
-                if response.output_text:
+                text = _extract_text_from_response_payload(response)
+                if text:
                     print(f"OpenAI request succeeded using model {selected_model}.", file=sys.stderr)
                     return _result_from_text(
-                        text=response.output_text,
+                        text=text,
                         provider="openai",
                         model=selected_model,
                         usage_payload=response,
@@ -737,7 +796,7 @@ def _generate_with_openrouter(prompt: str, model: str | None) -> ReportGeneratio
             file=sys.stderr,
         )
         return None
-    selected_model = str(_get_setting("OPENROUTER_MODEL", model or "openai/gpt-5-mini"))
+    selected_model = str(model or _get_setting("OPENROUTER_MODEL", "openai/gpt-5-mini"))
     base_url = str(_get_setting("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")).rstrip("/")
     max_output_tokens = max(200, _get_setting_int("OPENROUTER_MAX_OUTPUT_TOKENS", _get_setting_int("REPORT_MAX_OUTPUT_TOKENS", 900)))
     try:
@@ -751,19 +810,23 @@ def _generate_with_openrouter(prompt: str, model: str | None) -> ReportGeneratio
         retry_delay = max(0.5, _get_setting_float("OPENROUTER_RETRY_DELAY_SECONDS", 2.0))
         for attempt in range(1, retry_attempts + 1):
             try:
-                response = client.responses.create(
+                response = client.chat.completions.create(
                     model=selected_model,
-                    max_output_tokens=max_output_tokens,
-                    input=f"{SYSTEM_PROMPT}\n\n{prompt}",
+                    max_tokens=max_output_tokens,
+                    temperature=0,
+                    messages=[
+                        {"role": "user", "content": prompt},
+                    ],
                     extra_headers={
                         "HTTP-Referer": str(_get_setting("OPENROUTER_HTTP_REFERER", "http://localhost")),
                         "X-Title": str(_get_setting("OPENROUTER_APP_NAME", "AgenticNetSec")),
                     },
                 )
-                if response.output_text:
+                text = _extract_text_from_response_payload(response)
+                if text:
                     print(f"OpenRouter request succeeded using model {selected_model}.", file=sys.stderr)
                     return _result_from_text(
-                        text=response.output_text,
+                        text=text,
                         provider="openrouter",
                         model=selected_model,
                         usage_payload=response,
@@ -802,7 +865,7 @@ def _generate_with_groq(prompt: str, model: str | None) -> ReportGenerationResul
             file=sys.stderr,
         )
         return None
-    selected_model = str(_get_setting("GROQ_MODEL", model or "openai/gpt-oss-20b"))
+    selected_model = str(model or _get_setting("GROQ_MODEL", "openai/gpt-oss-20b"))
     max_output_tokens = max(200, _get_setting_int("GROQ_MAX_OUTPUT_TOKENS", _get_setting_int("REPORT_MAX_OUTPUT_TOKENS", 1200)))
     try:
         from openai import OpenAI
@@ -818,12 +881,13 @@ def _generate_with_groq(prompt: str, model: str | None) -> ReportGenerationResul
                 response = client.responses.create(
                     model=selected_model,
                     max_output_tokens=max_output_tokens,
-                    input=f"{SYSTEM_PROMPT}\n\n{prompt}",
+                    input=prompt,
                 )
-                if response.output_text:
+                text = _extract_text_from_response_payload(response)
+                if text:
                     print(f"Groq request succeeded using model {selected_model}.", file=sys.stderr)
                     return _result_from_text(
-                        text=response.output_text,
+                        text=text,
                         provider="groq",
                         model=selected_model,
                         usage_payload=response,
@@ -1168,8 +1232,9 @@ def _generate_best_result(
     provider: str,
     model: str | None,
     require_ai: bool,
+    allow_provider_fallback: bool = True,
 ) -> ReportGenerationResult | None:
-    provider_chain = _resolve_provider_chain(provider)
+    provider_chain = _resolve_provider_chain(provider) if allow_provider_fallback else [(provider or "auto").strip().lower()]
     preferred_provider = provider_chain[0] if provider_chain else provider
     for candidate_provider in provider_chain:
         result = _generate_with_provider(
@@ -1209,6 +1274,25 @@ def _combine_results(
         llm_tokens_in=sum(result.llm_tokens_in for result in results),
         llm_tokens_out=sum(result.llm_tokens_out for result in results),
         fallback_used=fallback_used or any(result.fallback_used for result in results),
+    )
+
+
+def generate_text_result(
+    *,
+    prompt: str,
+    system_prompt: str,
+    provider: str = "openrouter",
+    model: str | None = None,
+    require_ai: bool = False,
+    allow_provider_fallback: bool = True,
+) -> ReportGenerationResult | None:
+    full_prompt = f"{system_prompt}\n\n{prompt}".strip()
+    return _generate_best_result(
+        full_prompt,
+        provider=provider,
+        model=model,
+        require_ai=require_ai,
+        allow_provider_fallback=allow_provider_fallback,
     )
 
 

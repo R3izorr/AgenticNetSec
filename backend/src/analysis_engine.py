@@ -28,6 +28,7 @@ from guardrails import Guardrails
 from observability import MetricsTracker, estimate_cost
 from planner import AnalysisPlanner
 from report_ai import generate_report_result
+from sandbox_verifier import run_sandbox_verification
 from tool_executor import ToolExecutor, ToolPolicy
 
 MITRE_BY_DETECTOR = {
@@ -71,6 +72,7 @@ class AnalysisEngine:
                 "deep_dive",
                 "reasoning",
                 "zero_day_heuristics",
+                "sandbox_verification",
             }
         )
 
@@ -124,11 +126,30 @@ class AnalysisEngine:
                     findings,
                     metadata,
                 )
+
+            sandbox_verification = {}
+            if plan.enable_sandbox_verification:
+                sandbox_verification = self.executor.execute(
+                    "sandbox_verification",
+                    run_sandbox_verification,
+                    req.pcap_path,
+                    findings,
+                    policy=ToolPolicy(timeout_seconds=180, retries=0),
+                    fallback=lambda *args, **kwargs: {
+                        "enabled": True,
+                        "status": "error",
+                        "message": "Sandbox verification failed and returned fallback output.",
+                    },
+                )
         if progress_callback:
             progress_callback("reason", 0.75)
 
         with tracker.phase("reason"):
-            report_findings = {**findings, "zero_day_heuristics": zero_day}
+            report_findings = {
+                **findings,
+                "zero_day_heuristics": zero_day,
+                "sandbox_verification": sandbox_verification,
+            }
             if deep_dive:
                 report_findings["deep_dive"] = deep_dive
                 report_findings["suspected_attack_flow"] = deep_dive.get("suspected_attack_flow")
@@ -168,6 +189,7 @@ class AnalysisEngine:
                 markdown_report=markdown_report,
                 deep_dive=deep_dive,
                 zero_day=zero_day,
+                sandbox_verification=sandbox_verification,
                 input_validity=input_validity,
             )
 
@@ -291,22 +313,24 @@ class AnalysisEngine:
         markdown_report: str,
         deep_dive: dict[str, Any] | None,
         zero_day: dict[str, Any],
+        sandbox_verification: dict[str, Any],
         input_validity: dict[str, Any],
     ) -> tuple[ForensicReport, dict[str, Any]]:
         case_id = f"CASE-{uuid.uuid4().hex[:8].upper()}"
 
         evidence_refs = self._build_evidence_refs(req.pcap_path, metadata, findings)
-        ioc_list, suspicious_sessions, key_flows = self._collect_iocs_and_sessions(findings, evidence_refs)
-        timeline = self._collect_timeline(findings, deep_dive, zero_day)
+        findings_with_sandbox = {**findings, "sandbox_verification": sandbox_verification}
+        ioc_list, suspicious_sessions, key_flows = self._collect_iocs_and_sessions(findings_with_sandbox, evidence_refs)
+        timeline = self._collect_timeline(findings_with_sandbox, deep_dive, zero_day)
         direct_evidence = [ref.summary for ref in evidence_refs[:6]]
 
-        confidence = self._confidence_score(findings, zero_day)
-        attack_type, risk_level = self._impact_summary(findings, zero_day, confidence)
+        confidence = self._confidence_score(findings_with_sandbox, zero_day)
+        attack_type, risk_level = self._impact_summary(findings_with_sandbox, zero_day, confidence)
         mitre_techniques = self._collect_mitre_techniques(evidence_refs)
 
         observation = f"Observed {metadata.get('packet_count', 0)} packets across {metadata.get('flow_count', 0)} flows."
         inference = f"Likely attack class: {attack_type} with risk level {risk_level}."
-        recommendation = self._recommendation_summary(findings, attack_type, confidence)
+        recommendation = self._recommendation_summary(findings_with_sandbox, attack_type, confidence)
 
         observation, inference, recommendation = self.guardrails.enforce_output_sections(
             observation,
@@ -316,8 +340,8 @@ class AnalysisEngine:
 
         tool_validation = self.guardrails.validate_tool_outputs(summary, findings)
         tool_validation_detail = self.guardrails.describe_tool_validation(summary, findings)
-        primary_finding = self._primary_finding(attack_type, findings)
-        uncertainties = self._build_uncertainties(findings, zero_day, confidence, markdown_report)
+        primary_finding = self._primary_finding(attack_type, findings_with_sandbox)
+        uncertainties = self._build_uncertainties(findings_with_sandbox, zero_day, confidence, markdown_report)
 
         claim_checks, contradictions = self.guardrails.evaluate_consistency(
             attack_type=attack_type,
@@ -326,7 +350,7 @@ class AnalysisEngine:
             markdown_report=markdown_report,
             evidence_refs=[ref.model_dump() for ref in evidence_refs],
             patient_zero_candidate=findings.get("external_rdp", {}).get("patient_zero_candidate"),
-            has_lateral_evidence=self._has_lateral_evidence(findings),
+            has_lateral_evidence=self._has_lateral_evidence(findings_with_sandbox),
         )
         guardrail = self.guardrails.apply_policy(confidence, tool_validation, contradictions)
 
@@ -538,6 +562,8 @@ class AnalysisEngine:
         return attack, risk
 
     def _recommendation_summary(self, findings: dict[str, Any], attack_type: str, confidence: float) -> str:
+        sandbox = findings.get("sandbox_verification", {})
+        winrm_verified = bool((sandbox.get("remote_management") or {}).get("verified_winrm_pairs"))
         if confidence < 0.45:
             return "Preserve the PCAP and perform manual analyst review before making high-confidence containment decisions."
         if attack_type == "exfiltration":
@@ -547,6 +573,8 @@ class AnalysisEngine:
         if attack_type == "reconnaissance/scanning":
             return "Block or monitor the suspicious external source, validate the targeted internal hosts, and confirm whether reconnaissance progressed to authenticated access."
         if attack_type == "brute-force or remote-access compromise":
+            if winrm_verified:
+                return "Contain the suspected patient-zero host, review both RDP and WinRM exposure, and verify whether remote administration shifted channels during intrusion."
             return "Contain the suspected patient-zero host, review remote-access exposure and credentials, and verify follow-on lateral activity."
         return "Contain suspicious source hosts, verify affected assets, and perform follow-up validation."
 
@@ -597,6 +625,16 @@ class AnalysisEngine:
                 f"Outbound flow {flow.get('src_ip')} -> {flow.get('dst_ip')}:{flow.get('dst_port')} bytes={flow.get('total_bytes')}"
             )
 
+        sandbox = findings.get("sandbox_verification", {})
+        for item in (sandbox.get("remote_management") or {}).get("verified_winrm_pairs", [])[:3]:
+            sessions.append(
+                f"Sandbox WinRM {item.get('src_ip')} -> {item.get('dst_ip')}:{item.get('dst_port')} packets={item.get('packet_count')}"
+            )
+        for item in (sandbox.get("exfiltration") or {}).get("verified_temp_sh_flows", [])[:3]:
+            sessions.append(
+                f"Sandbox temp.sh flow {item.get('src_ip')} -> {item.get('dst_ip')}:{item.get('dst_port')} requests={item.get('request_count')}"
+            )
+
         return sorted(set(iocs)), sessions, key_flows
 
     def _collect_timeline(self, findings: dict[str, Any], deep_dive: dict[str, Any] | None, zero_day: dict[str, Any]) -> list[str]:
@@ -641,6 +679,10 @@ class AnalysisEngine:
                 f"heuristic - anomaly_score={zero_day.get('anomaly_score')} burst={zero_day.get('burst_anomaly')} entropy={zero_day.get('entropy_outlier')}"
             )
 
+        sandbox = findings.get("sandbox_verification", {})
+        for item in sandbox.get("notable_observations", [])[:4]:
+            events.append(f"sandbox - {item}")
+
         return [event for event in events if event]
 
     def _collect_mitre_techniques(self, evidence_refs: list[EvidenceRef]) -> list[str]:
@@ -667,6 +709,12 @@ class AnalysisEngine:
             uncertainties.append("Anomaly scoring is heuristic and may vary across different network baselines.")
         if not findings.get("manual_payload_deployment", {}).get("candidates"):
             uncertainties.append("Payload deployment remains inferred unless RDP plus admin-share or remote-exec markers are present.")
+        sandbox = findings.get("sandbox_verification", {})
+        if sandbox:
+            if sandbox.get("status") != "completed":
+                uncertainties.append("Sandbox verification was enabled but did not complete successfully.")
+            elif (sandbox.get("remote_management") or {}).get("verified_winrm_pairs"):
+                uncertainties.append("Sandbox verified WinRM activity, which may indicate an alternate or follow-on remote-management path outside the RDP-centric heuristics.")
         if "heuristic" in markdown_report.lower():
             uncertainties.append("The generated report itself marks parts of the conclusion as heuristic or incomplete.")
         return uncertainties

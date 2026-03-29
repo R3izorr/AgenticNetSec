@@ -38,6 +38,7 @@ def iter_pcaps(root: Path) -> list[Path]:
 def summarize_file(pcap_path: Path, dive: bool = False) -> dict[str, Any]:
     from detectors import analyze_pcap_bundle
     from deep_dive import build_deep_dive
+    from sandbox_verifier import run_sandbox_verification, sandbox_verification_enabled
 
     bundle = analyze_pcap_bundle(str(pcap_path))
     summary = bundle["summary"]
@@ -107,6 +108,11 @@ def summarize_file(pcap_path: Path, dive: bool = False) -> dict[str, Any]:
         "analysis_profile": "base+dive" if dive else "base",
         "analysis_version": ANALYSIS_VERSION,
     }
+    if sandbox_verification_enabled():
+        sandbox = run_sandbox_verification(str(pcap_path), findings)
+        result["sandbox_verification"] = sandbox
+        result["sandbox_verified_winrm_pairs"] = len((sandbox.get("remote_management") or {}).get("verified_winrm_pairs", []))
+        result["sandbox_verified_temp_sh_flows"] = len((sandbox.get("exfiltration") or {}).get("verified_temp_sh_flows", []))
     if dive:
         deep_dive = build_deep_dive(str(pcap_path), findings)
         result["deep_dive"] = deep_dive
@@ -179,6 +185,7 @@ def print_result_line(
         f"uploads={len(result.get('large_http_uploads', []))} "
         f"exfil={len(result.get('possible_outbound_exfil_flows', []))} "
         f"drop={len(result.get('manual_payload_deployment_candidates', []))} "
+        f"winrm={result.get('sandbox_verified_winrm_pairs', 0)} "
         f"focus={result.get('deep_dive_focus_host', '-')}"
     )
 

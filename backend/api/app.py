@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
+from pathlib import PureWindowsPath
+import re
 import sys
 import time
 from typing import Any
@@ -64,6 +67,27 @@ def _serialize_job(job: JobRecord) -> dict[str, Any]:
         "confidence_score": job.confidence_score,
         "runtime_seconds_total": job.runtime_seconds_total,
     }
+
+
+WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
+
+
+def _normalize_pcap_path(raw_path: str) -> str:
+    candidate = raw_path.strip()
+    if not candidate:
+        raise HTTPException(status_code=400, detail="pcap_path cannot be empty.")
+
+    if WINDOWS_DRIVE_PATH_RE.match(candidate):
+        if os.name == "nt":
+            return str(PureWindowsPath(candidate))
+
+        windows_path = PureWindowsPath(candidate)
+        drive_letter = windows_path.drive.rstrip(":").lower()
+        relative_parts = windows_path.parts[1:]
+        wsl_path = Path("/mnt") / drive_letter / Path(*relative_parts)
+        return str(wsl_path if wsl_path.exists() else Path(candidate))
+
+    return str(Path(candidate).expanduser().resolve())
 
 
 async def _run_job(job_id: str, req: AnalysisRequest) -> None:
@@ -142,7 +166,7 @@ async def create_analysis_job(
         source_name = safe_name
         source_path = target_path
     else:
-        target_path = str(Path(pcap_path).expanduser().resolve())
+        target_path = _normalize_pcap_path(pcap_path)
         source_type = "path"
         source_name = Path(target_path).name
         source_path = target_path

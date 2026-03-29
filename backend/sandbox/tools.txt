@@ -1,0 +1,15 @@
+AgenticNetSec Forensics Sandbox
+================================
+
+Primary tools:
+- tshark
+- tcpdump
+- jq
+- rg
+- yara
+- curl
+
+Purpose:
+- Compact packet verification after the first-pass analyzer runs
+- Focused validation for remote management, WinRM, SMB/RPC scans, and temp.sh-style exfiltration
+- Return short structured summaries instead of large packet dumps to control token usage
