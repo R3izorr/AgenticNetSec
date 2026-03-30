@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useToast } from "@/components/ui/toast"
 import { adaptJobStatus } from "@/lib/adapters/analysis"
-import { createAnalysisJob } from "@/lib/api/analysis"
+import { createAnalysisJob, createBatchAnalysisJob } from "@/lib/api/analysis"
 import { isApiError } from "@/lib/api/client"
 
 export default function NewAnalysisPage() {
@@ -21,7 +21,7 @@ export default function NewAnalysisPage() {
   const { pushToast } = useToast()
 
   const [inputMode, setInputMode] = useState<"file" | "path">("file")
-  const [file, setFile] = useState<File | undefined>(undefined)
+  const [files, setFiles] = useState<File[]>([])
   const [pcapPath, setPcapPath] = useState("")
   const [provider, setProvider] = useState("gemini")
   const [model, setModel] = useState("")
@@ -34,8 +34,8 @@ export default function NewAnalysisPage() {
     event.preventDefault()
     setFormError(null)
 
-    if (inputMode === "file" && !file) {
-      setFormError("Please select a PCAP file before submitting.")
+    if (inputMode === "file" && files.length === 0) {
+      setFormError("Please select at least one PCAP file before submitting.")
       return
     }
 
@@ -46,22 +46,57 @@ export default function NewAnalysisPage() {
 
     setSubmitting(true)
     try {
-      const response = await createAnalysisJob({
-        file: inputMode === "file" ? file : undefined,
-        pcapPath: inputMode === "path" ? pcapPath : undefined,
-        provider: provider.trim() || undefined,
-        model: model.trim() || undefined,
-        useAi,
-        requireAi,
-      })
+      if (inputMode === "file") {
+        if (files.length === 1) {
+          const response = await createAnalysisJob({
+            file: files[0],
+            provider: provider.trim() || undefined,
+            model: model.trim() || undefined,
+            useAi,
+            requireAi,
+          })
 
-      const job = adaptJobStatus(response)
-      pushToast({
-        variant: "success",
-        title: "Analysis started",
-        description: `Job ${job.analysisJobId} has been queued.`,
-      })
-      router.push(`/analysis/${job.analysisJobId}`)
+          const job = adaptJobStatus(response)
+          pushToast({
+            variant: "success",
+            title: "Analysis started",
+            description: `Job ${job.analysisJobId} has been queued.`,
+          })
+          router.push(`/analysis/${job.analysisJobId}`)
+        } else {
+          const batch = await createBatchAnalysisJob({
+            files,
+            provider: provider.trim() || undefined,
+            model: model.trim() || undefined,
+            useAi,
+            requireAi,
+          })
+
+          const jobs = batch.jobs.map((response) => adaptJobStatus(response))
+          pushToast({
+            variant: "success",
+            title: "Analyses started",
+            description: `${jobs.length} jobs have been queued under group ${batch.group_id}.`,
+          })
+          router.push("/analysis/history")
+        }
+      } else {
+        const response = await createAnalysisJob({
+          pcapPath,
+          provider: provider.trim() || undefined,
+          model: model.trim() || undefined,
+          useAi,
+          requireAi,
+        })
+
+        const job = adaptJobStatus(response)
+        pushToast({
+          variant: "success",
+          title: "Analysis started",
+          description: `Job ${job.analysisJobId} has been queued.`,
+        })
+        router.push(`/analysis/${job.analysisJobId}`)
+      }
     } catch (error) {
       const message = isApiError(error)
         ? error.detail || error.message
@@ -106,7 +141,7 @@ export default function NewAnalysisPage() {
                 }
 
                 setInputMode("path")
-                setFile(undefined)
+                setFiles([])
               }}
             >
               <ToggleGroupItem value="file" className="h-auto items-start justify-start px-4 py-3 text-left">
@@ -136,9 +171,16 @@ export default function NewAnalysisPage() {
                 id="pcap-file"
                 type="file"
                 accept=".pcap,.pcapng"
-                onChange={(event) => setFile(event.target.files?.[0])}
+                multiple
+                onChange={(event) => {
+                  const selectedFiles = Array.from(event.target.files ?? [])
+                  setFiles(selectedFiles)
+                }}
                 className="h-auto bg-card py-2"
               />
+              <p className="text-xs text-muted-foreground">
+                You can select multiple PCAP files. A separate analysis job will be created for each file.
+              </p>
             </div>
           ) : (
             <div className="flex flex-col gap-2">

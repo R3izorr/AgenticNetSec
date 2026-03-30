@@ -86,6 +86,15 @@ function adaptArtifactReady(
 export function adaptJobStatus(transport: JobStatusResponseTransport): JobStatus {
   return {
     analysisJobId: transport.analysis_job_id,
+    groupId: transport.group_id ?? null,
+    groupIndex:
+      typeof transport.group_index === "number" && Number.isFinite(transport.group_index)
+        ? transport.group_index
+        : null,
+    groupTotal:
+      typeof transport.group_total === "number" && Number.isFinite(transport.group_total)
+        ? transport.group_total
+        : null,
     status: transport.status ?? "queued",
     currentPhase: transport.current_phase ?? "queued",
     progress: safeNumber(transport.progress, 0),

@@ -17,6 +17,9 @@ export interface JobArtifactReadyTransport {
 
 export interface JobStatusResponseTransport {
   analysis_job_id: string
+  group_id?: string | null
+  group_index?: number | null
+  group_total?: number | null
   status: string
   current_phase: string
   progress: number

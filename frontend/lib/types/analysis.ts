@@ -19,6 +19,9 @@ export interface JobArtifactReady {
 
 export interface JobStatus {
   analysisJobId: string
+  groupId: string | null
+  groupIndex: number | null
+  groupTotal: number | null
   status: string
   currentPhase: string
   progress: number

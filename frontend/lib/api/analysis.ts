@@ -19,6 +19,11 @@ export interface JobHistoryResponse {
   jobs: JobStatus[]
 }
 
+export interface BatchCreateAnalysisResponse {
+  group_id: string
+  jobs: JobStatusResponseTransport[]
+}
+
 export async function createAnalysisJob(
   input: CreateAnalysisInput
 ): Promise<JobStatusResponseTransport> {
@@ -49,6 +54,44 @@ export async function createAnalysisJob(
   }
 
   return apiRequest<JobStatusResponseTransport>("/api/v1/analysis", {
+    method: "POST",
+    body: formData,
+  })
+}
+
+export interface BatchCreateAnalysisInput {
+  files: File[]
+  provider?: string
+  model?: string
+  useAi?: boolean
+  requireAi?: boolean
+}
+
+export async function createBatchAnalysisJob(
+  input: BatchCreateAnalysisInput,
+): Promise<BatchCreateAnalysisResponse> {
+  if (!input.files.length) {
+    throw new Error("At least one file is required for batch analysis.")
+  }
+
+  const formData = new FormData()
+  for (const file of input.files) {
+    formData.append("files", file)
+  }
+  if (input.provider?.trim()) {
+    formData.append("provider", input.provider.trim())
+  }
+  if (input.model?.trim()) {
+    formData.append("model", input.model.trim())
+  }
+  if (typeof input.useAi === "boolean") {
+    formData.append("use_ai", String(input.useAi))
+  }
+  if (typeof input.requireAi === "boolean") {
+    formData.append("require_ai", String(input.requireAi))
+  }
+
+  return apiRequest<BatchCreateAnalysisResponse>("/api/v1/analysis/batch", {
     method: "POST",
     body: formData,
   })

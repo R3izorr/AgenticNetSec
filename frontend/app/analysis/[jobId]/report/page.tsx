@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useCallback } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 
 import { BulletList } from "@/components/common/bullet-list"
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/page-state"
@@ -53,7 +53,34 @@ function InsetPanel({
 export default function AnalysisReportPage() {
   const params = useParams<{ jobId: string }>()
   const jobId = decodeURIComponent(params.jobId)
+  const router = useRouter()
   const { job, refresh, isPolling } = useJobStatus(jobId)
+
+  const canNavigateGroup =
+    job?.groupId &&
+    typeof job.groupIndex === "number" &&
+    typeof job.groupTotal === "number" &&
+    job.groupTotal > 1
+
+  const hasPrev = canNavigateGroup && (job?.groupIndex ?? 0) > 0
+  const hasNext =
+    canNavigateGroup &&
+    job &&
+    job.groupIndex !== null &&
+    job.groupTotal !== null &&
+    job.groupIndex < job.groupTotal - 1
+
+  const handlePrev = () => {
+    if (!job || !hasPrev || job.groupId === null || job.groupIndex === null) return
+    const targetId = `${job.groupId}_${job.groupIndex - 1}`
+    router.push(`/analysis/${encodeURIComponent(targetId)}/report`)
+  }
+
+  const handleNext = () => {
+    if (!job || !hasNext || job.groupId === null || job.groupIndex === null) return
+    const targetId = `${job.groupId}_${job.groupIndex + 1}`
+    router.push(`/analysis/${encodeURIComponent(targetId)}/report`)
+  }
 
   const loadReport = useCallback(async () => {
     const payload = await getReportJson(jobId)
@@ -116,6 +143,19 @@ export default function AnalysisReportPage() {
         subtitle={`Job ${jobId}`}
         actions={
           <div className="flex items-center gap-2">
+            {canNavigateGroup && job?.groupTotal !== null ? (
+              <>
+                <Button variant="outline" size="sm" disabled={!hasPrev} onClick={handlePrev}>
+                  Previous
+                </Button>
+                <Button variant="outline" size="sm" disabled={!hasNext} onClick={handleNext}>
+                  Next
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Batch: {job.groupIndex !== null ? job.groupIndex + 1 : "?"}/{job.groupTotal}
+                </span>
+              </>
+            ) : null}
             <Button variant="outline" size="sm" asChild>
               <Link href={`/analysis/${jobId}`}>Back to Job</Link>
             </Button>

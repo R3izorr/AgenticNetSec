@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo } from "react"
-import { useParams } from "next/navigation"
+import { useEffect, useMemo } from "react"
+import type { ReactNode } from "react"
+import { useParams, useRouter } from "next/navigation"
 
 import { InlineNotice } from "@/components/common/inline-notice"
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/page-state"
@@ -50,7 +51,40 @@ function ArtifactBadge({ label, ready }: { label: string; ready: boolean }) {
 export default function AnalysisJobPage() {
   const params = useParams<{ jobId: string }>()
   const jobId = decodeURIComponent(params.jobId)
+  const router = useRouter()
   const { job, loading, error, refresh, isPolling, lastUpdatedAt } = useJobStatus(jobId)
+
+  useEffect(() => {
+    const isBatchGroupId =
+      typeof jobId === "string" &&
+      jobId.startsWith("analysis_") &&
+      !/_\d+$/.test(jobId)
+
+    if (!job && error && isBatchGroupId) {
+      const firstIndexId = `${jobId}_0`
+      router.replace(`/analysis/${encodeURIComponent(firstIndexId)}`)
+    }
+  }, [job, error, jobId, router])
+  const canNavigateGroup =
+    job?.groupId &&
+    typeof job.groupIndex === "number" &&
+    typeof job.groupTotal === "number" &&
+    job.groupTotal > 1
+
+  const hasPrev = canNavigateGroup && (job?.groupIndex ?? 0) > 0
+  const hasNext = canNavigateGroup && job && job.groupIndex !== null && job.groupTotal !== null && job.groupIndex < job.groupTotal - 1
+
+  const handlePrev = () => {
+    if (!job || !hasPrev || job.groupId === null || job.groupIndex === null) return
+    const targetId = `${job.groupId}_${job.groupIndex - 1}`
+    router.push(`/analysis/${encodeURIComponent(targetId)}`)
+  }
+
+  const handleNext = () => {
+    if (!job || !hasNext || job.groupId === null || job.groupIndex === null) return
+    const targetId = `${job.groupId}_${job.groupIndex + 1}`
+    router.push(`/analysis/${encodeURIComponent(targetId)}`)
+  }
 
   const phaseStates = useMemo<TimelinePhase[]>(() => {
     const currentIndex = phaseOrder.indexOf((job?.currentPhase ?? "queued") as (typeof phaseOrder)[number])
@@ -89,72 +123,100 @@ export default function AnalysisJobPage() {
     return <EmptyState title="Job not found" description="No status data returned." />
   }
 
+  const keyValueItems: Array<{ label: string; value: ReactNode }> = [
+    { label: "Job ID", value: <code className="text-xs">{job.analysisJobId}</code> },
+    { label: "Status", value: <StatusBadge value={job.status} /> },
+    { label: "Current Phase", value: formatPhaseLabel(job.currentPhase) },
+    { label: "Progress", value: formatPercent(job.progress) },
+    { label: "Guardrail State", value: <StatusBadge value={job.guardrailState} /> },
+    { label: "Input Source", value: job.sourceType ?? "N/A" },
+    { label: "Source Name", value: job.sourceName ?? "N/A" },
+    {
+      label: "Submitted At",
+      value: job.createdAt ? formatDateTime(job.createdAt) : "N/A",
+    },
+    {
+      label: "Last Updated",
+      value: job.updatedAt
+        ? formatDateTime(job.updatedAt)
+        : lastUpdatedAt
+          ? formatDateTime(lastUpdatedAt)
+          : "N/A",
+    },
+    {
+      label: "Capture Window",
+      value:
+        job.metadata.captureStart && job.metadata.captureEnd
+          ? `${formatDateTime(job.metadata.captureStart)} -> ${formatDateTime(job.metadata.captureEnd)}`
+          : "N/A",
+    },
+    {
+      label: "File Size",
+      value: formatBytes(job.metadata.sizeBytes),
+    },
+    {
+      label: "Packets / Flows",
+      value:
+        job.metadata.packetCount === null && job.metadata.flowCount === null
+          ? "N/A"
+          : `${job.metadata.packetCount ?? "?"} / ${job.metadata.flowCount ?? "?"}`,
+    },
+    {
+      label: "Runtime",
+      value:
+        job.runtimeSecondsTotal === null
+          ? "N/A"
+          : `${formatNumber(job.runtimeSecondsTotal, 3)} s`,
+    },
+    {
+      label: "Risk Level",
+      value: job.riskLevel ? <StatusBadge value={job.riskLevel} /> : "N/A",
+    },
+    {
+      label: "Confidence",
+      value:
+        job.confidenceScore === null
+          ? "N/A"
+          : `${formatNumber(job.confidenceScore, 3)} / 1.000`,
+    },
+  ]
+
+  if (canNavigateGroup && job.groupIndex !== null && job.groupTotal !== null) {
+    keyValueItems.push({
+      label: "Batch Position",
+      value: `${job.groupIndex + 1} / ${job.groupTotal}`,
+    })
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <SectionCard
         title="Analysis Job"
         subtitle="Track asynchronous execution, metadata, and generated artifacts."
         actions={
-          <Button size="sm" variant="outline" onClick={() => void refresh()}>
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            {canNavigateGroup && job.groupTotal !== null ? (
+              <>
+                <Badge variant="outline" className="text-xs">
+                  Batch: {job.groupTotal} jobs
+                </Badge>
+                <Button size="sm" variant="outline" disabled={!hasPrev} onClick={handlePrev}>
+                  Previous
+                </Button>
+                <Button size="sm" variant="outline" disabled={!hasNext} onClick={handleNext}>
+                  Next
+                </Button>
+              </>
+            ) : null}
+            <Button size="sm" variant="outline" onClick={() => void refresh()}>
+              Refresh
+            </Button>
+          </div>
         }
       >
         <div className="flex flex-col gap-4">
           <KeyValueGrid
-            items={[
-              { label: "Job ID", value: <code className="text-xs">{job.analysisJobId}</code> },
-              { label: "Status", value: <StatusBadge value={job.status} /> },
-              { label: "Current Phase", value: formatPhaseLabel(job.currentPhase) },
-              { label: "Progress", value: formatPercent(job.progress) },
-              { label: "Guardrail State", value: <StatusBadge value={job.guardrailState} /> },
-              { label: "Input Source", value: job.sourceType ?? "N/A" },
-              { label: "Source Name", value: job.sourceName ?? "N/A" },
-              {
-                label: "Submitted At",
-                value: job.createdAt ? formatDateTime(job.createdAt) : "N/A",
-              },
-              {
-                label: "Last Updated",
-                value: job.updatedAt ? formatDateTime(job.updatedAt) : lastUpdatedAt ? formatDateTime(lastUpdatedAt) : "N/A",
-              },
-              {
-                label: "Capture Window",
-                value:
-                  job.metadata.captureStart && job.metadata.captureEnd
-                    ? `${formatDateTime(job.metadata.captureStart)} -> ${formatDateTime(job.metadata.captureEnd)}`
-                    : "N/A",
-              },
-              {
-                label: "File Size",
-                value: formatBytes(job.metadata.sizeBytes),
-              },
-              {
-                label: "Packets / Flows",
-                value:
-                  job.metadata.packetCount === null && job.metadata.flowCount === null
-                    ? "N/A"
-                    : `${job.metadata.packetCount ?? "?"} / ${job.metadata.flowCount ?? "?"}`,
-              },
-              {
-                label: "Runtime",
-                value:
-                  job.runtimeSecondsTotal === null
-                    ? "N/A"
-                    : `${formatNumber(job.runtimeSecondsTotal, 3)} s`,
-              },
-              {
-                label: "Risk Level",
-                value: job.riskLevel ? <StatusBadge value={job.riskLevel} /> : "N/A",
-              },
-              {
-                label: "Confidence",
-                value:
-                  job.confidenceScore === null
-                    ? "N/A"
-                    : `${formatNumber(job.confidenceScore, 3)} / 1.000`,
-              },
-            ]}
+            items={keyValueItems}
           />
 
           <div className="flex flex-col gap-2">
