@@ -1,113 +1,106 @@
-# AgenticNetSec Run and Test Guide
+# AgenticNetSec Run And Test Guide
 
-This guide explains how to set up, run, and test AgenticNetSec from a fresh checkout.
+This guide explains how to set up, start, and test the current AgenticNetSec system from a fresh checkout.
 
-AgenticNetSec is a read-only network forensic analysis system. It analyzes PCAP evidence and writes report artifacts, but it does not execute containment actions or change analyst environments.
+AgenticNetSec is a read-only network forensic platform. It analyzes PCAP evidence and writes artifacts only.
+
+## Current Product Flow
+
+The current system is batch-first:
+
+1. Submit one or more PCAP files from the frontend
+2. Backend creates one parent `total_job`
+3. Backend creates one child `analysis_job` per file
+4. Stage 1 runs deterministic analysis only
+5. Stage 2 runs later, on demand, for parent-level AI summary and sandbox enrichment
+
+Important current behavior:
+
+- stage 1 does not use AI
+- stage 1 does not use sandbox
+- AI and sandbox run only at parent total-job enrichment time
+- duplicate completed PCAPs are removed before parent enrichment
+- partial child-job failures are surfaced in the total-job UI
 
 ## Prerequisites
 
-Recommended Windows setup:
+Required:
 
-- Python 3.14 or compatible Python 3 environment
+- Python 3.10+
 - Node.js and npm
-- PowerShell or Command Prompt
 
-Optional for AI-backed report generation:
+Optional:
 
-- Gemini, OpenAI, Groq, or Ollama configuration
+- AI provider credentials if you want provider-backed enrichment
+- sandbox environment setup if you want real sandbox verification behavior
 
-You can still run and test the system without AI by using `--no-ai`.
+## Setup
 
-## Backend Setup
-
-From the repository root:
-
-```powershell
-python -m virtualenv .venv
-.\.venv\Scripts\python -m pip install -r requirements.txt
-```
-
-If you already created the environment, just reuse:
-
-```powershell
-.\.venv\Scripts\python -m pip install -r requirements.txt
-```
-
-## Frontend Setup
+### Windows
 
 From the repository root:
 
 ```powershell
+python -m venv .venv
+.\.venv\Scripts\python -m pip install --upgrade pip
+.\.venv\Scripts\python -m pip install -r requirements.txt
 cd frontend
 cmd /c npm install
 cd ..
 ```
 
-## Optional AI Provider Configuration
-
-If you want AI-assisted report generation, start from:
-
-`backend/config/local_settings.example.py`
-
-You can define provider keys and model settings there, for example:
-
-- `GEMINI_API_KEY`
-- `OPENAI_API_KEY`
-- `GROQ_API_KEY`
-- `OLLAMA_BASE_URL`
-
-If you do not configure any provider, you can still test the system with deterministic local reporting by using `--no-ai`.
-
-## Run CLI Analysis
-
-To run a direct backend analysis from the command line:
-
-```powershell
-.\.venv\Scripts\python backend/scripts/run.py outputs/smoke_inputs/suspicious_scan_small.pcap --no-ai
-```
-
-This is the easiest way to verify the backend works without starting the web stack.
-
-You can also analyze any other PCAP path:
-
-```powershell
-.\.venv\Scripts\python backend/scripts/run.py path\to\capture.pcap --no-ai
-```
-
-## Run the FastAPI Backend
+### Linux
 
 From the repository root:
+
+```bash
+python3 -m venv .venv
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install -r requirements.txt
+cd frontend
+npm install
+cd ..
+```
+
+## Start The Backend
+
+### Windows
 
 ```powershell
 .\.venv\Scripts\python backend/scripts/run_api.py
 ```
 
-The backend API runs on:
+Auto-reload if you need it:
 
-- `http://localhost:8000`
+```powershell
+.\.venv\Scripts\python backend/scripts/run_api.py --reload
+```
 
-Important backend note:
+### Linux
 
-- opening `http://localhost:8000/` will return `404 Not Found`
-- that is expected because the backend does not define a root `/` page
-- use `http://localhost:8000/docs` for FastAPI docs
-- use `http://localhost:8000/api/v1/analysis` for the API surface
+```bash
+./.venv/bin/python backend/scripts/run_api.py
+```
 
-Supported REST endpoints:
+Auto-reload if you need it:
 
-- `POST /api/v1/analysis`
-- `GET /api/v1/analysis`
-- `GET /api/v1/analysis/{job_id}`
-- `GET /api/v1/analysis/{job_id}/report.json`
-- `GET /api/v1/analysis/{job_id}/report.md`
-- `GET /api/v1/analysis/{job_id}/metrics`
-- `GET /api/v1/analysis/{job_id}/guardrail-audit`
+```bash
+./.venv/bin/python backend/scripts/run_api.py --reload
+```
 
-## Frontend Startup Modes
+Backend URLs:
 
-### User Acceptance Testing / Demo
+- API: `http://localhost:8000`
+- Docs: `http://localhost:8000/docs`
+- `http://localhost:8000/` returning `404` is expected
 
-Use the stable production frontend path:
+## Start The Frontend
+
+Use production mode for testing and demos.
+
+### Windows
+
+Production mode:
 
 ```powershell
 cd frontend
@@ -115,163 +108,244 @@ cmd /c npm run build
 cmd /c npm run start
 ```
 
-This is the preferred path for:
-
-- demo runs
-- stakeholder walkthroughs
-- UAT validation
-
-### Development Only
-
-Use dev mode only for active frontend development:
+Development mode:
 
 ```powershell
 cd frontend
 cmd /c npm run dev
 ```
 
-Important dev-mode warning:
+### Linux
 
-- hydration warnings can appear in dev mode even when production works
-- this repo does not register a service worker
-- stale service workers or cached assets from another project on `http://localhost:3000` can interfere with dev mode
+Production mode:
 
-## Test the Backend
-
-Run the backend unit tests from the repository root:
-
-```powershell
-d:\AgenticNetSec\.venv\Scripts\python.exe -m unittest discover -s d:\AgenticNetSec\backend\tests -v
+```bash
+cd frontend
+npm run build
+npm run start
 ```
 
-This covers:
+Development mode:
 
-- forensic schema checks
-- guardrail checks
-- report AI usage parsing
-- evidence reference generation
-- API artifact endpoint coverage
-
-Run the backend compile check:
-
-```powershell
-d:\AgenticNetSec\.venv\Scripts\python.exe -m compileall d:\AgenticNetSec\backend\src d:\AgenticNetSec\backend\scripts\run_benchmark.py
+```bash
+cd frontend
+npm run dev
 ```
 
-## Test the Frontend
+Frontend URL:
 
-From the `frontend` directory, run:
+- `http://localhost:3000`
 
-```powershell
-cmd /c npm run lint
-cmd /c npx tsc --noEmit
-```
+## Quick End-To-End Smoke Test
 
-These checks validate the current frontend source, including the report view, raw artifacts page, and API contract types.
-
-## Quick Smoke / Demo Run
-
-Use the repo-local smoke inputs in:
+Use the smoke inputs already in the repo if available:
 
 - `outputs/smoke_inputs/suspicious_scan_small.pcap`
 - `outputs/smoke_inputs/benign_small.pcap`
 - `outputs/smoke_inputs/corrupt_input.pcap`
 
-Recommended quick verification path:
+### Recommended full-system test
 
-1. Start the backend:
+1. Start the backend
+2. Start the frontend in production mode
+3. Open `http://localhost:3000`
+4. Go to `/analysis/new`
+5. Upload one or more PCAPs
+6. Set worker count to `2` or more
+7. Submit
+8. Confirm redirect to `/total-jobs/{totalJobId}`
+9. Wait for deterministic child analysis to finish
+10. Trigger enrichment from:
+   - `/total-jobs`
+   - or `/total-jobs/{totalJobId}`
+11. Verify parent artifacts and dedupe summary
 
-```powershell
-.\.venv\Scripts\python backend/scripts/run_api.py
-```
+## What To Verify In The UI
 
-2. Start the frontend in a second terminal with the production path:
+### Submission
 
-```powershell
-cd frontend
-cmd /c npm run build
-cmd /c npm run start
-```
+On `/analysis/new`:
 
-3. Open `http://localhost:3000` and submit a smoke PCAP through the UI.
+- multi-file input works
+- one file and many files use the same flow
+- worker count minimum is `2`
+- submission redirects to a total-job page
 
-4. If you want to inspect the backend directly, use `http://localhost:8000/docs` instead of `http://localhost:8000/`.
+### Total-job list
 
-5. Or run a smoke file directly through CLI:
+On `/total-jobs`:
 
-```powershell
-.\.venv\Scripts\python backend/scripts/run.py outputs/smoke_inputs/suspicious_scan_small.pcap --no-ai
-```
+- parent jobs appear
+- file counts and worker counts appear
+- partial-batch warnings appear if some child jobs failed
+- direct enrichment actions appear:
+  - `Run AI`
+  - `Retry AI`
+  - `Re-run AI`
 
-6. Verify artifacts were produced.
+### Total-job detail
+
+On `/total-jobs/{totalJobId}`:
+
+- child jobs appear with status and progress
+- failed children are clearly called out
+- enrichment actions appear:
+  - `Run AI Summary + Sandbox`
+  - `Retry AI Summary + Sandbox`
+  - `Re-run AI Summary + Sandbox`
+- parent artifacts load after enrichment:
+  - markdown summary
+  - summary JSON
+  - sandbox JSON
+- dedupe summary appears after enrichment
 
 ## Output Artifacts
 
-Async analysis jobs write artifacts to:
+### Child jobs
 
-- `outputs/analysis_jobs/<job_id>/`
+Stored under:
 
-Expected artifacts:
+- `outputs/analysis_jobs/<analysis_job_id>/`
 
+Expected files:
+
+- `job.json`
 - `report.json`
 - `report.md`
 - `metrics.json`
 - `guardrail_audit.json`
+- `analysis_record.json`
 
-Additional project outputs may also appear under:
+### Total jobs
 
-- `outputs/`
+Stored under:
+
+- `outputs/total_jobs/<total_job_id>/`
+
+Expected files after submit:
+
+- `total_job.json`
+
+Expected files after enrichment:
+
+- `summary.json`
+- `summary.md`
+- `sandbox.json`
+
+## Dedupe Test
+
+To test duplicate-PCAP dedupe behavior, use two identical files plus one unique file.
+
+### Linux example
+
+```bash
+cp outputs/smoke_inputs/suspicious_scan_small.pcap /tmp/dup_a.pcap
+cp outputs/smoke_inputs/suspicious_scan_small.pcap /tmp/dup_b.pcap
+cp outputs/smoke_inputs/benign_small.pcap /tmp/unique_c.pcap
+```
+
+### Windows example
+
+```powershell
+Copy-Item outputs\smoke_inputs\suspicious_scan_small.pcap $env:TEMP\dup_a.pcap
+Copy-Item outputs\smoke_inputs\suspicious_scan_small.pcap $env:TEMP\dup_b.pcap
+Copy-Item outputs\smoke_inputs\benign_small.pcap $env:TEMP\unique_c.pcap
+```
+
+Submit all three files in one batch, then run enrichment.
+
+Expected result:
+
+- all child jobs still exist
+- parent enrichment uses only unique completed PCAPs
+- dedupe metadata appears in:
+  - `summary.json`
+  - `sandbox.json`
+- dedupe summary appears on the total-job detail page
+
+## Verification Commands
+
+### Backend compile check
+
+Windows:
+
+```powershell
+.\.venv\Scripts\python -m compileall backend
+```
+
+Linux:
+
+```bash
+./.venv/bin/python -m compileall backend
+```
+
+### Backend tests
+
+Windows:
+
+```powershell
+.\.venv\Scripts\python -m unittest discover -s backend\tests -v
+```
+
+Linux:
+
+```bash
+./.venv/bin/python -m unittest discover -s backend/tests -v
+```
+
+### Frontend checks
+
+Windows:
+
+```powershell
+cd frontend
+cmd /c npm run lint
+cmd /c npm run build
+```
+
+Linux:
+
+```bash
+cd frontend
+npm run lint
+npm run build
+```
+
+Current note:
+
+- frontend lint still reports one existing warning from TanStack Table / React Compiler compatibility in `frontend/app/analysis/history/data-table.tsx`
 
 ## Troubleshooting
 
-### `http://localhost:8000/` shows `404 Not Found`
+### Backend root shows `404`
 
-That is expected. This backend does not expose a root landing page.
+That is expected. Use `http://localhost:8000/docs`.
 
-Use one of these instead:
+### Frontend dev mode behaves strangely
 
-- `http://localhost:8000/docs`
-- `http://localhost:8000/api/v1/analysis`
-- `http://localhost:3000`
+`npm run dev` is more sensitive than `npm run start`. If localhost looks stale:
 
-### `npm run dev` shows hydration or service-worker problems
+1. clear site data for `http://localhost:3000`
+2. unregister any old service worker for that origin
+3. restart the frontend server
+4. hard refresh the browser
 
-This is usually an environment issue rather than an AgenticNetSec bug.
+### PowerShell blocks npm or npx
 
-Key points:
-
-- `npm run dev` is more sensitive than `npm run start`
-- this repo does not register a service worker
-- another project previously served on `http://localhost:3000` can leave behind stale service workers or cached assets
-
-Recommended cleanup steps:
-
-1. Open browser site settings or devtools for `http://localhost:3000`.
-2. Unregister any service worker for that origin.
-3. Clear site data and cache for `http://localhost:3000`.
-4. Restart the frontend server.
-5. Hard refresh the page.
-
-### Python packages missing
-
-Reinstall backend requirements:
-
-```powershell
-.\.venv\Scripts\python -m pip install -r requirements.txt
-```
-
-### npm or npx blocked in PowerShell
-
-If PowerShell blocks script execution, run Node commands through `cmd /c`:
+Use `cmd /c`:
 
 ```powershell
 cmd /c npm run lint
-cmd /c npx tsc --noEmit
+cmd /c npm run build
 ```
 
 ### No AI provider configured
 
-Use `--no-ai` for CLI testing, or start the API and submit jobs knowing the system may fall back to deterministic report generation depending on configuration.
+That is fine for deterministic testing. Parent enrichment behavior may fall back depending on your provider configuration.
+
+### Sandbox is unavailable
+
+Review sandbox-related setup and environment details in `backend/README.md`.
 
 ### Frontend cannot reach backend
 
@@ -280,7 +354,3 @@ Check:
 - backend is running on `http://localhost:8000`
 - frontend is running on `http://localhost:3000`
 - `NEXT_PUBLIC_API_BASE_URL` is correct if overridden
-
-### Corrupt PCAP testing
-
-`outputs/smoke_inputs/corrupt_input.pcap` is useful for input/guardrail testing and error handling, not for a successful analysis path.

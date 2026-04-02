@@ -11,12 +11,12 @@ const highlights = [
     description: "Open a demo-ready command view with recent jobs, risk ranking, runtime summaries, and guardrail outcomes.",
   },
   {
-    title: "PCAP Ingestion",
-    description: "Submit one PCAP file or one pcap_path and trigger autonomous execution.",
+    title: "Batch Ingestion",
+    description: "Submit one or many PCAP files in a single batch and track them under one total job.",
   },
   {
-    title: "Async Job Tracking",
-    description: "Observe queued, running, completed, and failed lifecycle phases backed by the API.",
+    title: "Deterministic First Pass",
+    description: "Run code-only analysis first, then trigger AI summary and sandbox later when the batch is ready.",
   },
   {
     title: "Structured Forensic Report",
@@ -50,10 +50,10 @@ export default function HomePage() {
               <Link href="/dashboard">Open Dashboard</Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link href="/analysis/new">Start Analysis</Link>
+              <Link href="/analysis/new">Start Batch</Link>
             </Button>
             <Button variant="ghost" asChild>
-              <Link href="/analysis/history">View History</Link>
+              <Link href="/total-jobs">View Total Jobs</Link>
             </Button>
           </div>
         </div>

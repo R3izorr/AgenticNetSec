@@ -5,6 +5,7 @@ import type {
   JobMetadataTransport,
   JobStatusResponseTransport,
   RunMetricsTransport,
+  TotalJobStatusResponseTransport,
 } from "@/lib/transport/analysis"
 import type {
   ForensicReport,
@@ -13,6 +14,7 @@ import type {
   JobMetadata,
   JobStatus,
   RunMetrics,
+  TotalJobStatus,
 } from "@/lib/types/analysis"
 
 function safeArray(value: unknown): string[] {
@@ -111,6 +113,43 @@ export function adaptJobStatus(transport: JobStatusResponseTransport): JobStatus
     riskLevel: transport.risk_level ?? null,
     confidenceScore: safeNullableNumber(transport.confidence_score),
     runtimeSecondsTotal: safeNullableNumber(transport.runtime_seconds_total),
+  }
+}
+
+export function adaptTotalJobStatus(
+  transport: TotalJobStatusResponseTransport
+): TotalJobStatus {
+  return {
+    totalJobId: transport.total_job_id,
+    status: transport.status ?? "queued",
+    currentStage: transport.current_stage ?? "queued",
+    progress: safeNumber(transport.progress, 0),
+    createdAt: transport.created_at,
+    updatedAt: transport.updated_at,
+    error: transport.error ?? null,
+    workerCount: safeNumber(transport.worker_count, 2),
+    fileCount: safeNumber(transport.file_count, 0),
+    completedChildren: safeNumber(transport.completed_children, 0),
+    failedChildren: safeNumber(transport.failed_children, 0),
+    deterministicComplete: Boolean(transport.deterministic_complete),
+    enrichmentStatus: transport.enrichment_status ?? "not_started",
+    enrichmentProgress: safeNumber(transport.enrichment_progress, 0),
+    enrichmentError: transport.enrichment_error ?? null,
+    children: Array.isArray(transport.children)
+      ? transport.children.map((child) => ({
+          analysisJobId: child.analysis_job_id,
+          filename: child.filename,
+          sourcePath: child.source_path ?? null,
+          status: child.status ?? "queued",
+          currentPhase: child.current_phase ?? "queued",
+          progress: safeNumber(child.progress, 0),
+          error: child.error ?? null,
+          attackType: child.attack_type ?? null,
+          riskLevel: child.risk_level ?? null,
+          confidenceScore: safeNullableNumber(child.confidence_score),
+          runtimeSecondsTotal: safeNullableNumber(child.runtime_seconds_total),
+        }))
+      : [],
   }
 }
 

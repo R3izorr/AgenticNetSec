@@ -38,6 +38,39 @@ export interface JobStatusResponseTransport {
   runtime_seconds_total?: number | null
 }
 
+export interface TotalJobChildTransport {
+  analysis_job_id: string
+  filename: string
+  source_path?: string | null
+  status: string
+  current_phase: string
+  progress: number
+  error?: string | null
+  attack_type?: string | null
+  risk_level?: string | null
+  confidence_score?: number | null
+  runtime_seconds_total?: number | null
+}
+
+export interface TotalJobStatusResponseTransport {
+  total_job_id: string
+  status: string
+  current_stage: string
+  progress: number
+  created_at?: string
+  updated_at?: string
+  error?: string | null
+  worker_count: number
+  file_count: number
+  completed_children: number
+  failed_children: number
+  deterministic_complete: boolean
+  enrichment_status: string
+  enrichment_progress: number
+  enrichment_error?: string | null
+  children: TotalJobChildTransport[]
+}
+
 export interface HeaderBlockTransport {
   case_id: string
   timestamp: string
@@ -138,4 +171,30 @@ export interface GuardrailAuditTransport {
   confidence_decision: Record<string, unknown>
   human_review_required: string
   read_only_mode: boolean
+}
+
+export interface TotalJobDedupeEntryTransport {
+  file?: string | null
+  path?: string | null
+  dedupe_key?: string | null
+}
+
+export interface TotalJobDedupeTransport {
+  strategy?: string
+  input_record_count?: number
+  unique_record_count?: number
+  duplicate_record_count?: number
+  duplicates_removed?: TotalJobDedupeEntryTransport[]
+}
+
+export interface TotalJobSummaryJsonTransport {
+  dedupe?: TotalJobDedupeTransport
+  aggregate_summary?: Record<string, unknown>
+  records?: Array<Record<string, unknown>>
+}
+
+export interface TotalJobSandboxTransport {
+  dedupe?: TotalJobDedupeTransport
+  record_count?: number
+  records?: Array<Record<string, unknown>>
 }

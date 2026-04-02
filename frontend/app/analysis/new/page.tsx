@@ -1,109 +1,65 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { InlineNotice } from "@/components/common/inline-notice"
 import { SectionCard } from "@/components/common/section-card"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useToast } from "@/components/ui/toast"
-import { adaptJobStatus } from "@/lib/adapters/analysis"
-import { createAnalysisJob, createBatchAnalysisJob } from "@/lib/api/analysis"
+import { createBatchAnalysisJob } from "@/lib/api/analysis"
 import { isApiError } from "@/lib/api/client"
+import { adaptTotalJobStatus } from "@/lib/adapters/analysis"
+
+const MIN_WORKERS = 2
 
 export default function NewAnalysisPage() {
   const router = useRouter()
   const { pushToast } = useToast()
 
-  const [inputMode, setInputMode] = useState<"file" | "path">("file")
   const [files, setFiles] = useState<File[]>([])
-  const [pcapPath, setPcapPath] = useState("")
-  const [provider, setProvider] = useState("gemini")
-  const [model, setModel] = useState("")
-  const [useAi, setUseAi] = useState(true)
-  const [requireAi, setRequireAi] = useState(false)
+  const [workerCount, setWorkerCount] = useState<number>(MIN_WORKERS)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+
+  const selectedCount = files.length
+  const helperText = useMemo(() => {
+    if (!selectedCount) {
+      return "Select one or more PCAP files to create a total job."
+    }
+    return `${selectedCount} file${selectedCount === 1 ? "" : "s"} selected for one total job.`
+  }, [selectedCount])
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setFormError(null)
 
-    if (inputMode === "file" && files.length === 0) {
+    if (!files.length) {
       setFormError("Please select at least one PCAP file before submitting.")
-      return
-    }
-
-    if (inputMode === "path" && !pcapPath.trim()) {
-      setFormError("Please enter a pcap_path before submitting.")
       return
     }
 
     setSubmitting(true)
     try {
-      if (inputMode === "file") {
-        if (files.length === 1) {
-          const response = await createAnalysisJob({
-            file: files[0],
-            provider: provider.trim() || undefined,
-            model: model.trim() || undefined,
-            useAi,
-            requireAi,
-          })
-
-          const job = adaptJobStatus(response)
-          pushToast({
-            variant: "success",
-            title: "Analysis started",
-            description: `Job ${job.analysisJobId} has been queued.`,
-          })
-          router.push(`/analysis/${job.analysisJobId}`)
-        } else {
-          const batch = await createBatchAnalysisJob({
-            files,
-            provider: provider.trim() || undefined,
-            model: model.trim() || undefined,
-            useAi,
-            requireAi,
-          })
-
-          const jobs = batch.jobs.map((response) => adaptJobStatus(response))
-          pushToast({
-            variant: "success",
-            title: "Analyses started",
-            description: `${jobs.length} jobs have been queued under group ${batch.group_id}.`,
-          })
-          router.push("/analysis/history")
-        }
-      } else {
-        const response = await createAnalysisJob({
-          pcapPath,
-          provider: provider.trim() || undefined,
-          model: model.trim() || undefined,
-          useAi,
-          requireAi,
-        })
-
-        const job = adaptJobStatus(response)
-        pushToast({
-          variant: "success",
-          title: "Analysis started",
-          description: `Job ${job.analysisJobId} has been queued.`,
-        })
-        router.push(`/analysis/${job.analysisJobId}`)
-      }
+      const response = await createBatchAnalysisJob({
+        files,
+        workerCount: Math.max(MIN_WORKERS, Math.round(workerCount || MIN_WORKERS)),
+      })
+      const totalJob = adaptTotalJobStatus(response)
+      pushToast({
+        variant: "success",
+        title: "Batch started",
+        description: `Total job ${totalJob.totalJobId} now tracks ${totalJob.fileCount} file${totalJob.fileCount === 1 ? "" : "s"}.`,
+      })
+      router.push(`/total-jobs/${encodeURIComponent(totalJob.totalJobId)}`)
     } catch (error) {
       const message = isApiError(error)
         ? error.detail || error.message
         : error instanceof Error
           ? error.message
-          : "Failed to submit analysis job."
-
+          : "Failed to submit batch analysis."
       setFormError(message)
       pushToast({
         variant: "error",
@@ -118,136 +74,56 @@ export default function NewAnalysisPage() {
   return (
     <div className="flex flex-col gap-6">
       <SectionCard
-        title="Submit Analysis"
-        subtitle="Provide exactly one input source: file upload or pcap_path."
+        title="Submit Batch Analysis"
+        subtitle="Every submission becomes one total job, whether you choose one PCAP or many."
       >
         <form className="flex flex-col gap-5" onSubmit={onSubmit}>
-          <div className="flex flex-col gap-3">
-            <Label>Input source</Label>
-            <ToggleGroup
-              type="single"
-              value={inputMode}
-              variant="outline"
-              className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2"
-              onValueChange={(value) => {
-                if (!value) {
-                  return
-                }
-
-                if (value === "file") {
-                  setInputMode("file")
-                  setPcapPath("")
-                  return
-                }
-
-                setInputMode("path")
-                setFiles([])
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="pcap-files">PCAP files</Label>
+            <Input
+              id="pcap-files"
+              type="file"
+              accept=".pcap,.pcapng,.cap"
+              multiple
+              onChange={(event) => {
+                setFiles(Array.from(event.target.files ?? []))
               }}
-            >
-              <ToggleGroupItem value="file" className="h-auto items-start justify-start px-4 py-3 text-left">
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-foreground">Upload PCAP File</span>
-                  <span className="text-xs text-muted-foreground">
-                    Use local file input and send multipart upload.
-                  </span>
-                </div>
-              </ToggleGroupItem>
-              <ToggleGroupItem value="path" className="h-auto items-start justify-start px-4 py-3 text-left">
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-foreground">Use pcap_path</span>
-                  <span className="text-xs text-muted-foreground">
-                    Provide a backend-readable filesystem path.
-                  </span>
-                </div>
-              </ToggleGroupItem>
-            </ToggleGroup>
+              className="h-auto bg-card py-2"
+            />
+            <p className="text-xs text-muted-foreground">{helperText}</p>
           </div>
 
-          {inputMode === "file" ? (
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="pcap-file">PCAP file</Label>
+              <Label htmlFor="worker-count">Worker count</Label>
               <Input
-                key="pcap-file-input"
-                id="pcap-file"
-                type="file"
-                accept=".pcap,.pcapng"
-                multiple
-                onChange={(event) => {
-                  const selectedFiles = Array.from(event.target.files ?? [])
-                  setFiles(selectedFiles)
-                }}
-                className="h-auto bg-card py-2"
-              />
-              <p className="text-xs text-muted-foreground">
-                You can select multiple PCAP files. A separate analysis job will be created for each file.
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="pcap-path">pcap_path</Label>
-              <Input
-                key="pcap-path-input"
-                id="pcap-path"
-                type="text"
-                value={pcapPath}
-                onChange={(event) => setPcapPath(event.target.value)}
-                placeholder="C:\\captures\\case1.pcap"
+                id="worker-count"
+                type="number"
+                min={MIN_WORKERS}
+                step={1}
+                value={workerCount}
+                onChange={(event) => setWorkerCount(Number(event.target.value) || MIN_WORKERS)}
                 className="bg-card"
               />
+              <p className="text-xs text-muted-foreground">
+                Batch execution uses at least {MIN_WORKERS} workers. Higher values can speed up deterministic analysis.
+              </p>
             </div>
-          )}
-
-          <Separator />
-
-          <details className="rounded-lg border border-border/70 bg-background/40 p-4">
-            <summary className="cursor-pointer text-sm font-medium">Advanced options</summary>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="provider">Provider</Label>
-                <Input
-                  id="provider"
-                  type="text"
-                  value={provider}
-                  onChange={(event) => setProvider(event.target.value)}
-                  className="bg-card"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="model">Model (optional)</Label>
-                <Input
-                  id="model"
-                  type="text"
-                  value={model}
-                  onChange={(event) => setModel(event.target.value)}
-                  className="bg-card"
-                />
-              </div>
-              <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-card/60 px-3 py-2">
-                <Checkbox
-                  id="use-ai"
-                  checked={useAi}
-                  onCheckedChange={(checked) => setUseAi(checked === true)}
-                />
-                <Label htmlFor="use-ai">use_ai</Label>
-              </div>
-              <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-card/60 px-3 py-2">
-                <Checkbox
-                  id="require-ai"
-                  checked={requireAi}
-                  onCheckedChange={(checked) => setRequireAi(checked === true)}
-                />
-                <Label htmlFor="require-ai">require_ai</Label>
-              </div>
+            <div className="rounded-lg border border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">Run flow</p>
+              <p className="mt-2">
+                Stage 1 runs code-only analysis for each file. AI summary and sandbox are triggered later from the total-job page.
+              </p>
             </div>
-          </details>
+          </div>
 
           {formError ? <InlineNotice variant="error">{formError}</InlineNotice> : null}
 
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={submitting}>
-              {submitting ? "Submitting..." : "Start Analysis"}
+              {submitting ? "Submitting..." : "Start Batch"}
             </Button>
-            <p className="text-xs text-muted-foreground">Analysis runs autonomously after submission.</p>
+            <p className="text-xs text-muted-foreground">The backend creates child jobs automatically after submission.</p>
           </div>
         </form>
       </SectionCard>

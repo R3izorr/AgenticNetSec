@@ -31,6 +31,8 @@ from report_ai import generate_report_result
 from sandbox_verifier import run_sandbox_verification
 from tool_executor import ToolExecutor, ToolPolicy
 
+ANALYSIS_VERSION = "2026-04-03-api-batch-v1"
+
 MITRE_BY_DETECTOR = {
     "external_rdp": ["T1133 - External Remote Services", "T1021.001 - Remote Desktop Protocol"],
     "external_port_scans": ["T1595 - Active Scanning"],
@@ -50,6 +52,7 @@ class AnalysisRequest:
     model: str | None = None
     use_ai: bool = True
     require_ai: bool = False
+    enable_sandbox: bool | None = None
 
 
 @dataclass
@@ -59,6 +62,7 @@ class AnalysisArtifacts:
     metrics: dict
     guardrail_audit: dict
     metadata: dict[str, Any]
+    analysis_record: dict[str, Any]
 
 
 class AnalysisEngine:
@@ -86,7 +90,7 @@ class AnalysisEngine:
             self.guardrails.validate_input(req.pcap_path)
             input_validity = self.guardrails.describe_input(req.pcap_path)
             metadata = self._extract_metadata(req.pcap_path)
-            plan = self.planner.create_plan(metadata, req.use_ai)
+            plan = self.planner.create_plan(metadata, req.use_ai, req.enable_sandbox)
         if progress_callback:
             progress_callback("parse", 0.35)
 
@@ -232,7 +236,102 @@ class AnalysisEngine:
             metrics=metrics.model_dump(),
             guardrail_audit=guardrail_audit_payload,
             metadata=metadata,
+            analysis_record=self._build_analysis_record(
+                pcap_path=req.pcap_path,
+                metadata=metadata,
+                summary=summary,
+                findings=findings,
+                deep_dive=deep_dive,
+                sandbox_verification=sandbox_verification,
+            ),
         )
+
+    def _build_analysis_record(
+        self,
+        *,
+        pcap_path: str,
+        metadata: dict[str, Any],
+        summary: dict[str, Any],
+        findings: dict[str, Any],
+        deep_dive: dict[str, Any] | None,
+        sandbox_verification: dict[str, Any],
+    ) -> dict[str, Any]:
+        external_rdp = findings.get("external_rdp", {})
+        suspicious_rdp = [item for item in external_rdp.get("sessions", []) if item.get("suspicious")]
+        suspicious_vpn = [
+            item
+            for item in findings.get("vpn_like_traffic", {}).get("sessions", [])
+            if item.get("total_bytes", 0) >= 50000
+        ]
+        suspicious_external_scanners = [
+            item
+            for item in findings.get("external_port_scans", {}).get("sources", [])
+            if item.get("suspicious")
+        ]
+        suspicious_scanners = [
+            item
+            for item in findings.get("smb_rpc_scans", {}).get("scanners", [])
+            if item.get("suspicious")
+        ]
+        suspicious_dcerpc = [
+            item
+            for item in findings.get("dcerpc_account_activity", {}).get("events", [])
+            if item.get("possible_account_or_group_change")
+        ]
+        temp_hits = findings.get("temp_sh_traffic", {}).get("hits", [])
+        uploads = findings.get("large_http_posts", {}).get("uploads", [])
+        outbound_exfil = [
+            item
+            for item in findings.get("outbound_exfiltration_candidates", {}).get("flows", [])
+            if item.get("suspicious")
+        ]
+        spreaders = [
+            item
+            for item in findings.get("rdp_payload_deployment", {}).get("spreaders", [])
+            if item.get("suspicious")
+        ]
+        manual_drop_candidates = [
+            item
+            for item in findings.get("manual_payload_deployment", {}).get("candidates", [])
+            if item.get("suspicious")
+        ]
+
+        result = {
+            "file": metadata.get("filename") or Path(pcap_path).name,
+            "path": str(Path(pcap_path).resolve()),
+            "size_bytes": metadata.get("size_bytes"),
+            "total_packets": summary.get("total_packets"),
+            "top_ips": summary.get("top_ips", [])[:5],
+            "top_ports": summary.get("top_ports", [])[:5],
+            "patient_zero_candidate": external_rdp.get("patient_zero_candidate"),
+            "suspicious_external_rdp_count": len(suspicious_rdp),
+            "suspicious_external_port_scanners": suspicious_external_scanners,
+            "suspicious_vpn_count": len(suspicious_vpn),
+            "suspicious_smb_rpc_scanners": suspicious_scanners,
+            "possible_dcerpc_account_changes": suspicious_dcerpc,
+            "temp_sh_hits": temp_hits,
+            "large_http_uploads": uploads,
+            "possible_outbound_exfil_flows": outbound_exfil,
+            "suspicious_internal_rdp_spread": spreaders,
+            "manual_payload_deployment_candidates": manual_drop_candidates,
+            "analysis_profile": "base+dive" if deep_dive else "base",
+            "analysis_version": ANALYSIS_VERSION,
+        }
+        if deep_dive:
+            result["deep_dive"] = deep_dive
+            result["deep_dive_focus_host"] = deep_dive.get("focus_host")
+            result["deep_dive_ingress_external_ip"] = (
+                (deep_dive.get("patient_zero_candidate") or {}).get("external_ip")
+            )
+        if sandbox_verification:
+            result["sandbox_verification"] = sandbox_verification
+            result["sandbox_verified_winrm_pairs"] = len(
+                (sandbox_verification.get("remote_management") or {}).get("verified_winrm_pairs", [])
+            )
+            result["sandbox_verified_temp_sh_flows"] = len(
+                (sandbox_verification.get("exfiltration") or {}).get("verified_temp_sh_flows", [])
+            )
+        return result
 
     def _extract_metadata(self, pcap_path: str) -> dict[str, Any]:
         path = Path(pcap_path).resolve()

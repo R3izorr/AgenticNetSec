@@ -104,6 +104,9 @@ class RunMetrics(BaseModel):
 
 class JobStatusResponse(BaseModel):
     analysis_job_id: str
+    group_id: str | None = None
+    group_index: int | None = None
+    group_total: int | None = None
     status: str
     current_phase: str
     progress: float
@@ -120,3 +123,36 @@ class JobStatusResponse(BaseModel):
     risk_level: str | None = None
     confidence_score: float | None = None
     runtime_seconds_total: float | None = None
+
+
+class TotalJobChildResponse(BaseModel):
+    analysis_job_id: str
+    filename: str
+    source_path: str | None = None
+    status: str = "queued"
+    current_phase: str = "queued"
+    progress: float = 0.0
+    error: str | None = None
+    attack_type: str | None = None
+    risk_level: str | None = None
+    confidence_score: float | None = None
+    runtime_seconds_total: float | None = None
+
+
+class TotalJobStatusResponse(BaseModel):
+    total_job_id: str
+    status: str
+    current_stage: str
+    progress: float
+    created_at: str | None = None
+    updated_at: str | None = None
+    error: str | None = None
+    worker_count: int
+    file_count: int
+    completed_children: int = 0
+    failed_children: int = 0
+    deterministic_complete: bool = False
+    enrichment_status: str = "not_started"
+    enrichment_progress: float = 0.0
+    enrichment_error: str | None = None
+    children: List[TotalJobChildResponse] = Field(default_factory=list)

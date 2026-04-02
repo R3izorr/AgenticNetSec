@@ -40,6 +40,39 @@ export interface JobStatus {
   runtimeSecondsTotal: number | null
 }
 
+export interface TotalJobChild {
+  analysisJobId: string
+  filename: string
+  sourcePath: string | null
+  status: string
+  currentPhase: string
+  progress: number
+  error: string | null
+  attackType: string | null
+  riskLevel: string | null
+  confidenceScore: number | null
+  runtimeSecondsTotal: number | null
+}
+
+export interface TotalJobStatus {
+  totalJobId: string
+  status: string
+  currentStage: string
+  progress: number
+  createdAt?: string
+  updatedAt?: string
+  error: string | null
+  workerCount: number
+  fileCount: number
+  completedChildren: number
+  failedChildren: number
+  deterministicComplete: boolean
+  enrichmentStatus: string
+  enrichmentProgress: number
+  enrichmentError: string | null
+  children: TotalJobChild[]
+}
+
 export interface ReportHeader {
   caseId: string
   timestamp: string
@@ -145,4 +178,9 @@ export interface CreateAnalysisInput {
   model?: string
   useAi?: boolean
   requireAi?: boolean
+}
+
+export interface BatchCreateAnalysisInput {
+  files: File[]
+  workerCount: number
 }

@@ -11,6 +11,7 @@ const navLinks = [
   { href: "/", label: "Overview" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/analysis/new", label: "New Analysis" },
+  { href: "/total-jobs", label: "Total Jobs" },
   { href: "/analysis/history", label: "History" },
   { href: "/settings", label: "Settings" },
 ]

@@ -44,6 +44,9 @@ class JobRecord:
     risk_level: str | None = None
     confidence_score: float | None = None
     runtime_seconds_total: float | None = None
+    group_id: str | None = None
+    group_index: int | None = None
+    group_total: int | None = None
 
 
 class JobStore:
@@ -60,6 +63,9 @@ class JobStore:
         source_type: str | None = None,
         source_name: str | None = None,
         source_path: str | None = None,
+        group_id: str | None = None,
+        group_index: int | None = None,
+        group_total: int | None = None,
     ) -> JobRecord:
         job_id = f"analysis_{uuid.uuid4().hex[:12]}"
         artifacts_dir = self.base_dir / job_id
@@ -70,6 +76,9 @@ class JobStore:
             source_type=source_type,
             source_name=source_name,
             source_path=source_path,
+            group_id=group_id,
+            group_index=group_index,
+            group_total=group_total,
         )
         with self._lock:
             self._jobs[job_id] = record

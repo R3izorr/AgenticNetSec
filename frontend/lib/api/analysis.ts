@@ -5,9 +5,16 @@ import type {
   JobStatusResponseTransport,
   ReportMarkdownTransport,
   RunMetricsTransport,
+  TotalJobSandboxTransport,
+  TotalJobStatusResponseTransport,
+  TotalJobSummaryJsonTransport,
 } from "@/lib/transport/analysis"
-import type { CreateAnalysisInput, JobStatus } from "@/lib/types/analysis"
-import { adaptJobStatus } from "@/lib/adapters/analysis"
+import type {
+  BatchCreateAnalysisInput,
+  JobStatus,
+  TotalJobStatus,
+} from "@/lib/types/analysis"
+import { adaptJobStatus, adaptTotalJobStatus } from "@/lib/adapters/analysis"
 
 export interface JobHistoryResponseRaw {
   total: number
@@ -19,57 +26,19 @@ export interface JobHistoryResponse {
   jobs: JobStatus[]
 }
 
-export interface BatchCreateAnalysisResponse {
-  group_id: string
-  jobs: JobStatusResponseTransport[]
+export interface TotalJobListResponseRaw {
+  total: number
+  jobs: TotalJobStatusResponseTransport[]
 }
 
-export async function createAnalysisJob(
-  input: CreateAnalysisInput
-): Promise<JobStatusResponseTransport> {
-  const hasFile = Boolean(input.file)
-  const hasPath = Boolean(input.pcapPath?.trim())
-  if (hasFile === hasPath) {
-    throw new Error("Provide exactly one input source: file or pcapPath.")
-  }
-
-  const formData = new FormData()
-  if (input.file) {
-    formData.append("file", input.file)
-  }
-  if (input.pcapPath?.trim()) {
-    formData.append("pcap_path", input.pcapPath.trim())
-  }
-  if (input.provider?.trim()) {
-    formData.append("provider", input.provider.trim())
-  }
-  if (input.model?.trim()) {
-    formData.append("model", input.model.trim())
-  }
-  if (typeof input.useAi === "boolean") {
-    formData.append("use_ai", String(input.useAi))
-  }
-  if (typeof input.requireAi === "boolean") {
-    formData.append("require_ai", String(input.requireAi))
-  }
-
-  return apiRequest<JobStatusResponseTransport>("/api/v1/analysis", {
-    method: "POST",
-    body: formData,
-  })
-}
-
-export interface BatchCreateAnalysisInput {
-  files: File[]
-  provider?: string
-  model?: string
-  useAi?: boolean
-  requireAi?: boolean
+export interface TotalJobListResponse {
+  total: number
+  jobs: TotalJobStatus[]
 }
 
 export async function createBatchAnalysisJob(
   input: BatchCreateAnalysisInput,
-): Promise<BatchCreateAnalysisResponse> {
+): Promise<TotalJobStatusResponseTransport> {
   if (!input.files.length) {
     throw new Error("At least one file is required for batch analysis.")
   }
@@ -78,20 +47,9 @@ export async function createBatchAnalysisJob(
   for (const file of input.files) {
     formData.append("files", file)
   }
-  if (input.provider?.trim()) {
-    formData.append("provider", input.provider.trim())
-  }
-  if (input.model?.trim()) {
-    formData.append("model", input.model.trim())
-  }
-  if (typeof input.useAi === "boolean") {
-    formData.append("use_ai", String(input.useAi))
-  }
-  if (typeof input.requireAi === "boolean") {
-    formData.append("require_ai", String(input.requireAi))
-  }
+  formData.append("worker_count", String(input.workerCount))
 
-  return apiRequest<BatchCreateAnalysisResponse>("/api/v1/analysis/batch", {
+  return apiRequest<TotalJobStatusResponseTransport>("/api/v1/analysis/batch", {
     method: "POST",
     body: formData,
   })
@@ -112,6 +70,47 @@ export async function getAnalysisJobStatus(
   jobId: string
 ): Promise<JobStatusResponseTransport> {
   return apiRequest<JobStatusResponseTransport>(`/api/v1/analysis/${jobId}`)
+}
+
+export async function getTotalJobs(): Promise<TotalJobListResponse> {
+  const raw = await apiRequest<TotalJobListResponseRaw>("/api/v1/total-jobs")
+  return {
+    total: raw.total,
+    jobs: raw.jobs.map(adaptTotalJobStatus),
+  }
+}
+
+export async function getTotalJobStatus(
+  totalJobId: string
+): Promise<TotalJobStatusResponseTransport> {
+  return apiRequest<TotalJobStatusResponseTransport>(`/api/v1/total-jobs/${totalJobId}`)
+}
+
+export async function triggerTotalJobEnrichment(
+  totalJobId: string
+): Promise<TotalJobStatusResponseTransport> {
+  return apiRequest<TotalJobStatusResponseTransport>(`/api/v1/total-jobs/${totalJobId}/enrich`, {
+    method: "POST",
+    body: new FormData(),
+  })
+}
+
+export async function getTotalJobSummaryJson(
+  totalJobId: string
+): Promise<TotalJobSummaryJsonTransport> {
+  return apiRequest<TotalJobSummaryJsonTransport>(`/api/v1/total-jobs/${totalJobId}/summary.json`)
+}
+
+export async function getTotalJobSummaryMarkdown(
+  totalJobId: string
+): Promise<ReportMarkdownTransport> {
+  return apiRequest<ReportMarkdownTransport>(`/api/v1/total-jobs/${totalJobId}/summary.md`)
+}
+
+export async function getTotalJobSandbox(
+  totalJobId: string
+): Promise<TotalJobSandboxTransport> {
+  return apiRequest<TotalJobSandboxTransport>(`/api/v1/total-jobs/${totalJobId}/sandbox`)
 }
 
 export async function getReportJson(jobId: string): Promise<ForensicReportTransport> {

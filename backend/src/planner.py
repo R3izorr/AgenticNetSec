@@ -14,7 +14,7 @@ class PlanConfig:
 class AnalysisPlanner:
     """Simple planner that selects pipeline depth based on input profile."""
 
-    def create_plan(self, metadata: dict, use_ai: bool) -> PlanConfig:
+    def create_plan(self, metadata: dict, use_ai: bool, enable_sandbox: bool | None = None) -> PlanConfig:
         import os
 
         file_size = int(metadata.get("size_bytes", 0))
@@ -22,12 +22,15 @@ class AnalysisPlanner:
 
         run_deep_dive = packet_count > 20000 or file_size > 50 * 1024 * 1024
         enable_zero_day_heuristics = True
-        enable_sandbox_verification = os.getenv("AGENTIC_SANDBOX_VERIFY", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
+        if enable_sandbox is None:
+            enable_sandbox_verification = os.getenv("AGENTIC_SANDBOX_VERIFY", "").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+        else:
+            enable_sandbox_verification = bool(enable_sandbox)
 
         # Keep LLM optional to support offline/local fallback.
         use_llm_reasoning = bool(use_ai)
