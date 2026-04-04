@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from datetime import datetime, timezone
 import hashlib
+import json
 import os
 from pathlib import Path
 from pathlib import PureWindowsPath
@@ -286,6 +288,24 @@ def _dedupe_analysis_records(records: list[dict[str, Any]]) -> tuple[list[dict[s
     return unique_records, dedupe_metadata
 
 
+def _save_total_job_jsonl_artifact(
+    total_job_id: str,
+    name: str,
+    records: list[dict[str, Any]],
+) -> Path:
+    total_job = total_job_store.get(total_job_id)
+    if not total_job or not total_job.artifacts_dir:
+        raise KeyError(f"Unknown total job: {total_job_id}")
+
+    artifact_path = Path(total_job.artifacts_dir) / name
+    with artifact_path.open("w", encoding="utf-8") as handle:
+        for record in records:
+            handle.write(json.dumps(record))
+            handle.write("\n")
+    total_job_store.update(total_job_id, updated_at=datetime.now(timezone.utc).isoformat())
+    return artifact_path
+
+
 def _run_total_job_sync(
     total_job_id: str,
     worker_count: int,
@@ -450,6 +470,11 @@ def _run_total_job_enrichment_sync(
         require_ai=require_ai,
     )
 
+    # Mirror the legacy batch artifacts inside the parent total-job folder so
+    # AI/sandbox comparisons can reuse the same artifact shape in one place.
+    total_job_store.save_json_artifact(total_job_id, "aggregate_summary.json", aggregate)
+    total_job_store.save_json_artifact(total_job_id, "scan_results.json", enriched_records)
+    _save_total_job_jsonl_artifact(total_job_id, "scan_results.jsonl", enriched_records)
     total_job_store.save_json_artifact(
         total_job_id,
         "summary.json",
