@@ -54,6 +54,14 @@ def build_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
     uploads = [item for item in records if item.get("large_http_uploads")]
     rdp_spread = [item for item in records if item.get("suspicious_internal_rdp_spread")]
     manual_payload = [item for item in records if item.get("manual_payload_deployment_candidates")]
+    payload_candidates = [item for item in records if item.get("payload_carving_candidate_count", 0)]
+    confirmed_payload = [item for item in records if _has_payload_recovery_status(item, "confirmed_artifact")]
+    partial_payload = [item for item in records if _has_payload_recovery_status(item, "partial_evidence", "hash_only")]
+    heuristic_payload_only = [
+        item
+        for item in payload_candidates
+        if item not in confirmed_payload and item not in partial_payload
+    ]
     deep_dive = [item for item in records if item.get("deep_dive")]
     focus_hosts = Counter(item.get("deep_dive_focus_host") for item in deep_dive if item.get("deep_dive_focus_host"))
 
@@ -86,6 +94,10 @@ def build_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
         "files_with_large_http_uploads": len(uploads),
         "files_with_internal_rdp_spread": len(rdp_spread),
         "files_with_manual_payload_deployment": len(manual_payload),
+        "files_with_payload_carving_candidates": len(payload_candidates),
+        "files_with_recovered_payload_artifacts": len(confirmed_payload),
+        "files_with_partial_payload_evidence": len(partial_payload),
+        "files_with_heuristic_payload_only": len(heuristic_payload_only),
         "files_with_deep_dive": len(deep_dive),
         "interesting_files": {
             "external_rdp": [item["file"] for item in external_rdp[:30]],
@@ -98,6 +110,10 @@ def build_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
             "large_http_uploads": [item["file"] for item in uploads[:30]],
             "internal_rdp_spread": [item["file"] for item in rdp_spread[:30]],
             "manual_payload_deployment": [item["file"] for item in manual_payload[:30]],
+            "payload_carving_candidates": [item["file"] for item in payload_candidates[:30]],
+            "recovered_payload_artifacts": [item["file"] for item in confirmed_payload[:30]],
+            "partial_payload_evidence": [item["file"] for item in partial_payload[:30]],
+            "heuristic_payload_only": [item["file"] for item in heuristic_payload_only[:30]],
             "deep_dive": [item["file"] for item in deep_dive[:30]],
         },
         "top_patient_zero_candidates": patient_zero_candidates[:20],
@@ -106,6 +122,17 @@ def build_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
         ],
         "attack_flow": build_attack_flow(records),
     }
+
+
+def _has_payload_recovery_status(record: dict[str, Any], *statuses: str) -> bool:
+    expected = set(statuses)
+    record_status = record.get("payload_carving_status")
+    if record_status in expected:
+        return True
+    for artifact in record.get("carved_payloads") or []:
+        if artifact.get("recovery_status") in expected:
+            return True
+    return False
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -229,6 +229,7 @@ export default function TotalJobDetailPage() {
   }
 
   const canRunEnrichment = job.deterministicComplete && job.enrichmentStatus !== "running"
+  const summaryReady = job.enrichmentStatus === "completed"
 
   const enrichmentButtonLabel = actionLoading
     ? "Starting..."
@@ -244,7 +245,7 @@ export default function TotalJobDetailPage() {
     <div className="flex flex-col gap-6">
       <SectionCard
         title="Total Job"
-        subtitle="Track the full batch run, child-file progress, and delayed enrichment outputs."
+        subtitle="Track the full batch run, child-file progress, and one parent-level summary for the whole batch."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="rounded-full px-2.5 py-0.5">
@@ -253,6 +254,15 @@ export default function TotalJobDetailPage() {
             <Button type="button" variant="outline" onClick={() => void refresh()}>
               Refresh
             </Button>
+            {summaryReady ? (
+              <Button asChild type="button" variant="secondary">
+                <a href="#batch-summary">Open Batch Summary</a>
+              </Button>
+            ) : (
+              <Button type="button" variant="secondary" disabled>
+                Batch Summary Pending
+              </Button>
+            )}
             <Button type="button" onClick={() => void handleEnrichment()} disabled={!canRunEnrichment || actionLoading}>
               {enrichmentButtonLabel}
             </Button>
@@ -338,6 +348,9 @@ export default function TotalJobDetailPage() {
               The AI summary and sandbox trigger becomes available after the deterministic child-file pass completes.
             </InlineNotice>
           ) : null}
+          <InlineNotice variant="info" title="Batch-level summary">
+            Use the batch summary action on this page to review one parent summary for the whole total job across {formatNumber(job.fileCount, 0)} child file{job.fileCount === 1 ? "" : "s"}, instead of opening child-file reports one by one.
+          </InlineNotice>
         </div>
       </SectionCard>
 
@@ -398,26 +411,28 @@ export default function TotalJobDetailPage() {
         )}
       </SectionCard>
 
-      <ArtifactPanel
-        title="AI Summary Markdown"
-        subtitle="Parent-level markdown summary generated after delayed enrichment."
-        copyValue={artifacts.summaryMarkdown ?? undefined}
-        copyLabel="Copy summary markdown"
-      >
-        {artifactLoading ? (
-          <p className="text-sm text-muted-foreground">Loading enrichment artifacts...</p>
-        ) : artifacts.summaryMarkdown ? (
-          <pre className="overflow-x-auto whitespace-pre-wrap text-sm leading-6 text-foreground/90">
-            {artifacts.summaryMarkdown}
-          </pre>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            {job.enrichmentStatus === "completed"
-              ? "Markdown summary not available."
-              : "Trigger AI summary and sandbox to populate parent-level artifacts."}
-          </p>
-        )}
-      </ArtifactPanel>
+      <section id="batch-summary" className="scroll-mt-24">
+        <ArtifactPanel
+          title="Batch Summary Markdown"
+          subtitle="Parent-level markdown summary for the whole total job, built from all completed child-file analysis records."
+          copyValue={artifacts.summaryMarkdown ?? undefined}
+          copyLabel="Copy summary markdown"
+        >
+          {artifactLoading ? (
+            <p className="text-sm text-muted-foreground">Loading enrichment artifacts...</p>
+          ) : artifacts.summaryMarkdown ? (
+            <pre className="overflow-x-auto whitespace-pre-wrap text-sm leading-6 text-foreground/90">
+              {artifacts.summaryMarkdown}
+            </pre>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {job.enrichmentStatus === "completed"
+                ? "Markdown summary not available."
+                : "Trigger AI summary and sandbox to populate one parent-level batch summary for this total job."}
+            </p>
+          )}
+        </ArtifactPanel>
+      </section>
 
       {dedupeInfo ? (
         <SectionCard
@@ -460,8 +475,8 @@ export default function TotalJobDetailPage() {
       ) : null}
 
       <ArtifactPanel
-        title="Summary JSON"
-        subtitle="Aggregate summary payload built from completed child-file analysis records."
+        title="Batch Summary JSON"
+        subtitle="Aggregate parent-level summary payload built from the completed files in this total job."
         copyValue={artifacts.summaryJson ? JSON.stringify(artifacts.summaryJson, null, 2) : undefined}
         copyLabel="Copy summary JSON"
       >
@@ -472,7 +487,7 @@ export default function TotalJobDetailPage() {
             {JSON.stringify(artifacts.summaryJson, null, 2)}
           </pre>
         ) : (
-          <p className="text-sm text-muted-foreground">No summary JSON available yet.</p>
+          <p className="text-sm text-muted-foreground">No batch summary JSON available yet.</p>
         )}
       </ArtifactPanel>
 

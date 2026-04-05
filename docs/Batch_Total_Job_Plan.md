@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Last reviewed against the codebase on `2026-04-03` after the latest batch-job UI and enrichment updates.
+Last reviewed against the codebase on `2026-04-06` after adding the combined all-total-jobs summary flow.
 
 ### Implemented
 
@@ -26,7 +26,21 @@ Last reviewed against the codebase on `2026-04-03` after the latest batch-job UI
   - `/total-jobs`
   - `/total-jobs/[totalJobId]`
 - The total-job detail page can trigger enrichment, rerun enrichment, and render parent-level artifacts.
+- The total-job detail page now includes a dedicated batch summary action for the whole parent job.
 - The `/total-jobs` list page can trigger enrichment directly.
+- The `/total-jobs` list page now exposes a `Summary` action for completed parent jobs.
+- The `/total-jobs` page now also exposes one combined all-scans summary action that analyzes all completed child scans across all total jobs in one artifact set.
+- Combined all-total-jobs summary APIs now exist:
+  - `GET /api/v1/total-jobs/summary/status`
+  - `POST /api/v1/total-jobs/summary/enrich`
+  - `GET /api/v1/total-jobs/summary/json`
+  - `GET /api/v1/total-jobs/summary/markdown`
+  - `GET /api/v1/total-jobs/summary/sandbox`
+- The combined all-scans summary route now runs:
+  - initial AI campaign summary
+  - sandbox verification across the campaign records
+  - targeted AI-authored tshark follow-up for weak sections
+  - final AI report over the enriched evidence
 - Total-job enrichment now deduplicates duplicate PCAPs before AI and sandbox processing.
 - The total-job detail page now shows:
   - dedupe summary
@@ -102,6 +116,8 @@ This keeps the first run fast, deterministic, and cheaper, while making AI and s
   - aggregate AI summary
   - sandbox verification
 - This stage works from existing finished child job outputs rather than re-running all initial parsing unless truly necessary.
+- For large multi-day imports, such as a 9-day PCAP split into 129 child files, the primary summary control should live on the total-job page and summarize the whole parent batch rather than encouraging per-child summary review.
+- For repeated or rolling imports, the `/total-jobs` page should also support one combined summary across all completed child scans from all total jobs so the analyst can summarize the full body of completed scans in one run.
 
 ## Core Domain Model
 

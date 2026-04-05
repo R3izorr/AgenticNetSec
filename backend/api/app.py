@@ -25,7 +25,7 @@ for module_dir in (SRC_DIR, SCRIPTS_DIR):
         sys.path.insert(0, module_dir_str)
 
 from analysis_engine import AnalysisEngine, AnalysisRequest
-from enrich_results_with_sandbox import enrich_record
+from enrich_results_with_sandbox import enrich_record, run_campaign_summary_route
 from forensic_schema import JobStatusResponse, TotalJobStatusResponse
 from report_ai import generate_results_report
 from summarize_results import build_aggregate
@@ -36,7 +36,10 @@ OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 UPLOADS_DIR = OUTPUTS_DIR / "uploads"
 JOBS_DIR = OUTPUTS_DIR / "analysis_jobs"
 TOTAL_JOBS_DIR = OUTPUTS_DIR / "total_jobs"
+ALL_TOTAL_JOBS_SUMMARY_DIR = TOTAL_JOBS_DIR / "__all_jobs_summary"
+ALL_TOTAL_JOBS_SUMMARY_STATUS_PATH = ALL_TOTAL_JOBS_SUMMARY_DIR / "status.json"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+ALL_TOTAL_JOBS_SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="AgenticNetSec API", version="1.0.0")
 app.add_middleware(
@@ -306,6 +309,74 @@ def _save_total_job_jsonl_artifact(
     return artifact_path
 
 
+def _save_all_total_jobs_jsonl_artifact(name: str, records: list[dict[str, Any]]) -> Path:
+    artifact_path = ALL_TOTAL_JOBS_SUMMARY_DIR / name
+    with artifact_path.open("w", encoding="utf-8") as handle:
+        for record in records:
+            handle.write(json.dumps(record))
+            handle.write("\n")
+    return artifact_path
+
+
+def _read_all_total_jobs_summary_status() -> dict[str, Any]:
+    if not ALL_TOTAL_JOBS_SUMMARY_STATUS_PATH.exists():
+        return {}
+    try:
+        return json.loads(ALL_TOTAL_JOBS_SUMMARY_STATUS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _write_all_total_jobs_summary_status(payload: dict[str, Any]) -> dict[str, Any]:
+    status_payload = dict(payload)
+    status_payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+    ALL_TOTAL_JOBS_SUMMARY_STATUS_PATH.write_text(
+        json.dumps(status_payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return status_payload
+
+
+def _list_completed_total_job_children() -> tuple[list[str], list[TotalJobChildRef]]:
+    total_job_ids: list[str] = []
+    completed_children: list[TotalJobChildRef] = []
+
+    for total_job in total_job_store.list_jobs():
+        job_children: list[TotalJobChildRef] = []
+        for child in total_job.children:
+            child_job = job_store.get(child.analysis_job_id)
+            if child_job and child_job.status == "completed":
+                job_children.append(child)
+        if job_children:
+            total_job_ids.append(total_job.total_job_id)
+            completed_children.extend(job_children)
+
+    return total_job_ids, completed_children
+
+
+def _serialize_all_total_jobs_summary_status() -> dict[str, Any]:
+    source_total_job_ids, completed_children = _list_completed_total_job_children()
+    stored_status = _read_all_total_jobs_summary_status()
+    return {
+        "status": stored_status.get("status", "not_started"),
+        "progress": stored_status.get("progress", 0.0),
+        "error": stored_status.get("error"),
+        "generated_at": stored_status.get("generated_at"),
+        "updated_at": stored_status.get("updated_at"),
+        "route_stage": stored_status.get("route_stage"),
+        "provider": stored_status.get("provider"),
+        "model": stored_status.get("model"),
+        "require_ai": bool(stored_status.get("require_ai", False)),
+        "source_total_job_count": len(source_total_job_ids),
+        "source_total_job_ids": source_total_job_ids,
+        "source_file_count": len(completed_children),
+        "record_count": stored_status.get("record_count"),
+        "unique_record_count": stored_status.get("unique_record_count"),
+        "duplicate_record_count": stored_status.get("duplicate_record_count"),
+        "selected_follow_up_record_count": stored_status.get("selected_follow_up_record_count"),
+    }
+
+
 def _run_total_job_sync(
     total_job_id: str,
     worker_count: int,
@@ -505,6 +576,184 @@ def _run_total_job_enrichment_sync(
     )
 
 
+def _run_all_total_jobs_summary_sync(
+    provider: str,
+    model: str | None,
+    require_ai: bool,
+) -> None:
+    source_total_job_ids, completed_children = _list_completed_total_job_children()
+    if not completed_children:
+        raise RuntimeError("No completed child analysis jobs are available across total jobs.")
+
+    _write_all_total_jobs_summary_status(
+        {
+            "status": "running",
+            "progress": 0.05,
+            "error": None,
+            "provider": provider,
+            "model": model,
+            "require_ai": require_ai,
+            "source_total_job_count": len(source_total_job_ids),
+            "source_total_job_ids": source_total_job_ids,
+            "source_file_count": len(completed_children),
+        }
+    )
+
+    records = [_load_analysis_record(child.analysis_job_id) for child in completed_children]
+    _write_all_total_jobs_summary_status(
+        {
+            "status": "running",
+            "progress": 0.2,
+            "error": None,
+            "provider": provider,
+            "model": model,
+            "require_ai": require_ai,
+            "source_total_job_count": len(source_total_job_ids),
+            "source_total_job_ids": source_total_job_ids,
+            "source_file_count": len(completed_children),
+            "record_count": len(records),
+        }
+    )
+
+    unique_records, dedupe_metadata = _dedupe_analysis_records(records)
+    _write_all_total_jobs_summary_status(
+        {
+            "status": "running",
+            "progress": 0.25,
+            "error": None,
+            "provider": provider,
+            "model": model,
+            "require_ai": require_ai,
+            "source_total_job_count": len(source_total_job_ids),
+            "source_total_job_ids": source_total_job_ids,
+            "source_file_count": len(completed_children),
+            "record_count": len(records),
+            "unique_record_count": len(unique_records),
+            "duplicate_record_count": len(dedupe_metadata["duplicates_removed"]),
+        }
+    )
+
+    def _campaign_progress(stage: str, progress: float) -> None:
+        _write_all_total_jobs_summary_status(
+            {
+                "status": "running",
+                "progress": progress,
+                "error": None,
+                "provider": provider,
+                "model": model,
+                "require_ai": require_ai,
+                "route_stage": stage,
+                "source_total_job_count": len(source_total_job_ids),
+                "source_total_job_ids": source_total_job_ids,
+                "source_file_count": len(completed_children),
+                "record_count": len(records),
+                "unique_record_count": len(unique_records),
+                "duplicate_record_count": len(dedupe_metadata["duplicates_removed"]),
+            }
+        )
+
+    campaign_result = run_campaign_summary_route(
+        unique_records,
+        build_aggregate(unique_records),
+        provider=provider,
+        model=model,
+        require_ai=require_ai,
+        progress_callback=_campaign_progress,
+    )
+    enriched_records = campaign_result["enriched_records"]
+    aggregate = campaign_result["aggregate"]
+    summary_markdown = campaign_result["final_report_markdown"]
+    case_summary = campaign_result["initial_summary"]
+    campaign_plan = campaign_result["campaign_plan"]
+    selected_follow_up_records = campaign_result["selected_follow_up_records"]
+
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "aggregate_summary.json").write_text(
+        json.dumps(aggregate, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "scan_results.json").write_text(
+        json.dumps(enriched_records, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    _save_all_total_jobs_jsonl_artifact("scan_results.jsonl", enriched_records)
+    _save_all_total_jobs_jsonl_artifact("scan_results.ai-tshark.jsonl", enriched_records)
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.json").write_text(
+        json.dumps(
+            {
+                "scope": "all_total_jobs",
+                "route": "campaign_ai_then_sandbox_then_final_report",
+                "source_total_job_ids": source_total_job_ids,
+                "source_total_job_count": len(source_total_job_ids),
+                "source_file_count": len(completed_children),
+                "dedupe": dedupe_metadata,
+                "initial_summary": case_summary,
+                "campaign_plan": campaign_plan,
+                "selected_follow_up_records": selected_follow_up_records,
+                "aggregate_summary": aggregate,
+                "records": enriched_records,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "initial_summary.md").write_text(
+        str(case_summary.get("report_text", "")) + ("\n" if case_summary.get("report_text") else ""),
+        encoding="utf-8",
+    )
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "campaign_plan.json").write_text(
+        json.dumps(
+            {
+                "initial_summary": case_summary,
+                "campaign_plan": campaign_plan,
+                "selected_follow_up_records": selected_follow_up_records,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.md").write_text(
+        summary_markdown + ("" if summary_markdown.endswith("\n") else "\n"),
+        encoding="utf-8",
+    )
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "sandbox.json").write_text(
+        json.dumps(
+            {
+                "scope": "all_total_jobs",
+                "source_total_job_ids": source_total_job_ids,
+                "source_total_job_count": len(source_total_job_ids),
+                "source_file_count": len(completed_children),
+                "dedupe": dedupe_metadata,
+                "record_count": len(enriched_records),
+                "records": enriched_records,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _write_all_total_jobs_summary_status(
+        {
+            "status": "completed",
+            "progress": 1.0,
+            "error": None,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "provider": provider,
+            "model": model,
+            "require_ai": require_ai,
+            "source_total_job_count": len(source_total_job_ids),
+            "source_total_job_ids": source_total_job_ids,
+            "source_file_count": len(completed_children),
+            "record_count": len(records),
+            "unique_record_count": len(unique_records),
+            "duplicate_record_count": len(dedupe_metadata["duplicates_removed"]),
+            "route_stage": "completed",
+            "selected_follow_up_record_count": len(selected_follow_up_records),
+        }
+    )
+
+
 async def _run_total_job(total_job_id: str, worker_count: int, job_payloads: list[dict[str, Any]]) -> None:
     loop = asyncio.get_running_loop()
     try:
@@ -542,6 +791,32 @@ async def _run_total_job_enrichment(
             enrichment_status="failed",
             enrichment_error=str(exc),
             error=None,
+        )
+
+
+async def _run_all_total_jobs_summary(
+    provider: str,
+    model: str | None,
+    require_ai: bool,
+) -> None:
+    loop = asyncio.get_running_loop()
+    try:
+        await loop.run_in_executor(
+            None,
+            _run_all_total_jobs_summary_sync,
+            provider,
+            model,
+            require_ai,
+        )
+    except Exception as exc:  # noqa: BLE001
+        current_status = _read_all_total_jobs_summary_status()
+        _write_all_total_jobs_summary_status(
+            {
+                **current_status,
+                "status": "failed",
+                "progress": current_status.get("progress", 0.0),
+                "error": str(exc),
+            }
         )
 
 
@@ -588,6 +863,7 @@ async def create_analysis_job(
         model=model,
         use_ai=_to_bool(use_ai, True),
         require_ai=_to_bool(require_ai, False),
+        artifacts_dir=job.artifacts_dir,
     )
 
     asyncio.create_task(_run_job(job.analysis_job_id, req))
@@ -630,6 +906,7 @@ async def create_batch_analysis_job(
                     "use_ai": False,
                     "require_ai": False,
                     "enable_sandbox": False,
+                    "artifacts_dir": child_job.artifacts_dir,
                 },
             }
         )
@@ -715,6 +992,74 @@ async def list_total_jobs():
         "total": len(jobs),
         "jobs": [_serialize_total_job(job) for job in jobs],
     }
+
+
+@app.get("/api/v1/total-jobs/summary/status")
+async def get_all_total_jobs_summary_status():
+    return _serialize_all_total_jobs_summary_status()
+
+
+@app.post("/api/v1/total-jobs/summary/enrich")
+async def enrich_all_total_jobs_summary(
+    provider: str | None = Form(default=None),
+    model: str | None = Form(default=None),
+    require_ai: str | bool | None = Form(default=None),
+):
+    status = _serialize_all_total_jobs_summary_status()
+    if status["source_file_count"] <= 0:
+        raise HTTPException(
+            status_code=409,
+            detail="No completed child analysis jobs are available across total jobs yet.",
+        )
+    if status["status"] == "running":
+        raise HTTPException(status_code=409, detail="All-jobs summary is already running.")
+
+    _write_all_total_jobs_summary_status(
+        {
+            **status,
+            "status": "queued",
+            "progress": 0.0,
+            "error": None,
+            "provider": provider or "gemini",
+            "model": model,
+            "require_ai": _to_bool(require_ai, False),
+        }
+    )
+    asyncio.create_task(
+        _run_all_total_jobs_summary(
+            provider or "gemini",
+            model,
+            _to_bool(require_ai, False),
+        )
+    )
+    return _serialize_all_total_jobs_summary_status()
+
+
+@app.get("/api/v1/total-jobs/summary/json")
+async def get_all_total_jobs_summary_json():
+    status = _serialize_all_total_jobs_summary_status()
+    if status["status"] != "completed":
+        raise HTTPException(status_code=409, detail=f"All-jobs summary is {status['status']}")
+    artifact_path = ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.json"
+    return json.loads(artifact_path.read_text(encoding="utf-8"))
+
+
+@app.get("/api/v1/total-jobs/summary/markdown")
+async def get_all_total_jobs_summary_markdown():
+    status = _serialize_all_total_jobs_summary_status()
+    if status["status"] != "completed":
+        raise HTTPException(status_code=409, detail=f"All-jobs summary is {status['status']}")
+    artifact_path = ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.md"
+    return {"markdown": artifact_path.read_text(encoding="utf-8")}
+
+
+@app.get("/api/v1/total-jobs/summary/sandbox")
+async def get_all_total_jobs_summary_sandbox():
+    status = _serialize_all_total_jobs_summary_status()
+    if status["status"] != "completed":
+        raise HTTPException(status_code=409, detail=f"All-jobs summary is {status['status']}")
+    artifact_path = ALL_TOTAL_JOBS_SUMMARY_DIR / "sandbox.json"
+    return json.loads(artifact_path.read_text(encoding="utf-8"))
 
 
 @app.get("/api/v1/total-jobs/{total_job_id}", response_model=TotalJobStatusResponse)

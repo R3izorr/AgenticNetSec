@@ -50,7 +50,7 @@ Current frontend state:
 - batch submission is implemented
 - total-job API integration is implemented at the data layer
 - legacy child-job pages still exist
-- a dedicated total-job page is the next UX layer to finish
+- the total-job page now supports both parent-level per-batch summary actions and one combined all-total-jobs summary action so large rolling imports can be summarized in one place
 
 ### Backend API
 

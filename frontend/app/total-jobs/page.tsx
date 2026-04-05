@@ -1,12 +1,24 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
+import { ArtifactPanel } from "@/components/common/artifact-panel"
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/page-state"
 import { InlineNotice } from "@/components/common/inline-notice"
 import { SectionCard } from "@/components/common/section-card"
 import { StatusBadge } from "@/components/common/status-badge"
+import {
+  getAllTotalJobsSummaryJson,
+  getAllTotalJobsSummaryMarkdown,
+  getAllTotalJobsSummarySandbox,
+  getAllTotalJobsSummaryStatus,
+  triggerAllTotalJobsSummary,
+  triggerTotalJobEnrichment,
+} from "@/lib/api/analysis"
+import { isApiError } from "@/lib/api/client"
+import { useTotalJobs } from "@/hooks/use-total-jobs"
+import { formatDateTime, formatNumber, formatPercent, formatPhaseLabel } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -24,10 +36,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { triggerTotalJobEnrichment } from "@/lib/api/analysis"
-import { isApiError } from "@/lib/api/client"
-import { useTotalJobs } from "@/hooks/use-total-jobs"
-import { formatDateTime, formatNumber, formatPercent, formatPhaseLabel } from "@/lib/format"
 
 function SummaryStat({
   label,
@@ -47,12 +55,44 @@ function SummaryStat({
   )
 }
 
+type AllJobsSummaryStatus = {
+  status: string
+  progress: number
+  error?: string | null
+  generated_at?: string | null
+  updated_at?: string | null
+  source_total_job_count: number
+  source_file_count: number
+  record_count?: number | null
+  unique_record_count?: number | null
+  duplicate_record_count?: number | null
+}
+
+type AllJobsSummaryArtifacts = {
+  summaryJson: unknown | null
+  summaryMarkdown: string | null
+  sandbox: unknown | null
+}
+
+const EMPTY_ALL_JOBS_ARTIFACTS: AllJobsSummaryArtifacts = {
+  summaryJson: null,
+  summaryMarkdown: null,
+  sandbox: null,
+}
+
 export default function TotalJobsPage() {
   const { jobs, loading, error, refresh } = useTotalJobs()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [allJobsSummaryStatus, setAllJobsSummaryStatus] = useState<AllJobsSummaryStatus | null>(null)
+  const [allJobsSummaryArtifacts, setAllJobsSummaryArtifacts] = useState<AllJobsSummaryArtifacts>(
+    EMPTY_ALL_JOBS_ARTIFACTS
+  )
+  const [allJobsSummaryLoading, setAllJobsSummaryLoading] = useState(true)
+  const [allJobsSummaryActionLoading, setAllJobsSummaryActionLoading] = useState(false)
+  const [allJobsSummaryError, setAllJobsSummaryError] = useState<string | null>(null)
 
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
@@ -92,6 +132,60 @@ export default function TotalJobsPage() {
     }
   }, [jobs])
 
+  const loadAllJobsSummary = useCallback(async () => {
+    setAllJobsSummaryLoading(true)
+    try {
+      const status = await getAllTotalJobsSummaryStatus()
+      setAllJobsSummaryStatus(status)
+
+      if (status.status === "completed") {
+        const [summaryJson, summaryMarkdown, sandbox] = await Promise.all([
+          getAllTotalJobsSummaryJson(),
+          getAllTotalJobsSummaryMarkdown(),
+          getAllTotalJobsSummarySandbox(),
+        ])
+        setAllJobsSummaryArtifacts({
+          summaryJson,
+          summaryMarkdown: summaryMarkdown.markdown,
+          sandbox,
+        })
+      } else {
+        setAllJobsSummaryArtifacts(EMPTY_ALL_JOBS_ARTIFACTS)
+      }
+
+      setAllJobsSummaryError(null)
+    } catch (err) {
+      const message = isApiError(err)
+        ? err.detail || err.message
+        : err instanceof Error
+          ? err.message
+          : "Unable to load the all-scans summary."
+      setAllJobsSummaryArtifacts(EMPTY_ALL_JOBS_ARTIFACTS)
+      setAllJobsSummaryError(message)
+    } finally {
+      setAllJobsSummaryLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadAllJobsSummary()
+  }, [loadAllJobsSummary])
+
+  useEffect(() => {
+    const currentStatus = allJobsSummaryStatus?.status
+    if (currentStatus !== "queued" && currentStatus !== "running") {
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      void loadAllJobsSummary()
+    }, 5000)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [allJobsSummaryStatus?.status, loadAllJobsSummary])
+
   const handleEnrichment = async (totalJobId: string) => {
     setActionLoadingId(totalJobId)
     try {
@@ -110,8 +204,39 @@ export default function TotalJobsPage() {
     }
   }
 
+  const handleRefresh = async () => {
+    await Promise.all([refresh(), loadAllJobsSummary()])
+  }
+
+  const handleAllJobsSummary = async () => {
+    setAllJobsSummaryActionLoading(true)
+    try {
+      await triggerAllTotalJobsSummary()
+      setAllJobsSummaryError(null)
+      await loadAllJobsSummary()
+    } catch (err) {
+      const message = isApiError(err)
+        ? err.detail || err.message
+        : err instanceof Error
+          ? err.message
+          : "Unable to trigger the all-scans summary."
+      setAllJobsSummaryError(message)
+    } finally {
+      setAllJobsSummaryActionLoading(false)
+    }
+  }
+
   const canRunEnrichment = (enrichmentStatus: string, deterministicComplete: boolean) =>
     deterministicComplete && enrichmentStatus !== "running"
+
+  const canOpenSummary = (enrichmentStatus: string) => enrichmentStatus === "completed"
+
+  const canRunAllJobsSummary =
+    (allJobsSummaryStatus?.source_file_count ?? 0) > 0 &&
+    allJobsSummaryStatus?.status !== "queued" &&
+    allJobsSummaryStatus?.status !== "running"
+
+  const canOpenAllJobsSummary = allJobsSummaryStatus?.status === "completed"
 
   const getEnrichmentButtonLabel = (enrichmentStatus: string, isLoading: boolean) => {
     if (isLoading) {
@@ -127,6 +252,22 @@ export default function TotalJobsPage() {
       return "Retry AI"
     }
     return "Run AI"
+  }
+
+  const getAllJobsSummaryButtonLabel = (status: string | undefined, isLoading: boolean) => {
+    if (isLoading) {
+      return "Starting..."
+    }
+    if (status === "queued" || status === "running") {
+      return "All-Scans Summary Running"
+    }
+    if (status === "completed") {
+      return "Re-run All-Scans Summary"
+    }
+    if (status === "failed") {
+      return "Retry All-Scans Summary"
+    }
+    return "Run All-Scans Summary"
   }
 
   if (loading && !jobs.length) {
@@ -170,9 +311,27 @@ export default function TotalJobsPage() {
         title="Total Jobs"
         subtitle="Monitor batch-level progress, file counts, and delayed enrichment readiness."
         actions={
-          <Button type="button" variant="outline" onClick={() => void refresh()}>
-            Refresh
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {canOpenAllJobsSummary ? (
+              <Button asChild type="button" variant="secondary">
+                <a href="#all-scans-summary">Open All-Scans Summary</a>
+              </Button>
+            ) : (
+              <Button type="button" variant="secondary" disabled>
+                All-Scans Summary Pending
+              </Button>
+            )}
+            <Button
+              type="button"
+              onClick={() => void handleAllJobsSummary()}
+              disabled={!canRunAllJobsSummary || allJobsSummaryActionLoading}
+            >
+              {getAllJobsSummaryButtonLabel(allJobsSummaryStatus?.status, allJobsSummaryActionLoading)}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void handleRefresh()}>
+              Refresh
+            </Button>
+          </div>
         }
       >
         <div className="flex flex-col gap-4">
@@ -227,6 +386,11 @@ export default function TotalJobsPage() {
 
           {error ? <InlineNotice variant="error">{error}</InlineNotice> : null}
           {actionError ? <InlineNotice variant="error">{actionError}</InlineNotice> : null}
+          <InlineNotice title="All-Scans Summary">
+            Run one combined summary across all completed child scans from every total job. This is the parent-level
+            answer for large split imports, so you do not need to open each total job just to summarize the full set.
+          </InlineNotice>
+          {allJobsSummaryError ? <InlineNotice variant="error">{allJobsSummaryError}</InlineNotice> : null}
 
           {!filteredJobs.length ? (
             <EmptyState
@@ -314,6 +478,17 @@ export default function TotalJobsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          {canOpenSummary(job.enrichmentStatus) ? (
+                            <Button asChild size="sm" variant="secondary">
+                              <Link href={`/total-jobs/${encodeURIComponent(job.totalJobId)}#batch-summary`}>
+                                Summary
+                              </Link>
+                            </Button>
+                          ) : (
+                            <Button type="button" size="sm" variant="secondary" disabled>
+                              Summary
+                            </Button>
+                          )}
                           <Button
                             type="button"
                             size="sm"
@@ -342,6 +517,71 @@ export default function TotalJobsPage() {
           )}
         </div>
       </SectionCard>
+
+      <section id="all-scans-summary" className="scroll-mt-24">
+        <ArtifactPanel
+          title="All Completed Scans Summary Markdown"
+          subtitle={`One combined summary across ${formatNumber(allJobsSummaryStatus?.source_file_count ?? 0, 0)} completed child files from ${formatNumber(allJobsSummaryStatus?.source_total_job_count ?? 0, 0)} total jobs.`}
+          copyValue={allJobsSummaryArtifacts.summaryMarkdown ?? undefined}
+          copyLabel="Copy all-scans summary markdown"
+        >
+          {allJobsSummaryLoading ? (
+            <p className="text-sm text-muted-foreground">Loading combined total-jobs summary...</p>
+          ) : allJobsSummaryArtifacts.summaryMarkdown ? (
+            <pre className="overflow-x-auto whitespace-pre-wrap text-sm leading-6 text-foreground/90">
+              {allJobsSummaryArtifacts.summaryMarkdown}
+            </pre>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {(allJobsSummaryStatus?.status ?? "not_started") === "completed"
+                ? "Combined summary markdown is not available."
+                : "Run the all-scans summary to analyze every completed child scan across all total jobs in one report."}
+            </p>
+          )}
+        </ArtifactPanel>
+      </section>
+
+      <ArtifactPanel
+        title="All Completed Scans Summary JSON"
+        subtitle="Combined structured summary built from all completed child scans across total jobs."
+        copyValue={
+          allJobsSummaryArtifacts.summaryJson
+            ? JSON.stringify(allJobsSummaryArtifacts.summaryJson, null, 2)
+            : undefined
+        }
+        copyLabel="Copy all-scans summary JSON"
+      >
+        {allJobsSummaryLoading ? (
+          <p className="text-sm text-muted-foreground">Loading combined total-jobs summary...</p>
+        ) : allJobsSummaryArtifacts.summaryJson ? (
+          <pre className="overflow-x-auto text-xs leading-6 text-foreground/90">
+            {JSON.stringify(allJobsSummaryArtifacts.summaryJson, null, 2)}
+          </pre>
+        ) : (
+          <p className="text-sm text-muted-foreground">No combined all-scans summary JSON available yet.</p>
+        )}
+      </ArtifactPanel>
+
+      <ArtifactPanel
+        title="All Completed Scans Sandbox Output"
+        subtitle="Combined sandbox-oriented enrichment view for all completed child scans across total jobs."
+        copyValue={
+          allJobsSummaryArtifacts.sandbox
+            ? JSON.stringify(allJobsSummaryArtifacts.sandbox, null, 2)
+            : undefined
+        }
+        copyLabel="Copy all-scans sandbox JSON"
+      >
+        {allJobsSummaryLoading ? (
+          <p className="text-sm text-muted-foreground">Loading combined total-jobs summary...</p>
+        ) : allJobsSummaryArtifacts.sandbox ? (
+          <pre className="overflow-x-auto text-xs leading-6 text-foreground/90">
+            {JSON.stringify(allJobsSummaryArtifacts.sandbox, null, 2)}
+          </pre>
+        ) : (
+          <p className="text-sm text-muted-foreground">No combined sandbox output available yet.</p>
+        )}
+      </ArtifactPanel>
     </div>
   )
 }

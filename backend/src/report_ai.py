@@ -121,9 +121,127 @@ def _field_guide() -> str:
         - possible_dcerpc_account_changes: admin/account/group activity indicators, still heuristic.
         - possible_outbound_exfil_flows: suspicious outbound bulk transfer candidates.
         - manual_payload_deployment_candidates: correlated internal RDP + SMB/DCERPC/admin-share deployment evidence.
+        - carved_payloads: recovered payload artifacts. Empty means no artifact has been recovered yet.
+        - payload_carving_status: overall carving outcome such as heuristic_only, partial_evidence, hash_only, or confirmed_artifact.
+        - payload_iocs: hashes, filenames, or file-type indicators derived from carving.
+        - payload_deployment_confidence: normalized confidence for Requirement D evidence.
+        - ai_tshark_review: targeted sandbox tshark follow-up generated after the initial AI campaign summary to confirm or expand weak sections.
         - suspected_attack_flow: stage-by-stage hypothesis map. Treat weakly_supported stages as hints, not proof.
         """
     ).strip()
+
+
+def _payload_artifacts_by_status(payload_carving: dict[str, Any] | None, *statuses: str) -> list[dict[str, Any]]:
+    expected = set(statuses)
+    payload_carving = payload_carving or {}
+    return [
+        item
+        for item in (payload_carving.get("carved_payloads") or [])
+        if item.get("recovery_status") in expected
+    ]
+
+
+def _format_payload_artifact_summary(artifacts: list[dict[str, Any]], limit: int = 3) -> str:
+    summaries: list[str] = []
+    for artifact in artifacts[:limit]:
+        label = artifact.get("recovered_filename") or artifact.get("artifact_id") or "recovered artifact"
+        parts = [str(label)]
+        if artifact.get("file_magic"):
+            parts.append(f"type={artifact['file_magic']}")
+        if artifact.get("sha256"):
+            parts.append(f"sha256={str(artifact['sha256'])[:12]}")
+        summaries.append(" ".join(parts))
+    return ", ".join(summaries)
+
+
+def _format_single_payload_deployment_section(findings: dict[str, Any]) -> str:
+    payload_carving = findings.get("payload_carving") or {}
+    manual_drop = [item for item in findings.get("manual_payload_deployment", {}).get("candidates", []) if item.get("suspicious")][:3]
+    spreaders = [item for item in findings.get("rdp_payload_deployment", {}).get("spreaders", []) if item.get("suspicious")][:3]
+    status = payload_carving.get("status")
+    confidence = payload_carving.get("payload_deployment_confidence")
+    confirmed_artifacts = _payload_artifacts_by_status(payload_carving, "confirmed_artifact")
+    partial_artifacts = _payload_artifacts_by_status(payload_carving, "partial_evidence", "hash_only")
+    payload_iocs = list(payload_carving.get("payload_iocs") or [])
+
+    if confirmed_artifacts:
+        artifact_summary = _format_payload_artifact_summary(confirmed_artifacts)
+        return (
+            "Recovered payload artifacts confirm transferred payload evidence. "
+            + artifact_summary
+            + (f". Confidence={confidence:.2f}." if isinstance(confidence, (int, float)) else ".")
+        )
+
+    if partial_artifacts or status in {"partial_evidence", "hash_only"}:
+        artifact_summary = _format_payload_artifact_summary(partial_artifacts)
+        text = "Partial or hash-only payload evidence was recovered, but full artifact reconstruction remains incomplete."
+        if artifact_summary:
+            text += " Recovered material: " + artifact_summary + "."
+        if payload_iocs:
+            text += " Payload IOCs: " + ", ".join(payload_iocs[:4]) + "."
+        if isinstance(confidence, (int, float)):
+            text += f" Confidence={confidence:.2f}."
+        return text
+
+    if manual_drop:
+        return (
+            "Heuristic deployment evidence is present through correlated RDP plus SMB/DCERPC admin-share activity from "
+            + ", ".join(
+                f"{item['src_ip']} to {item['unique_targets']} hosts "
+                f"(admin_share_targets={item['targets_with_admin_share_markers']}, remote_exec_targets={item['targets_with_remote_exec_markers']})"
+                for item in manual_drop
+            )
+            + (f". Confidence={confidence:.2f}." if isinstance(confidence, (int, float)) else ".")
+        )
+
+    if spreaders:
+        return (
+            "Heuristic deployment evidence is limited to internal RDP spread from "
+            + ", ".join(f"{item['src_ip']} to {item['unique_targets']} hosts" for item in spreaders)
+            + "."
+        )
+
+    return "The current packet evidence does not strongly prove RDP-based internal deployment or transferred payload recovery."
+
+
+def _format_batch_payload_deployment_section(aggregate: dict[str, Any], records: list[dict[str, Any]]) -> str:
+    confirmed = [item for item in records if item.get("payload_carving_status") == "confirmed_artifact"][:5]
+    partial = [item for item in records if item.get("payload_carving_status") in {"partial_evidence", "hash_only"}][:5]
+    heuristic_only = [
+        item
+        for item in records
+        if item.get("payload_carving_candidate_count")
+        and item.get("payload_carving_status") not in {"confirmed_artifact", "partial_evidence", "hash_only"}
+    ][:5]
+    manual_payload = [item for item in records if item.get("manual_payload_deployment_candidates")][:5]
+    spreaders = [item for item in records if item.get("suspicious_internal_rdp_spread")][:5]
+
+    parts: list[str] = []
+    if confirmed:
+        parts.append(
+            "Confirmed recovered payload artifacts appear in "
+            + ", ".join(item["file"] for item in confirmed)
+            + f" ({aggregate.get('files_with_recovered_payload_artifacts', len(confirmed))} file(s))."
+        )
+    if partial:
+        parts.append(
+            "Partial or hash-only payload evidence appears in "
+            + ", ".join(item["file"] for item in partial)
+            + f" ({aggregate.get('files_with_partial_payload_evidence', len(partial))} file(s))."
+        )
+    if heuristic_only:
+        parts.append(
+            "Heuristic-only payload deployment evidence appears in "
+            + ", ".join(item["file"] for item in heuristic_only)
+            + f" ({aggregate.get('files_with_heuristic_payload_only', len(heuristic_only))} file(s))."
+        )
+    if not parts and manual_payload:
+        parts.append("Manual RDP/SMB deployment candidates appear in " + ", ".join(item["file"] for item in manual_payload) + ".")
+    if not parts and spreaders:
+        parts.append("Internal RDP spread appears in " + ", ".join(item["file"] for item in spreaders) + ".")
+    if not parts:
+        parts.append("No strong internal payload deployment evidence is currently present in the results file.")
+    return " ".join(parts)
 
 
 def _compact_single_context(summary: dict[str, Any], findings: dict[str, Any]) -> dict[str, Any]:
@@ -137,6 +255,7 @@ def _compact_single_context(summary: dict[str, Any], findings: dict[str, Any]) -
     exfil = findings.get("outbound_exfiltration_candidates", {})
     rdp_spread = findings.get("rdp_payload_deployment", {})
     manual_drop = findings.get("manual_payload_deployment", {})
+    payload_carving = findings.get("payload_carving", {})
     zero_day = findings.get("zero_day_heuristics", {})
     sandbox = findings.get("sandbox_verification", {})
 
@@ -234,6 +353,23 @@ def _compact_single_context(summary: dict[str, Any], findings: dict[str, Any]) -
                 }
                 for item in _take([src for src in manual_drop.get("candidates", []) if src.get("suspicious")], 3)
             ],
+            "carved_payloads": [
+                {
+                    "artifact_id": item.get("artifact_id"),
+                    "protocol": item.get("protocol"),
+                    "recovery_status": item.get("recovery_status"),
+                    "recovered_filename": item.get("recovered_filename"),
+                    "saved_path": item.get("saved_path"),
+                    "sha256": item.get("sha256"),
+                    "file_magic": item.get("file_magic"),
+                    "mime_type": item.get("mime_type"),
+                }
+                for item in _take(payload_carving.get("carved_payloads"), 4)
+            ],
+            "payload_carving_status": payload_carving.get("status"),
+            "payload_iocs": _take(payload_carving.get("payload_iocs"), 8),
+            "payload_deployment_confidence": payload_carving.get("payload_deployment_confidence"),
+            "payload_carving_candidate_count": payload_carving.get("candidate_count"),
         },
         "zero_day_heuristics": zero_day,
         "sandbox_verification": {
@@ -248,6 +384,7 @@ def _compact_single_context(summary: dict[str, Any], findings: dict[str, Any]) -
 
 
 def _compact_record_for_batch(item: dict[str, Any]) -> dict[str, Any]:
+    ai_tshark_review = item.get("ai_tshark_review") or {}
     return {
         "file": item.get("file"),
         "packet_count": item.get("packet_count"),
@@ -327,6 +464,34 @@ def _compact_record_for_batch(item: dict[str, Any]) -> dict[str, Any]:
             }
             for candidate in _take(item.get("manual_payload_deployment_candidates"), 2)
         ],
+        "carved_payloads": [
+            {
+                "artifact_id": payload.get("artifact_id"),
+                "protocol": payload.get("protocol"),
+                "recovery_status": payload.get("recovery_status"),
+                "recovered_filename": payload.get("recovered_filename"),
+                "sha256": payload.get("sha256"),
+                "file_magic": payload.get("file_magic"),
+            }
+            for payload in _take(item.get("carved_payloads"), 2)
+        ],
+        "payload_carving_status": item.get("payload_carving_status"),
+        "payload_iocs": _take(item.get("payload_iocs"), 6),
+        "payload_deployment_confidence": item.get("payload_deployment_confidence"),
+        "payload_carving_candidate_count": item.get("payload_carving_candidate_count"),
+        "ai_tshark_review": {
+            "status": ai_tshark_review.get("status"),
+            "query_count": ai_tshark_review.get("query_count"),
+            "queries": [
+                {
+                    "name": query.get("name"),
+                    "stage": query.get("stage"),
+                    "row_count": query.get("row_count"),
+                    "sample_rows": _take(query.get("sample_rows"), 3),
+                }
+                for query in _take(ai_tshark_review.get("queries"), 3)
+            ],
+        },
         "deep_dive_focus_host": item.get("deep_dive_focus_host"),
         "deep_dive_ingress_external_ip": item.get("deep_dive_ingress_external_ip"),
         "suspected_attack_flow": _compact_flow_hypothesis((item.get("deep_dive") or {}).get("suspected_attack_flow")),
@@ -334,6 +499,7 @@ def _compact_record_for_batch(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def _compact_batch_context(aggregate: dict[str, Any], records: list[dict[str, Any]]) -> dict[str, Any]:
+    ai_tshark_records = [item for item in records if (item.get("ai_tshark_review") or {}).get("query_count")]
     top_records = sorted(
         records,
         key=lambda item: (
@@ -360,6 +526,11 @@ def _compact_batch_context(aggregate: dict[str, Any], records: list[dict[str, An
             "files_with_large_http_uploads": aggregate.get("files_with_large_http_uploads"),
             "files_with_internal_rdp_spread": aggregate.get("files_with_internal_rdp_spread"),
             "files_with_manual_payload_deployment": aggregate.get("files_with_manual_payload_deployment"),
+            "files_with_payload_carving_candidates": aggregate.get("files_with_payload_carving_candidates"),
+            "files_with_recovered_payload_artifacts": aggregate.get("files_with_recovered_payload_artifacts"),
+            "files_with_partial_payload_evidence": aggregate.get("files_with_partial_payload_evidence"),
+            "files_with_heuristic_payload_only": aggregate.get("files_with_heuristic_payload_only"),
+            "files_with_ai_tshark_follow_up": len(ai_tshark_records),
             "top_patient_zero_candidates": _take(aggregate.get("top_patient_zero_candidates"), 5),
             "top_deep_dive_focus_hosts": _take(aggregate.get("top_deep_dive_focus_hosts"), 5),
             "attack_flow": aggregate.get("attack_flow"),
@@ -450,8 +621,6 @@ def _fallback_report(summary: dict[str, Any], findings: dict[str, Any]) -> str:
     uploads = findings.get("large_http_posts", {}).get("uploads", [])[:5]
     exfil_candidates = findings.get("outbound_exfiltration_candidates", {}).get("flows", [])[:5]
     scanners = [item for item in findings.get("smb_rpc_scans", {}).get("scanners", []) if item.get("suspicious")][:3]
-    spreaders = [item for item in findings.get("rdp_payload_deployment", {}).get("spreaders", []) if item.get("suspicious")][:3]
-    manual_drop = [item for item in findings.get("manual_payload_deployment", {}).get("candidates", []) if item.get("suspicious")][:3]
 
     initial_access = (
         f"Most likely patient zero is {patient_zero['internal_ip']} after ingress from {patient_zero['external_ip']} over RDP."
@@ -478,19 +647,7 @@ def _fallback_report(summary: dict[str, Any], findings: dict[str, Any]) -> str:
         ) + "."
     if uploads:
         exfiltration += " Large outbound HTTP POST uploads were also observed from " + ", ".join(f"{item['src_ip']} ({item['inferred_upload_bytes']} bytes)" for item in uploads) + "."
-    payload = (
-        "Correlated RDP plus SMB/DCERPC admin-share activity suggests manual deployment from "
-        + ", ".join(
-            f"{item['src_ip']} to {item['unique_targets']} hosts "
-            f"(admin_share_targets={item['targets_with_admin_share_markers']}, remote_exec_targets={item['targets_with_remote_exec_markers']})"
-            for item in manual_drop
-        )
-        if manual_drop
-        else "Internal RDP spread suggests possible manual deployment from "
-        + ", ".join(f"{item['src_ip']} to {item['unique_targets']} hosts" for item in spreaders)
-        if spreaders
-        else "The current packet evidence does not strongly prove RDP-based internal deployment."
-    )
+    payload = _format_single_payload_deployment_section(findings)
     flow_summary = suspected_flow.get("summary")
 
     return dedent(
@@ -518,6 +675,9 @@ def _fallback_report(summary: dict[str, Any], findings: dict[str, Any]) -> str:
 
 def _fallback_results_report(aggregate: dict[str, Any], records: list[dict[str, Any]]) -> str:
     attack_flow = (aggregate.get("attack_flow") or {}).get("likely_path")
+    ai_tshark_follow_up = sum(
+        1 for item in records if (item.get("ai_tshark_review") or {}).get("query_count")
+    )
     patient_zero_candidates = sorted(
         [
             {
@@ -542,8 +702,6 @@ def _fallback_results_report(aggregate: dict[str, Any], records: list[dict[str, 
     temp_hits = [item for item in records if item.get("temp_sh_hits")][:5]
     exfil_candidates = [item for item in records if item.get("possible_outbound_exfil_flows")][:5]
     uploads = [item for item in records if item.get("large_http_uploads")][:5]
-    spreaders = [item for item in records if item.get("suspicious_internal_rdp_spread")][:5]
-    manual_payload = [item for item in records if item.get("manual_payload_deployment_candidates")][:5]
 
     initial_access = (
         "Strongest patient-zero candidate is "
@@ -584,15 +742,7 @@ def _fallback_results_report(aggregate: dict[str, Any], records: list[dict[str, 
         exfiltration += " Large HTTP uploads appear in " + ", ".join(
             item["file"] for item in uploads
         ) + "."
-    payload = (
-        "Manual RDP/SMB deployment candidates appear in "
-        + ", ".join(item["file"] for item in manual_payload)
-        if manual_payload
-        else "Internal RDP spread appears in "
-        + ", ".join(item["file"] for item in spreaders)
-        if spreaders
-        else "No strong internal RDP spread evidence is currently present in the results file."
-    )
+    payload = _format_batch_payload_deployment_section(aggregate, records)
 
     return dedent(
         f"""
@@ -614,7 +764,7 @@ def _fallback_results_report(aggregate: dict[str, Any], records: list[dict[str, 
         {payload}
 
         ## Confidence / Gaps
-        Files analyzed in results file: {aggregate.get("file_count", 0)}. This report is based on aggregated per-file scan results and remains heuristic.
+        Files analyzed in results file: {aggregate.get("file_count", 0)}. Targeted AI-authored tshark follow-up ran on {ai_tshark_follow_up} file(s). This report is based on aggregated per-file scan results and remains heuristic.
         """
     ).strip()
 
@@ -1353,6 +1503,10 @@ def _section_context(context: dict[str, Any], section_key: str, case_scope: str)
                 "internal_rdp_spread": signals.get("internal_rdp_spread"),
                 "manual_payload_deployment_candidates": signals.get("manual_payload_deployment_candidates"),
                 "dcerpc_account_changes": signals.get("dcerpc_account_changes"),
+                "carved_payloads": signals.get("carved_payloads"),
+                "payload_carving_status": signals.get("payload_carving_status"),
+                "payload_iocs": signals.get("payload_iocs"),
+                "payload_deployment_confidence": signals.get("payload_deployment_confidence"),
             }
         else:
             base["relevant_findings"] = {
@@ -1401,6 +1555,10 @@ def _section_context(context: dict[str, Any], section_key: str, case_scope: str)
         base["aggregate_signals"] = {
             "files_with_internal_rdp_spread": aggregate_summary.get("files_with_internal_rdp_spread"),
             "files_with_manual_payload_deployment": aggregate_summary.get("files_with_manual_payload_deployment"),
+            "files_with_payload_carving_candidates": aggregate_summary.get("files_with_payload_carving_candidates"),
+            "files_with_recovered_payload_artifacts": aggregate_summary.get("files_with_recovered_payload_artifacts"),
+            "files_with_partial_payload_evidence": aggregate_summary.get("files_with_partial_payload_evidence"),
+            "files_with_heuristic_payload_only": aggregate_summary.get("files_with_heuristic_payload_only"),
         }
         base["representative_records"] = representative_records.get("payload_deployment")
     else:
@@ -1569,6 +1727,14 @@ def _build_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
     uploads = [item for item in records if item.get("large_http_uploads")]
     rdp_spread = [item for item in records if item.get("suspicious_internal_rdp_spread")]
     manual_payload = [item for item in records if item.get("manual_payload_deployment_candidates")]
+    payload_candidates = [item for item in records if item.get("payload_carving_candidate_count", 0)]
+    confirmed_payload = [item for item in records if item.get("payload_carving_status") == "confirmed_artifact"]
+    partial_payload = [item for item in records if item.get("payload_carving_status") in {"partial_evidence", "hash_only"}]
+    heuristic_payload_only = [
+        item
+        for item in payload_candidates
+        if item not in confirmed_payload and item not in partial_payload
+    ]
     deep_dive = [item for item in records if item.get("deep_dive")]
     focus_hosts = Counter(item.get("deep_dive_focus_host") for item in deep_dive if item.get("deep_dive_focus_host"))
 
@@ -1601,6 +1767,10 @@ def _build_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
         "files_with_large_http_uploads": len(uploads),
         "files_with_internal_rdp_spread": len(rdp_spread),
         "files_with_manual_payload_deployment": len(manual_payload),
+        "files_with_payload_carving_candidates": len(payload_candidates),
+        "files_with_recovered_payload_artifacts": len(confirmed_payload),
+        "files_with_partial_payload_evidence": len(partial_payload),
+        "files_with_heuristic_payload_only": len(heuristic_payload_only),
         "files_with_deep_dive": len(deep_dive),
         "interesting_files": {
             "external_rdp": [item["file"] for item in external_rdp[:30]],
@@ -1613,6 +1783,10 @@ def _build_aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
             "large_http_uploads": [item["file"] for item in uploads[:30]],
             "internal_rdp_spread": [item["file"] for item in rdp_spread[:30]],
             "manual_payload_deployment": [item["file"] for item in manual_payload[:30]],
+            "payload_carving_candidates": [item["file"] for item in payload_candidates[:30]],
+            "recovered_payload_artifacts": [item["file"] for item in confirmed_payload[:30]],
+            "partial_payload_evidence": [item["file"] for item in partial_payload[:30]],
+            "heuristic_payload_only": [item["file"] for item in heuristic_payload_only[:30]],
             "deep_dive": [item["file"] for item in deep_dive[:30]],
         },
         "top_patient_zero_candidates": patient_zero_candidates[:20],

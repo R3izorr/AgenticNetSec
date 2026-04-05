@@ -2,7 +2,7 @@
 
 ## Current Status Snapshot
 
-Last reviewed against the codebase on `2026-04-03` after the latest batch-job UI and enrichment updates.
+Last reviewed against the codebase on `2026-04-06` after adding the combined all-total-jobs summary flow.
 
 - `[done]` Phase 1: Data model and persistence
 - `[done]` Phase 2: Batch submission backend
@@ -20,10 +20,19 @@ Last reviewed against the codebase on `2026-04-03` after the latest batch-job UI
 - The total-job detail page can trigger enrichment.
 - The total-job detail page can rerun or retry enrichment.
 - The `/total-jobs` list page can trigger enrichment directly.
+- The `/total-jobs` list page now has a dedicated `Summary` action for completed parent jobs.
+- The `/total-jobs` list page now has a top-level all-scans summary action for all completed child scans across all total jobs.
+- The backend now exposes combined all-total-jobs summary artifacts and status under `/api/v1/total-jobs/summary/...`.
+- The combined all-scans summary now uses the campaign AI route:
+  - initial AI summary
+  - sandbox verification
+  - targeted AI-authored tshark follow-up
+  - final AI report
 - The total-job detail page can render:
   - `summary.md`
   - `summary.json`
   - `sandbox.json`
+- The total-job detail page now includes a clear parent-level batch summary action instead of pushing users toward child-by-child summary review.
 - The total-job detail page now surfaces dedupe metadata.
 - The total-job detail page now surfaces partial-batch warnings when child jobs fail.
 - The `/total-jobs` list page now surfaces partial-batch warnings when some child jobs fail.

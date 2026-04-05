@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
-from typing import Any
+from typing import Any, Callable
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
@@ -20,6 +20,7 @@ from sandbox_verifier import run_sandbox_verification, sandbox_verification_enab
 from sandbox_verifier import run_ai_tshark_queries
 from summarize_results import build_aggregate, load_results
 from verification_planner import build_verification_plan
+from report_ai import generate_results_report
 from ai_tshark_planner import (
     build_ai_tshark_plan,
     build_campaign_weak_sections,
@@ -76,6 +77,112 @@ def enrich_record_with_plan(record: dict[str, Any], plan: dict[str, Any]) -> dic
         (sandbox.get("exfiltration") or {}).get("verified_temp_sh_flows", [])
     )
     return record
+
+
+def run_campaign_summary_route(
+    records: list[dict[str, Any]],
+    aggregate: dict[str, Any],
+    *,
+    provider: str = "gemini",
+    model: str | None = None,
+    require_ai: bool = False,
+    progress_callback: Callable[[str, float], None] | None = None,
+) -> dict[str, Any]:
+    copied_records = [dict(record) for record in records]
+    all_checks_plan = {
+        "requested_checks": ["remote_management", "internal_scanning", "exfiltration", "payload_deployment"]
+    }
+
+    case_summary = build_case_summary(
+        aggregate,
+        copied_records,
+        provider=provider,
+        model=model,
+        require_ai=require_ai,
+    )
+    if progress_callback:
+        progress_callback("initial_summary", 0.35)
+
+    campaign_plan = build_campaign_weak_sections(
+        aggregate=aggregate,
+        report_text=case_summary.get("report_text", ""),
+        provider=provider,
+        model=model,
+        require_ai=require_ai,
+    )
+    weak_sections = campaign_plan.get("weak_sections") or []
+    selected_follow_up_records = select_records_for_sections(
+        records=copied_records,
+        aggregate=aggregate,
+        weak_sections=weak_sections,
+    )
+    selected_follow_up_paths = {
+        record.get("path")
+        for record in selected_follow_up_records
+        if record.get("path")
+    }
+    if progress_callback:
+        progress_callback("campaign_plan", 0.45)
+
+    enriched_records: list[dict[str, Any]] = []
+    for index, record in enumerate(copied_records, start=1):
+        enriched_record = enrich_record_with_plan(dict(record), dict(all_checks_plan))
+
+        ai_plan = None
+        ai_review = None
+        if enriched_record.get("path") in selected_follow_up_paths:
+            ai_plan = build_ai_tshark_plan(
+                record=enriched_record,
+                aggregate=aggregate,
+                report_text=case_summary.get("report_text", ""),
+                focus_sections=weak_sections,
+                provider=provider,
+                model=model,
+                require_ai=require_ai,
+            )
+            ai_review = run_ai_tshark_queries(enriched_record["path"], ai_plan.get("queries", []))
+            enriched_record["ai_verification_plan"] = ai_plan
+            enriched_record["ai_tshark_review"] = ai_review
+            enriched_record["ai_tshark_query_count"] = len((ai_review.get("queries") or []))
+        else:
+            enriched_record["ai_tshark_query_count"] = 0
+
+        enriched_records.append(enriched_record)
+        if progress_callback:
+            progress_callback(
+                "record_enrichment",
+                0.45 + (0.35 * index / max(1, len(copied_records))),
+            )
+
+    final_aggregate = build_aggregate(enriched_records)
+    if progress_callback:
+        progress_callback("final_aggregate", 0.85)
+
+    final_report = generate_results_report(
+        final_aggregate,
+        enriched_records,
+        provider=provider,
+        model=model,
+        use_ai=True,
+        require_ai=require_ai,
+    )
+    if progress_callback:
+        progress_callback("final_report", 0.95)
+
+    return {
+        "initial_summary": case_summary,
+        "campaign_plan": campaign_plan,
+        "selected_follow_up_records": [
+            {
+                "file": record.get("file"),
+                "path": record.get("path"),
+            }
+            for record in selected_follow_up_records
+        ],
+        "enriched_records": enriched_records,
+        "aggregate": final_aggregate,
+        "final_report_markdown": final_report,
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:

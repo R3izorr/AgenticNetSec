@@ -27,6 +27,7 @@ from forensic_schema import (
 from guardrails import Guardrails
 from observability import MetricsTracker, estimate_cost
 from planner import AnalysisPlanner
+from payload_carver import run_payload_carving
 from report_ai import generate_report_result
 from sandbox_verifier import run_sandbox_verification
 from tool_executor import ToolExecutor, ToolPolicy
@@ -53,6 +54,7 @@ class AnalysisRequest:
     use_ai: bool = True
     require_ai: bool = False
     enable_sandbox: bool | None = None
+    artifacts_dir: str | None = None
 
 
 @dataclass
@@ -77,6 +79,7 @@ class AnalysisEngine:
                 "reasoning",
                 "zero_day_heuristics",
                 "sandbox_verification",
+                "payload_carving",
             }
         )
 
@@ -111,6 +114,31 @@ class AnalysisEngine:
                 req.pcap_path,
                 policy=ToolPolicy(timeout_seconds=300, retries=1),
             )
+            payload_carving = self.executor.execute(
+                "payload_carving",
+                run_payload_carving,
+                req.pcap_path,
+                findings,
+                artifacts_dir=req.artifacts_dir,
+                policy=ToolPolicy(timeout_seconds=120, retries=0),
+                fallback=lambda *args, **kwargs: {
+                    "status": "error",
+                    "pcap_path": str(Path(req.pcap_path).resolve()),
+                    "artifacts_dir": str(Path(req.artifacts_dir).resolve()) if req.artifacts_dir else None,
+                    "candidate_count": 0,
+                    "selected_candidates": [],
+                    "carved_payloads": [],
+                    "payload_iocs": [],
+                    "payload_deployment_confidence": 0.0,
+                    "bytes_reconstructed": 0,
+                    "manifest_path": None,
+                    "notes": ["Payload carving failed and returned fallback output."],
+                },
+            )
+            findings = {
+                **findings,
+                "payload_carving": payload_carving,
+            }
             deep_dive = None
             if plan.run_deep_dive:
                 deep_dive = self.executor.execute(
@@ -285,6 +313,7 @@ class AnalysisEngine:
             for item in findings.get("outbound_exfiltration_candidates", {}).get("flows", [])
             if item.get("suspicious")
         ]
+        payload_carving = findings.get("payload_carving") or {}
         spreaders = [
             item
             for item in findings.get("rdp_payload_deployment", {}).get("spreaders", [])
@@ -314,6 +343,13 @@ class AnalysisEngine:
             "possible_outbound_exfil_flows": outbound_exfil,
             "suspicious_internal_rdp_spread": spreaders,
             "manual_payload_deployment_candidates": manual_drop_candidates,
+            "carved_payloads": list(payload_carving.get("carved_payloads") or []),
+            "payload_iocs": list(payload_carving.get("payload_iocs") or []),
+            "payload_deployment_confidence": float(payload_carving.get("payload_deployment_confidence", 0.0) or 0.0),
+            "payload_carving_candidate_count": int(payload_carving.get("candidate_count", 0) or 0),
+            "payload_carving_status": payload_carving.get("status"),
+            "payload_carving_manifest_path": payload_carving.get("manifest_path"),
+            "payload_carving_selected_candidates": list(payload_carving.get("selected_candidates") or []),
             "analysis_profile": "base+dive" if deep_dive else "base",
             "analysis_version": ANALYSIS_VERSION,
         }
@@ -767,6 +803,9 @@ class AnalysisEngine:
             "large_http_uploads": findings.get("large_http_posts", {}).get("uploads", []),
             "suspicious_internal_rdp_spread": findings.get("rdp_payload_deployment", {}).get("spreaders", []),
             "manual_payload_deployment_candidates": findings.get("manual_payload_deployment", {}).get("candidates", []),
+            "carved_payloads": (findings.get("payload_carving") or {}).get("carved_payloads", []),
+            "payload_iocs": (findings.get("payload_carving") or {}).get("payload_iocs", []),
+            "payload_deployment_confidence": (findings.get("payload_carving") or {}).get("payload_deployment_confidence", 0.0),
             "deep_dive": deep_dive,
             "deep_dive_focus_host": (deep_dive or {}).get("focus_host"),
         }

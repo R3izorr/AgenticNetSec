@@ -198,3 +198,20 @@ export interface TotalJobSandboxTransport {
   record_count?: number
   records?: Array<Record<string, unknown>>
 }
+
+export interface AllTotalJobsSummaryStatusTransport {
+  status: string
+  progress: number
+  error?: string | null
+  generated_at?: string | null
+  updated_at?: string | null
+  provider?: string | null
+  model?: string | null
+  require_ai?: boolean
+  source_total_job_count: number
+  source_total_job_ids?: string[]
+  source_file_count: number
+  record_count?: number | null
+  unique_record_count?: number | null
+  duplicate_record_count?: number | null
+}

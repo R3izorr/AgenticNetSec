@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/api/client"
 import type {
+  AllTotalJobsSummaryStatusTransport,
   ForensicReportTransport,
   GuardrailAuditTransport,
   JobStatusResponseTransport,
@@ -78,6 +79,34 @@ export async function getTotalJobs(): Promise<TotalJobListResponse> {
     total: raw.total,
     jobs: raw.jobs.map(adaptTotalJobStatus),
   }
+}
+
+export async function getAllTotalJobsSummaryStatus(
+): Promise<AllTotalJobsSummaryStatusTransport> {
+  return apiRequest<AllTotalJobsSummaryStatusTransport>("/api/v1/total-jobs/summary/status")
+}
+
+export async function triggerAllTotalJobsSummary(
+): Promise<AllTotalJobsSummaryStatusTransport> {
+  return apiRequest<AllTotalJobsSummaryStatusTransport>("/api/v1/total-jobs/summary/enrich", {
+    method: "POST",
+    body: new FormData(),
+  })
+}
+
+export async function getAllTotalJobsSummaryJson(
+): Promise<TotalJobSummaryJsonTransport> {
+  return apiRequest<TotalJobSummaryJsonTransport>("/api/v1/total-jobs/summary/json")
+}
+
+export async function getAllTotalJobsSummaryMarkdown(
+): Promise<ReportMarkdownTransport> {
+  return apiRequest<ReportMarkdownTransport>("/api/v1/total-jobs/summary/markdown")
+}
+
+export async function getAllTotalJobsSummarySandbox(
+): Promise<TotalJobSandboxTransport> {
+  return apiRequest<TotalJobSandboxTransport>("/api/v1/total-jobs/summary/sandbox")
 }
 
 export async function getTotalJobStatus(
