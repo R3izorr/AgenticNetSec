@@ -63,9 +63,20 @@ class CampaignSummaryRouteTests(unittest.TestCase):
                 return_value={"file_count": 2, "files_with_ai_tshark_follow_up": 1},
             ) as build_aggregate,
             patch(
-                "enrich_results_with_sandbox.generate_results_report",
-                return_value="final report",
-            ) as generate_results_report,
+                "enrich_results_with_sandbox.generate_results_report_result",
+                return_value=type(
+                    "Result",
+                    (),
+                    {
+                        "text": "final report",
+                        "provider": "gemini",
+                        "model": "gemini-2.5-flash",
+                        "fallback_used": False,
+                        "llm_tokens_in": 12,
+                        "llm_tokens_out": 34,
+                    },
+                )(),
+            ) as generate_results_report_result,
         ):
             result = run_campaign_summary_route(
                 records,
@@ -82,12 +93,14 @@ class CampaignSummaryRouteTests(unittest.TestCase):
         build_ai_tshark_plan.assert_called_once()
         run_ai_tshark_queries.assert_called_once_with("/tmp/b.pcap", [{"name": "temp_sh_follow_up", "stage": "C"}])
         build_aggregate.assert_called_once()
-        generate_results_report.assert_called_once()
+        generate_results_report_result.assert_called_once()
 
         self.assertEqual(result["initial_summary"]["report_text"], "initial report")
         self.assertEqual(result["campaign_plan"]["weak_sections"], ["C"])
         self.assertEqual(result["selected_follow_up_records"], [{"file": "b.pcap", "path": "/tmp/b.pcap"}])
         self.assertEqual(result["final_report_markdown"], "final report")
+        self.assertEqual(result["final_report"]["status"], "ai_generated")
+        self.assertTrue(result["final_report"]["ai_callable"])
         self.assertEqual(result["enriched_records"][0]["ai_tshark_query_count"], 0)
         self.assertEqual(result["enriched_records"][1]["ai_tshark_query_count"], 1)
         self.assertIn(("initial_summary", 0.35), progress_events)

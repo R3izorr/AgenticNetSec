@@ -20,7 +20,7 @@ from sandbox_verifier import run_sandbox_verification, sandbox_verification_enab
 from sandbox_verifier import run_ai_tshark_queries
 from summarize_results import build_aggregate, load_results
 from verification_planner import build_verification_plan
-from report_ai import generate_results_report
+from report_ai import generate_results_report_result
 from ai_tshark_planner import (
     build_ai_tshark_plan,
     build_campaign_weak_sections,
@@ -158,7 +158,7 @@ def run_campaign_summary_route(
     if progress_callback:
         progress_callback("final_aggregate", 0.85)
 
-    final_report = generate_results_report(
+    final_report = generate_results_report_result(
         final_aggregate,
         enriched_records,
         provider=provider,
@@ -181,7 +181,17 @@ def run_campaign_summary_route(
         ],
         "enriched_records": enriched_records,
         "aggregate": final_aggregate,
-        "final_report_markdown": final_report,
+        "final_report": {
+            "provider": final_report.provider,
+            "model": final_report.model,
+            "fallback_used": final_report.fallback_used,
+            "llm_tokens_in": final_report.llm_tokens_in,
+            "llm_tokens_out": final_report.llm_tokens_out,
+            "ai_callable": not final_report.fallback_used,
+            "status": "ai_generated" if not final_report.fallback_used else "fallback_report",
+            "report_text": final_report.text,
+        },
+        "final_report_markdown": final_report.text,
     }
 
 

@@ -41,7 +41,22 @@ Last reviewed against the codebase on `2026-04-06` after adding the combined all
   - sandbox verification across the campaign records
   - targeted AI-authored tshark follow-up for weak sections
   - final AI report over the enriched evidence
+- The per-total-job enrichment route now runs the same campaign AI flow:
+  - initial AI campaign summary
+  - sandbox verification across that total job's deduplicated records
+  - targeted AI-authored tshark follow-up for weak sections
+  - final AI report over the enriched evidence
 - Total-job enrichment now deduplicates duplicate PCAPs before AI and sandbox processing.
+- Total-job enrichment now persists richer campaign artifacts alongside the final report:
+  - `aggregate_summary.json`
+  - `scan_results.json`
+  - `scan_results.jsonl`
+  - `scan_results.ai-tshark.jsonl`
+  - `initial_summary.md`
+  - `campaign_plan.json`
+  - `summary.json`
+  - `summary.md`
+  - `sandbox.json`
 - The total-job detail page now shows:
   - dedupe summary
   - removed duplicate files
@@ -77,6 +92,9 @@ Last reviewed against the codebase on `2026-04-06` after adding the combined all
 - Parent enrichment deduplicates duplicate completed PCAPs before AI and sandbox processing and persists dedupe metadata in:
   - `summary.json`
   - `sandbox.json`
+- Parent enrichment now also persists the initial campaign summary and follow-up planning artifacts in:
+  - `initial_summary.md`
+  - `campaign_plan.json`
 
 ## Goal
 

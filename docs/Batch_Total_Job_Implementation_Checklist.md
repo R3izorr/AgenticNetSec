@@ -28,7 +28,14 @@ Last reviewed against the codebase on `2026-04-06` after adding the combined all
   - sandbox verification
   - targeted AI-authored tshark follow-up
   - final AI report
+- The per-total-job enrichment route now uses the same campaign AI route:
+  - initial AI summary
+  - sandbox verification
+  - targeted AI-authored tshark follow-up
+  - final AI report
 - The total-job detail page can render:
+  - initial campaign summary
+  - weak-section follow-up context
   - `summary.md`
   - `summary.json`
   - `sandbox.json`
@@ -183,6 +190,12 @@ Definition of done:
   - AI summary
   - sandbox verification
 - Save:
+  - `aggregate_summary.json`
+  - `scan_results.json`
+  - `scan_results.jsonl`
+  - `scan_results.ai-tshark.jsonl`
+  - `initial_summary.md`
+  - `campaign_plan.json`
   - `summary.json`
   - `summary.md`
   - `sandbox.json`

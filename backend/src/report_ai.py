@@ -1680,8 +1680,27 @@ def generate_results_report(
     use_ai: bool = True,
     require_ai: bool = False,
 ) -> str:
+    return generate_results_report_result(
+        aggregate,
+        records,
+        provider=provider,
+        model=model,
+        use_ai=use_ai,
+        require_ai=require_ai,
+    ).text
+
+
+def generate_results_report_result(
+    aggregate: dict[str, Any],
+    records: list[dict[str, Any]],
+    *,
+    provider: str = "openrouter",
+    model: str | None = None,
+    use_ai: bool = True,
+    require_ai: bool = False,
+) -> ReportGenerationResult:
     compact_context = _compact_batch_context(aggregate, records)
-    result = _generate_sectioned_report(
+    return _generate_sectioned_report(
         context=compact_context,
         provider=provider,
         model=model,
@@ -1691,7 +1710,6 @@ def generate_results_report(
         attack_flow=(aggregate.get("attack_flow") or {}).get("likely_path"),
         fallback_text=_fallback_results_report(aggregate, records),
     )
-    return result.text
 
 
 def _load_results(results_file: Path) -> list[dict[str, Any]]:

@@ -55,6 +55,23 @@ type DedupeInfo = {
   }>
 }
 
+type CampaignFollowUpRecord = {
+  file: string | null
+  path: string | null
+}
+
+type CampaignArtifacts = {
+  route: string | null
+  initialSummaryMarkdown: string | null
+  weakSections: string[]
+  plannerSource: string | null
+  sectionReasons: Array<{
+    section: string
+    reason: string
+  }>
+  selectedFollowUpRecords: CampaignFollowUpRecord[]
+}
+
 function parseDedupeInfo(value: unknown): DedupeInfo | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null
@@ -93,6 +110,64 @@ function parseDedupeInfo(value: unknown): DedupeInfo | null {
         : 0,
     duplicatesRemoved,
   }
+}
+
+function parseCampaignArtifacts(value: unknown): CampaignArtifacts | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null
+  }
+
+  const source = value as Record<string, unknown>
+  const initialSummary =
+    source.initial_summary && typeof source.initial_summary === "object" && !Array.isArray(source.initial_summary)
+      ? (source.initial_summary as Record<string, unknown>)
+      : null
+  const campaignPlan =
+    source.campaign_plan && typeof source.campaign_plan === "object" && !Array.isArray(source.campaign_plan)
+      ? (source.campaign_plan as Record<string, unknown>)
+      : null
+
+  const weakSections = Array.isArray(campaignPlan?.weak_sections)
+    ? campaignPlan.weak_sections.filter((entry): entry is string => typeof entry === "string")
+    : []
+
+  const sectionReasons = campaignPlan?.section_reasons
+  const parsedSectionReasons =
+    sectionReasons && typeof sectionReasons === "object" && !Array.isArray(sectionReasons)
+      ? Object.entries(sectionReasons)
+          .filter((entry): entry is [string, string] => typeof entry[0] === "string" && typeof entry[1] === "string")
+          .map(([section, reason]) => ({ section, reason }))
+      : []
+
+  const selectedFollowUpRecords = Array.isArray(source.selected_follow_up_records)
+    ? source.selected_follow_up_records
+        .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object" && !Array.isArray(entry)))
+        .map((entry) => ({
+          file: typeof entry.file === "string" ? entry.file : null,
+          path: typeof entry.path === "string" ? entry.path : null,
+        }))
+    : []
+
+  const result = {
+    route: typeof source.route === "string" ? source.route : null,
+    initialSummaryMarkdown: typeof initialSummary?.report_text === "string" ? initialSummary.report_text : null,
+    weakSections,
+    plannerSource: typeof campaignPlan?.planner_source === "string" ? campaignPlan.planner_source : null,
+    sectionReasons: parsedSectionReasons,
+    selectedFollowUpRecords,
+  }
+
+  if (
+    !result.route &&
+    !result.initialSummaryMarkdown &&
+    !result.weakSections.length &&
+    !result.sectionReasons.length &&
+    !result.selectedFollowUpRecords.length
+  ) {
+    return null
+  }
+
+  return result
 }
 
 export default function TotalJobDetailPage() {
@@ -203,6 +278,10 @@ export default function TotalJobDetailPage() {
   const dedupeInfo = useMemo(() => {
     return parseDedupeInfo(artifacts.summaryJson) ?? parseDedupeInfo(artifacts.sandbox)
   }, [artifacts.summaryJson, artifacts.sandbox])
+
+  const campaignArtifacts = useMemo(() => {
+    return parseCampaignArtifacts(artifacts.summaryJson)
+  }, [artifacts.summaryJson])
 
   if (loading && !job) {
     return (
@@ -414,7 +493,7 @@ export default function TotalJobDetailPage() {
       <section id="batch-summary" className="scroll-mt-24">
         <ArtifactPanel
           title="Batch Summary Markdown"
-          subtitle="Parent-level markdown summary for the whole total job, built from all completed child-file analysis records."
+          subtitle="Final parent-level AI report for the whole total job after the initial campaign summary, sandbox verification, and targeted tshark follow-up."
           copyValue={artifacts.summaryMarkdown ?? undefined}
           copyLabel="Copy summary markdown"
         >
@@ -433,6 +512,90 @@ export default function TotalJobDetailPage() {
           )}
         </ArtifactPanel>
       </section>
+
+      {campaignArtifacts ? (
+        <>
+          <ArtifactPanel
+            title="Initial Campaign Summary"
+            subtitle="First AI pass across the completed child-file records before sandbox verification and targeted tshark follow-up."
+            copyValue={campaignArtifacts.initialSummaryMarkdown ?? undefined}
+            copyLabel="Copy initial summary markdown"
+          >
+            {artifactLoading ? (
+              <p className="text-sm text-muted-foreground">Loading enrichment artifacts...</p>
+            ) : campaignArtifacts.initialSummaryMarkdown ? (
+              <pre className="overflow-x-auto whitespace-pre-wrap text-sm leading-6 text-foreground/90">
+                {campaignArtifacts.initialSummaryMarkdown}
+              </pre>
+            ) : (
+              <p className="text-sm text-muted-foreground">No separate initial campaign summary was persisted for this run.</p>
+            )}
+          </ArtifactPanel>
+
+          <SectionCard
+            title="AI Follow-Up Plan"
+            subtitle="Weak sections from the initial campaign summary drive targeted tshark verification across selected records."
+          >
+            <div className="flex flex-col gap-4">
+              <KeyValueGrid
+                items={[
+                  { label: "Route", value: campaignArtifacts.route ?? "N/A" },
+                  {
+                    label: "Weak Sections",
+                    value: campaignArtifacts.weakSections.length ? campaignArtifacts.weakSections.join(", ") : "None",
+                  },
+                  { label: "Planner Source", value: campaignArtifacts.plannerSource ?? "N/A" },
+                  {
+                    label: "Selected Records",
+                    value: formatNumber(campaignArtifacts.selectedFollowUpRecords.length, 0),
+                  },
+                ]}
+              />
+
+              {campaignArtifacts.weakSections.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {campaignArtifacts.weakSections.map((section) => (
+                    <Badge key={section} variant="secondary" className="rounded-full px-2.5 py-0.5">
+                      Weak Section {section}
+                    </Badge>
+                  ))}
+                </div>
+              ) : null}
+
+              {campaignArtifacts.sectionReasons.length ? (
+                <div className="rounded-lg border border-border/70 bg-background/40 p-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Why Follow-Up Was Requested</p>
+                  <ul className="mt-3 flex flex-col gap-2 text-sm text-foreground/85">
+                    {campaignArtifacts.sectionReasons.map((entry) => (
+                      <li key={entry.section} className="rounded-md border border-border/60 bg-background/30 px-3 py-2">
+                        <span className="font-medium">Section {entry.section}:</span> {entry.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {campaignArtifacts.selectedFollowUpRecords.length ? (
+                <div className="rounded-lg border border-border/70 bg-background/40 p-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Selected Follow-Up Records</p>
+                  <ul className="mt-3 flex flex-col gap-2 text-sm text-foreground/85">
+                    {campaignArtifacts.selectedFollowUpRecords.map((entry, index) => (
+                      <li key={`${entry.path ?? entry.file ?? "record"}-${index}`} className="rounded-md border border-border/60 bg-background/30 px-3 py-2">
+                        <div>{entry.file ?? "Unknown file"}</div>
+                        {entry.path ? <div className="font-mono text-xs text-muted-foreground">{entry.path}</div> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <InlineNotice variant="info" title="No targeted follow-up records">
+                  This enrichment run did not select any specific records for AI-authored tshark follow-up.
+                </InlineNotice>
+              )}
+            </div>
+          </SectionCard>
+        </>
+      ) : null}
 
       {dedupeInfo ? (
         <SectionCard

@@ -4,7 +4,7 @@ import json
 from textwrap import dedent
 from typing import Any
 
-from report_ai import generate_results_report, generate_text_result
+from report_ai import generate_results_report_result, generate_text_result
 
 SECTION_FILE_KEYS = {
     "A": ["external_rdp"],
@@ -35,8 +35,13 @@ def build_case_summary(
             "provider": "file",
             "model": None,
             "report_text": summary_text,
+            "fallback_used": False,
+            "llm_tokens_in": 0,
+            "llm_tokens_out": 0,
+            "ai_callable": False,
+            "status": "file_provided",
         }
-    report_text = generate_results_report(
+    result = generate_results_report_result(
         aggregate,
         records,
         provider=provider,
@@ -45,9 +50,14 @@ def build_case_summary(
         require_ai=require_ai,
     )
     return {
-        "provider": provider,
-        "model": model,
-        "report_text": report_text,
+        "provider": result.provider,
+        "model": result.model,
+        "report_text": result.text,
+        "fallback_used": result.fallback_used,
+        "llm_tokens_in": result.llm_tokens_in,
+        "llm_tokens_out": result.llm_tokens_out,
+        "ai_callable": not result.fallback_used,
+        "status": "ai_generated" if not result.fallback_used else "fallback_report",
     }
 
 

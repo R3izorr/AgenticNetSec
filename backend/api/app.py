@@ -25,9 +25,8 @@ for module_dir in (SRC_DIR, SCRIPTS_DIR):
         sys.path.insert(0, module_dir_str)
 
 from analysis_engine import AnalysisEngine, AnalysisRequest
-from enrich_results_with_sandbox import enrich_record, run_campaign_summary_route
+from enrich_results_with_sandbox import run_campaign_summary_route
 from forensic_schema import JobStatusResponse, TotalJobStatusResponse
-from report_ai import generate_results_report
 from summarize_results import build_aggregate
 from .job_store import JobRecord, JobStore
 from .total_job_store import TotalJobChildRef, TotalJobRecord, TotalJobStore
@@ -318,6 +317,35 @@ def _save_all_total_jobs_jsonl_artifact(name: str, records: list[dict[str, Any]]
     return artifact_path
 
 
+def _build_ai_markdown_notice(
+    *,
+    stage_label: str,
+    provider: str | None,
+    model: str | None,
+    fallback_used: bool | None,
+    status: str | None,
+) -> str:
+    ai_callable = "yes" if fallback_used is False else "no"
+    fallback_text = "yes" if fallback_used else "no"
+    details = [
+        f"AI requested: yes",
+        f"AI callable: {ai_callable}",
+        f"Fallback used: {fallback_text}",
+        f"Status: {status or 'unknown'}",
+        f"Provider used: {provider or 'unknown'}",
+        f"Model used: {model or 'default'}",
+    ]
+    return "\n".join(
+        [
+            f"> {stage_label}",
+            *[f"> {line}" for line in details],
+            ">",
+            "> If `AI callable: no`, this markdown came from the deterministic fallback report.",
+            "",
+        ]
+    )
+
+
 def _read_all_total_jobs_summary_status() -> dict[str, Any]:
     if not ALL_TOTAL_JOBS_SUMMARY_STATUS_PATH.exists():
         return {}
@@ -522,44 +550,113 @@ def _run_total_job_enrichment_sync(
     unique_records, dedupe_metadata = _dedupe_analysis_records(records)
     total_job_store.update(total_job_id, enrichment_progress=0.25)
 
-    enriched_records: list[dict[str, Any]] = []
-    for index, record in enumerate(unique_records, start=1):
-        enriched_records.append(enrich_record(dict(record)))
+    def _campaign_progress(stage: str, progress: float) -> None:
         total_job_store.update(
             total_job_id,
-            enrichment_progress=0.25 + (0.4 * index / max(1, len(unique_records))),
+            enrichment_progress=progress,
         )
 
-    aggregate = build_aggregate(enriched_records)
-    total_job_store.update(total_job_id, enrichment_progress=0.75)
-    summary_markdown = generate_results_report(
-        aggregate,
-        enriched_records,
+    campaign_result = run_campaign_summary_route(
+        unique_records,
+        build_aggregate(unique_records),
         provider=provider,
         model=model,
-        use_ai=True,
         require_ai=require_ai,
+        progress_callback=_campaign_progress,
     )
+    enriched_records = campaign_result["enriched_records"]
+    aggregate = campaign_result["aggregate"]
+    summary_markdown = campaign_result["final_report_markdown"]
+    case_summary = campaign_result["initial_summary"]
+    campaign_plan = campaign_result["campaign_plan"]
+    final_report = campaign_result["final_report"]
+    selected_follow_up_records = campaign_result["selected_follow_up_records"]
 
     # Mirror the legacy batch artifacts inside the parent total-job folder so
     # AI/sandbox comparisons can reuse the same artifact shape in one place.
     total_job_store.save_json_artifact(total_job_id, "aggregate_summary.json", aggregate)
     total_job_store.save_json_artifact(total_job_id, "scan_results.json", enriched_records)
     _save_total_job_jsonl_artifact(total_job_id, "scan_results.jsonl", enriched_records)
+    _save_total_job_jsonl_artifact(total_job_id, "scan_results.ai-tshark.jsonl", enriched_records)
     total_job_store.save_json_artifact(
         total_job_id,
         "summary.json",
         {
+            "scope": "total_job",
+            "route": "campaign_ai_then_sandbox_then_final_report",
+            "source_total_job_id": total_job_id,
+            "source_file_count": len(completed_children),
+            "source_analysis_job_ids": [child.analysis_job_id for child in completed_children],
             "dedupe": dedupe_metadata,
+            "ai_execution": {
+                "initial_summary": {
+                    "provider": case_summary.get("provider"),
+                    "model": case_summary.get("model"),
+                    "fallback_used": bool(case_summary.get("fallback_used", False)),
+                    "ai_callable": bool(case_summary.get("ai_callable", False)),
+                    "status": case_summary.get("status"),
+                },
+                "campaign_plan": {
+                    "planner_source": campaign_plan.get("planner_source"),
+                    "planner_provider": campaign_plan.get("planner_provider"),
+                    "planner_model": campaign_plan.get("planner_model"),
+                },
+                "final_report": {
+                    "provider": final_report.get("provider"),
+                    "model": final_report.get("model"),
+                    "fallback_used": bool(final_report.get("fallback_used", False)),
+                    "ai_callable": bool(final_report.get("ai_callable", False)),
+                    "status": final_report.get("status"),
+                },
+            },
+            "initial_summary": case_summary,
+            "campaign_plan": campaign_plan,
+            "selected_follow_up_records": selected_follow_up_records,
             "aggregate_summary": aggregate,
             "records": enriched_records,
         },
     )
-    total_job_store.save_text_artifact(total_job_id, "summary.md", summary_markdown)
+    total_job_store.save_text_artifact(
+        total_job_id,
+        "initial_summary.md",
+        _build_ai_markdown_notice(
+            stage_label="Initial Campaign Summary AI Status",
+            provider=case_summary.get("provider"),
+            model=case_summary.get("model"),
+            fallback_used=case_summary.get("fallback_used"),
+            status=case_summary.get("status"),
+        )
+        + str(case_summary.get("report_text", "")),
+    )
+    total_job_store.save_json_artifact(
+        total_job_id,
+        "campaign_plan.json",
+        {
+            "initial_summary": case_summary,
+            "campaign_plan": campaign_plan,
+            "selected_follow_up_records": selected_follow_up_records,
+        },
+    )
+    total_job_store.save_text_artifact(
+        total_job_id,
+        "summary.md",
+        _build_ai_markdown_notice(
+            stage_label="Final Campaign Report AI Status",
+            provider=final_report.get("provider"),
+            model=final_report.get("model"),
+            fallback_used=final_report.get("fallback_used"),
+            status=final_report.get("status"),
+        )
+        + summary_markdown,
+    )
     total_job_store.save_json_artifact(
         total_job_id,
         "sandbox.json",
         {
+            "scope": "total_job",
+            "source_total_job_id": total_job_id,
+            "source_file_count": len(completed_children),
+            "source_analysis_job_ids": [child.analysis_job_id for child in completed_children],
             "dedupe": dedupe_metadata,
             "record_count": len(enriched_records),
             "records": enriched_records,
@@ -665,6 +762,7 @@ def _run_all_total_jobs_summary_sync(
     summary_markdown = campaign_result["final_report_markdown"]
     case_summary = campaign_result["initial_summary"]
     campaign_plan = campaign_result["campaign_plan"]
+    final_report = campaign_result["final_report"]
     selected_follow_up_records = campaign_result["selected_follow_up_records"]
 
     (ALL_TOTAL_JOBS_SUMMARY_DIR / "aggregate_summary.json").write_text(
@@ -686,6 +784,27 @@ def _run_all_total_jobs_summary_sync(
                 "source_total_job_count": len(source_total_job_ids),
                 "source_file_count": len(completed_children),
                 "dedupe": dedupe_metadata,
+                "ai_execution": {
+                    "initial_summary": {
+                        "provider": case_summary.get("provider"),
+                        "model": case_summary.get("model"),
+                        "fallback_used": bool(case_summary.get("fallback_used", False)),
+                        "ai_callable": bool(case_summary.get("ai_callable", False)),
+                        "status": case_summary.get("status"),
+                    },
+                    "campaign_plan": {
+                        "planner_source": campaign_plan.get("planner_source"),
+                        "planner_provider": campaign_plan.get("planner_provider"),
+                        "planner_model": campaign_plan.get("planner_model"),
+                    },
+                    "final_report": {
+                        "provider": final_report.get("provider"),
+                        "model": final_report.get("model"),
+                        "fallback_used": bool(final_report.get("fallback_used", False)),
+                        "ai_callable": bool(final_report.get("ai_callable", False)),
+                        "status": final_report.get("status"),
+                    },
+                },
                 "initial_summary": case_summary,
                 "campaign_plan": campaign_plan,
                 "selected_follow_up_records": selected_follow_up_records,
@@ -698,7 +817,15 @@ def _run_all_total_jobs_summary_sync(
         encoding="utf-8",
     )
     (ALL_TOTAL_JOBS_SUMMARY_DIR / "initial_summary.md").write_text(
-        str(case_summary.get("report_text", "")) + ("\n" if case_summary.get("report_text") else ""),
+        _build_ai_markdown_notice(
+            stage_label="Initial Campaign Summary AI Status",
+            provider=case_summary.get("provider"),
+            model=case_summary.get("model"),
+            fallback_used=case_summary.get("fallback_used"),
+            status=case_summary.get("status"),
+        )
+        + str(case_summary.get("report_text", ""))
+        + ("\n" if case_summary.get("report_text") else ""),
         encoding="utf-8",
     )
     (ALL_TOTAL_JOBS_SUMMARY_DIR / "campaign_plan.json").write_text(
@@ -714,7 +841,15 @@ def _run_all_total_jobs_summary_sync(
         encoding="utf-8",
     )
     (ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.md").write_text(
-        summary_markdown + ("" if summary_markdown.endswith("\n") else "\n"),
+        _build_ai_markdown_notice(
+            stage_label="Final Campaign Report AI Status",
+            provider=final_report.get("provider"),
+            model=final_report.get("model"),
+            fallback_used=final_report.get("fallback_used"),
+            status=final_report.get("status"),
+        )
+        + summary_markdown
+        + ("" if summary_markdown.endswith("\n") else "\n"),
         encoding="utf-8",
     )
     (ALL_TOTAL_JOBS_SUMMARY_DIR / "sandbox.json").write_text(

@@ -26,6 +26,11 @@ As of the current implementation:
   - deduplicates duplicate completed PCAPs before AI and sandbox processing
   - exposes dedupe metadata in the total-job detail page
   - surfaces partial-batch warnings when some child jobs fail
+  - uses the campaign AI route for each total job:
+    - initial AI campaign summary
+    - sandbox verification across that total job's records
+    - targeted AI-authored tshark follow-up for weak sections
+    - final AI report over the enriched evidence
 - the `/total-jobs` page now supports one combined all-scans summary across all completed child files from every total job
 - the combined all-scans summary route now follows:
   - initial AI campaign summary
@@ -263,6 +268,12 @@ Stored under:
 Common files:
 
 - `total_job.json`
+- `aggregate_summary.json`
+- `scan_results.json`
+- `scan_results.jsonl`
+- `scan_results.ai-tshark.jsonl`
+- `initial_summary.md`
+- `campaign_plan.json`
 - `summary.json`
 - `summary.md`
 - `sandbox.json`
