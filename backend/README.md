@@ -87,7 +87,12 @@ Then edit:
 
 - `backend/config/local_settings.py`
 
-The current default report provider is OpenRouter-first.
+For the batch enrichment route, the intended provider split is:
+
+- Gemini for the initial campaign summary and final report
+- OpenRouter for AI-authored `tshark` planning and follow-up
+
+The generic `REPORT_PROVIDER` and `REPORT_MODEL` settings still exist for other report paths and fallback behavior.
 
 Minimum useful config:
 
@@ -197,6 +202,42 @@ AGENTIC_SANDBOX_VERIFY=1 python backend/scripts/run.py /path/to/file.pcap --dive
 ```
 
 ## Batch / Offline Analysis
+
+### Stage 1 analysis profiles
+
+The API batch flow now supports three deterministic stage-1 profiles:
+
+- `fast`
+  - metadata, summary, findings, deterministic report
+  - skips deep dive and payload carving
+- `standard`
+  - recommended default
+  - always runs metadata, summary, findings, deterministic report
+  - runs deep dive only when evidence is present
+  - runs payload carving only when payload-deployment evidence is present
+- `full`
+  - preserves the heavier legacy deterministic path
+  - payload carving always runs
+  - deep dive keeps the legacy size and packet threshold gate
+
+The selected profile is stored in the persisted job metadata and surfaced through the API and frontend.
+
+### API-backed batch submission helper
+
+For large corpora, submit directory contents to the FastAPI batch endpoint with:
+
+```bash
+python backend/scripts/submit_batch_to_api.py /path/to/pcaps --recursive --workers 4 --analysis-profile standard
+```
+
+Useful options:
+
+- `--start`
+- `--end`
+- `--limit`
+- `--analysis-profile fast|standard|full`
+
+The helper sends `pcap_paths` to `POST /api/v1/analysis/batch` and skips files already present in the backend in `queued`, `running`, or `completed` state.
 
 Analyze a file range:
 

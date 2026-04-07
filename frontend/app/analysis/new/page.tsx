@@ -8,10 +8,18 @@ import { SectionCard } from "@/components/common/section-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useToast } from "@/components/ui/toast"
 import { createBatchAnalysisJob } from "@/lib/api/analysis"
 import { isApiError } from "@/lib/api/client"
 import { adaptTotalJobStatus } from "@/lib/adapters/analysis"
+import type { AnalysisProfile } from "@/lib/types/analysis"
 
 const MIN_WORKERS = 2
 
@@ -21,6 +29,7 @@ export default function NewAnalysisPage() {
 
   const [files, setFiles] = useState<File[]>([])
   const [workerCount, setWorkerCount] = useState<number>(MIN_WORKERS)
+  const [analysisProfile, setAnalysisProfile] = useState<AnalysisProfile>("standard")
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -46,6 +55,7 @@ export default function NewAnalysisPage() {
       const response = await createBatchAnalysisJob({
         files,
         workerCount: Math.max(MIN_WORKERS, Math.round(workerCount || MIN_WORKERS)),
+        analysisProfile,
       })
       const totalJob = adaptTotalJobStatus(response)
       pushToast({
@@ -93,7 +103,7 @@ export default function NewAnalysisPage() {
             <p className="text-xs text-muted-foreground">{helperText}</p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-3">
             <div className="flex flex-col gap-2">
               <Label htmlFor="worker-count">Worker count</Label>
               <Input
@@ -109,10 +119,29 @@ export default function NewAnalysisPage() {
                 Batch execution uses at least {MIN_WORKERS} workers. Higher values can speed up deterministic analysis.
               </p>
             </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="analysis-profile">Stage 1 profile</Label>
+              <Select value={analysisProfile} onValueChange={(value) => setAnalysisProfile(value as AnalysisProfile)}>
+                <SelectTrigger id="analysis-profile" className="bg-card">
+                  <SelectValue placeholder="Select a stage-1 profile" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fast">Fast</SelectItem>
+                  <SelectItem value="standard">Standard</SelectItem>
+                  <SelectItem value="full">Full</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Fast is triage only. Standard is recommended and only runs deep dive or carving when evidence justifies it. Full keeps all heavy deterministic steps.
+              </p>
+            </div>
             <div className="rounded-lg border border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
               <p className="font-medium text-foreground">Run flow</p>
               <p className="mt-2">
                 Stage 1 runs code-only analysis for each file. AI summary and sandbox are triggered later from the total-job page.
+              </p>
+              <p className="mt-2">
+                Active profile: <span className="font-medium text-foreground">{analysisProfile}</span>
               </p>
             </div>
           </div>

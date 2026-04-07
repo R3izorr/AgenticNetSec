@@ -123,6 +123,8 @@ class JobStatusResponse(BaseModel):
     risk_level: str | None = None
     confidence_score: float | None = None
     runtime_seconds_total: float | None = None
+    analysis_profile: str = "standard"
+    stage1_execution: dict[str, Any] = Field(default_factory=dict)
 
 
 class TotalJobChildResponse(BaseModel):
@@ -137,6 +139,8 @@ class TotalJobChildResponse(BaseModel):
     risk_level: str | None = None
     confidence_score: float | None = None
     runtime_seconds_total: float | None = None
+    analysis_profile: str = "standard"
+    stage1_execution: dict[str, Any] = Field(default_factory=dict)
 
 
 class TotalJobStatusResponse(BaseModel):
@@ -155,4 +159,5 @@ class TotalJobStatusResponse(BaseModel):
     enrichment_status: str = "not_started"
     enrichment_progress: float = 0.0
     enrichment_error: str | None = None
+    analysis_profile: str = "standard"
     children: List[TotalJobChildResponse] = Field(default_factory=list)

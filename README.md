@@ -7,7 +7,7 @@ The current product flow is batch-first:
 - users submit one or more PCAP files from the frontend
 - the backend creates one parent `total_job`
 - the backend creates one child `analysis_job` per file
-- stage 1 runs deterministic analysis only
+- stage 1 runs deterministic analysis only, with a selectable `analysis_profile`
 - stage 2 runs later, on demand, for parent-level AI summary and sandbox enrichment
 
 The system writes artifacts and analysis metadata only. It does not execute containment actions or mutate analyst environments.
@@ -20,6 +20,17 @@ As of the current implementation:
 - the frontend uses `/analysis/new` as the submission page
 - the frontend uses `/total-jobs` and `/total-jobs/[totalJobId]` for batch monitoring
 - deterministic stage 1 does not use AI or sandbox
+- stage 1 supports three deterministic profiles:
+  - `fast`
+    - metadata, summary, findings, and deterministic report only
+    - skips deep dive and payload carving
+  - `standard`
+    - recommended default
+    - always runs metadata, summary, findings, and deterministic report
+    - runs deep dive only when base findings show evidence
+    - runs payload carving only when payload-deployment-style evidence exists
+  - `full`
+    - preserves the heavier legacy deterministic path
 - parent enrichment can be triggered later from the UI
 - parent enrichment now:
   - supports run, retry, and rerun
@@ -27,16 +38,25 @@ As of the current implementation:
   - exposes dedupe metadata in the total-job detail page
   - surfaces partial-batch warnings when some child jobs fail
   - uses the campaign AI route for each total job:
-    - initial AI campaign summary
+    - initial AI campaign summary, intended for Gemini
     - sandbox verification across that total job's records
-    - targeted AI-authored tshark follow-up for weak sections
-    - final AI report over the enriched evidence
+    - targeted AI-authored tshark follow-up for weak sections, intended for OpenRouter
+    - final AI report over the enriched evidence, intended for Gemini
 - the `/total-jobs` page now supports one combined all-scans summary across all completed child files from every total job
 - the combined all-scans summary route now follows:
   - initial AI campaign summary
   - sandbox verification across the selected records
   - targeted AI-authored tshark follow-up for weak sections
   - final AI report over the enriched evidence
+- path-based API batch submission is supported for large corpora through `backend/scripts/submit_batch_to_api.py`
+- the path-based batch helper supports:
+  - `--start`
+  - `--end`
+  - `--limit`
+  - skip-existing behavior for files already queued, running, or completed in the backend
+- backend startup now recovers interrupted work:
+  - stale child jobs left in `queued` or `running` are marked failed on reload
+  - stale total jobs are recovered on startup
 
 ## Repository Layout
 
@@ -195,6 +215,7 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 - Route: `/analysis/new`
 - Input: one or more PCAP files
 - Worker count: required, minimum `2`
+- Stage 1 profile: `fast`, `standard`, or `full`
 - Output: redirect to a parent total-job page
 
 ### Batch Monitoring
@@ -220,6 +241,49 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 - Enrichment runs at the parent total-job level only
 - Duplicate completed PCAPs are removed before parent AI/sandbox processing
 
+## Stage 1 Profiles
+
+- `fast`
+  - best for triage and throughput
+  - deterministic only
+  - skips deep dive and payload carving even if findings are suspicious
+- `standard`
+  - safest default for large real-world batches
+  - deterministic only
+  - deep dive runs only when base findings show suspicious evidence
+  - payload carving runs only when payload-deployment evidence exists
+- `full`
+  - use when you explicitly want the heavier deterministic behavior
+  - payload carving always runs
+  - deep dive keeps the legacy size and packet threshold gate
+
+The selected profile is persisted in job artifacts, returned by the backend API, and shown in the total-job detail page together with child deep-dive and payload-carving execution state.
+
+## Large Batch Submission Helper
+
+For directory-based imports and resumable large runs, use:
+
+```bash
+python backend/scripts/submit_batch_to_api.py /path/to/pcaps --workers 4 --analysis-profile standard
+```
+
+Useful options:
+
+- `--recursive`
+- `--start`
+- `--end`
+- `--limit`
+- `--analysis-profile fast|standard|full`
+
+Example chunked import:
+
+```bash
+python backend/scripts/submit_batch_to_api.py /data/pcaps --recursive --start 1 --end 500 --workers 4 --analysis-profile fast
+python backend/scripts/submit_batch_to_api.py /data/pcaps --recursive --start 501 --end 1000 --workers 4 --analysis-profile standard
+```
+
+The helper submits `pcap_paths` to the API, prints the created `total_job_id`, and skips files that are already present in the backend in `queued`, `running`, or `completed` state.
+
 ## API Surface
 
 ### Child-job APIs
@@ -235,6 +299,7 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ### Total-job APIs
 
 - `POST /api/v1/analysis/batch`
+- `POST /api/v1/analysis/batch` also accepts JSON `pcap_paths` for path-based batch submission
 - `GET /api/v1/total-jobs`
 - `GET /api/v1/total-jobs/{total_job_id}`
 - `POST /api/v1/total-jobs/{total_job_id}/enrich`
@@ -325,6 +390,16 @@ That is expected. Use `http://localhost:8000/docs` instead.
 ### No AI provider configured
 
 That is acceptable for deterministic batch analysis. Parent enrichment may still fall back depending on your provider configuration and runtime behavior.
+
+### Large corpus operational guidance
+
+For large PCAP sets:
+
+1. Import in chunks with `backend/scripts/submit_batch_to_api.py`.
+2. Use `standard` first unless you explicitly need maximum throughput (`fast`) or the heavier legacy path (`full`).
+3. Let deterministic stage 1 finish before triggering parent enrichment.
+4. Trigger enrichment from the total-job page only after enough child jobs are completed to make the parent summary meaningful.
+5. Reuse the helper's skip-existing behavior when resuming interrupted batch imports instead of rebuilding the whole submission set.
 
 ### Sandbox is not active
 

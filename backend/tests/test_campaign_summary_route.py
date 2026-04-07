@@ -81,19 +81,49 @@ class CampaignSummaryRouteTests(unittest.TestCase):
             result = run_campaign_summary_route(
                 records,
                 aggregate,
-                provider="gemini",
+                report_provider="gemini",
+                report_model="gemini-2.5-flash",
+                planner_provider="openrouter",
+                planner_model="openai/gpt-5-mini",
                 require_ai=False,
                 progress_callback=lambda stage, progress: progress_events.append((stage, progress)),
             )
 
-        build_case_summary.assert_called_once()
-        build_campaign_weak_sections.assert_called_once()
+        build_case_summary.assert_called_once_with(
+            aggregate,
+            records,
+            provider="gemini",
+            model="gemini-2.5-flash",
+            require_ai=False,
+        )
+        build_campaign_weak_sections.assert_called_once_with(
+            aggregate=aggregate,
+            report_text="initial report",
+            provider="openrouter",
+            model="openai/gpt-5-mini",
+            require_ai=False,
+        )
         select_records_for_sections.assert_called_once()
         self.assertEqual(enrich_record_with_plan.call_count, 2)
-        build_ai_tshark_plan.assert_called_once()
+        build_ai_tshark_plan.assert_called_once_with(
+            record=result["enriched_records"][1],
+            aggregate=aggregate,
+            report_text="initial report",
+            focus_sections=["C"],
+            provider="openrouter",
+            model="openai/gpt-5-mini",
+            require_ai=False,
+        )
         run_ai_tshark_queries.assert_called_once_with("/tmp/b.pcap", [{"name": "temp_sh_follow_up", "stage": "C"}])
         build_aggregate.assert_called_once()
-        generate_results_report_result.assert_called_once()
+        generate_results_report_result.assert_called_once_with(
+            {"file_count": 2, "files_with_ai_tshark_follow_up": 1},
+            result["enriched_records"],
+            provider="gemini",
+            model="gemini-2.5-flash",
+            use_ai=True,
+            require_ai=False,
+        )
 
         self.assertEqual(result["initial_summary"]["report_text"], "initial report")
         self.assertEqual(result["campaign_plan"]["weak_sections"], ["C"])

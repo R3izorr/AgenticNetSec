@@ -47,6 +47,8 @@ class JobRecord:
     group_id: str | None = None
     group_index: int | None = None
     group_total: int | None = None
+    analysis_profile: str = "standard"
+    stage1_execution: dict[str, Any] = field(default_factory=dict)
 
 
 class JobStore:
@@ -66,6 +68,7 @@ class JobStore:
         group_id: str | None = None,
         group_index: int | None = None,
         group_total: int | None = None,
+        analysis_profile: str = "standard",
     ) -> JobRecord:
         job_id = f"analysis_{uuid.uuid4().hex[:12]}"
         artifacts_dir = self.base_dir / job_id
@@ -79,6 +82,7 @@ class JobStore:
             group_id=group_id,
             group_index=group_index,
             group_total=group_total,
+            analysis_profile=analysis_profile,
         )
         with self._lock:
             self._jobs[job_id] = record
@@ -97,6 +101,33 @@ class JobStore:
     def get(self, job_id: str) -> JobRecord | None:
         with self._lock:
             return self._jobs.get(job_id)
+
+    def find_by_source_paths(
+        self,
+        source_paths: list[str],
+        *,
+        statuses: set[str] | None = None,
+    ) -> dict[str, JobRecord]:
+        normalized_targets = {
+            self._normalize_source_path(path)
+            for path in source_paths
+            if self._normalize_source_path(path)
+        }
+        if not normalized_targets:
+            return {}
+
+        with self._lock:
+            matches: dict[str, JobRecord] = {}
+            for job in self._jobs.values():
+                normalized_job_path = self._normalize_source_path(job.source_path)
+                if not normalized_job_path or normalized_job_path not in normalized_targets:
+                    continue
+                if statuses is not None and job.status not in statuses:
+                    continue
+                existing = matches.get(normalized_job_path)
+                if existing is None or existing.created_at < job.created_at:
+                    matches[normalized_job_path] = job
+            return matches
 
     def save_artifact(self, job_id: str, name: str, content: str | dict) -> Path:
         record = self.get(job_id)
@@ -144,7 +175,9 @@ class JobStore:
                 continue
             record = self._load_job_record(job_dir)
             if record:
+                record = self._recover_interrupted_job(record)
                 self._jobs[record.analysis_job_id] = record
+                self._persist_record(record)
 
     def _load_job_record(self, job_dir: Path) -> JobRecord | None:
         manifest_path = job_dir / "job.json"
@@ -219,3 +252,21 @@ class JobStore:
         manifest_path = Path(record.artifacts_dir) / "job.json"
         payload = asdict(record)
         manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    @staticmethod
+    def _normalize_source_path(source_path: str | None) -> str | None:
+        if not source_path:
+            return None
+        try:
+            return str(Path(source_path).expanduser().resolve()).lower()
+        except OSError:
+            return str(Path(source_path).expanduser()).lower()
+
+    @staticmethod
+    def _recover_interrupted_job(record: JobRecord) -> JobRecord:
+        if record.status not in {"queued", "running"}:
+            return record
+        record.status = "failed"
+        record.current_phase = "interrupted"
+        record.error = "Interrupted by backend shutdown before analysis completed."
+        return record

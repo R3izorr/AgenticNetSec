@@ -72,6 +72,26 @@ type CampaignArtifacts = {
   selectedFollowUpRecords: CampaignFollowUpRecord[]
 }
 
+function formatAnalysisProfile(value: string | null | undefined): string {
+  if (value === "fast") {
+    return "Fast"
+  }
+  if (value === "full") {
+    return "Full"
+  }
+  return "Standard"
+}
+
+function formatStage1Step(value: { executed?: boolean; status?: string | null } | null | undefined): string {
+  if (!value) {
+    return "Pending"
+  }
+  if (value.executed) {
+    return "Executed"
+  }
+  return value.status === "skipped_no_evidence" ? "Skipped: no evidence" : "Skipped"
+}
+
 function parseDedupeInfo(value: unknown): DedupeInfo | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null
@@ -356,6 +376,7 @@ export default function TotalJobDetailPage() {
               { label: "Current Stage", value: formatPhaseLabel(job.currentStage) },
               { label: "Overall Progress", value: formatPercent(job.progress) },
               { label: "Workers", value: formatNumber(job.workerCount, 0) },
+              { label: "Stage 1 Profile", value: formatAnalysisProfile(job.analysisProfile) },
               { label: "Files", value: formatNumber(job.fileCount, 0) },
               { label: "Completed Children", value: formatNumber(job.completedChildren, 0) },
               { label: "Failed Children", value: formatNumber(job.failedChildren, 0) },
@@ -447,6 +468,7 @@ export default function TotalJobDetailPage() {
                   <TableHead>Filename</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Phase</TableHead>
+                  <TableHead>Stage 1</TableHead>
                   <TableHead>Progress</TableHead>
                   <TableHead>Risk</TableHead>
                   <TableHead>Confidence</TableHead>
@@ -461,12 +483,21 @@ export default function TotalJobDetailPage() {
                       <div className="flex flex-col gap-1">
                         <span className="text-sm">{child.filename}</span>
                         <span className="font-mono text-xs text-muted-foreground">{child.analysisJobId}</span>
+                        <span className="text-xs text-muted-foreground">
+                          Profile: {formatAnalysisProfile(child.analysisProfile)}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <StatusBadge value={child.status} />
                     </TableCell>
                     <TableCell>{formatPhaseLabel(child.currentPhase)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                        <span>Deep dive: {formatStage1Step(child.stage1Execution?.deepDive)}</span>
+                        <span>Payload carving: {formatStage1Step(child.stage1Execution?.payloadCarving)}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>{formatPercent(child.progress)}</TableCell>
                     <TableCell>
                       {child.riskLevel ? <StatusBadge value={child.riskLevel} /> : <span className="text-muted-foreground">N/A</span>}

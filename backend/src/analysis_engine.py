@@ -53,6 +53,7 @@ class AnalysisRequest:
     model: str | None = None
     use_ai: bool = True
     require_ai: bool = False
+    analysis_profile: str = "standard"
     enable_sandbox: bool | None = None
     artifacts_dir: str | None = None
 
@@ -93,7 +94,7 @@ class AnalysisEngine:
             self.guardrails.validate_input(req.pcap_path)
             input_validity = self.guardrails.describe_input(req.pcap_path)
             metadata = self._extract_metadata(req.pcap_path)
-            plan = self.planner.create_plan(metadata, req.use_ai, req.enable_sandbox)
+            plan = self.planner.create_plan(metadata, req.use_ai, req.analysis_profile, req.enable_sandbox)
         if progress_callback:
             progress_callback("parse", 0.35)
 
@@ -114,27 +115,30 @@ class AnalysisEngine:
                 req.pcap_path,
                 policy=ToolPolicy(timeout_seconds=300, retries=1),
             )
-            payload_carving = self.executor.execute(
-                "payload_carving",
-                run_payload_carving,
-                req.pcap_path,
-                findings,
-                artifacts_dir=req.artifacts_dir,
-                policy=ToolPolicy(timeout_seconds=120, retries=0),
-                fallback=lambda *args, **kwargs: {
-                    "status": "error",
-                    "pcap_path": str(Path(req.pcap_path).resolve()),
-                    "artifacts_dir": str(Path(req.artifacts_dir).resolve()) if req.artifacts_dir else None,
-                    "candidate_count": 0,
-                    "selected_candidates": [],
-                    "carved_payloads": [],
-                    "payload_iocs": [],
-                    "payload_deployment_confidence": 0.0,
-                    "bytes_reconstructed": 0,
-                    "manifest_path": None,
-                    "notes": ["Payload carving failed and returned fallback output."],
-                },
-            )
+            plan = self.planner.refine_plan(plan, findings)
+            payload_carving = self._build_skipped_payload_carving_result(req, plan.payload_carving_reason)
+            if plan.run_payload_carving:
+                payload_carving = self.executor.execute(
+                    "payload_carving",
+                    run_payload_carving,
+                    req.pcap_path,
+                    findings,
+                    artifacts_dir=req.artifacts_dir,
+                    policy=ToolPolicy(timeout_seconds=120, retries=0),
+                    fallback=lambda *args, **kwargs: {
+                        "status": "error",
+                        "pcap_path": str(Path(req.pcap_path).resolve()),
+                        "artifacts_dir": str(Path(req.artifacts_dir).resolve()) if req.artifacts_dir else None,
+                        "candidate_count": 0,
+                        "selected_candidates": [],
+                        "carved_payloads": [],
+                        "payload_iocs": [],
+                        "payload_deployment_confidence": 0.0,
+                        "bytes_reconstructed": 0,
+                        "manifest_path": None,
+                        "notes": ["Payload carving failed and returned fallback output."],
+                    },
+                )
             findings = {
                 **findings,
                 "payload_carving": payload_carving,
@@ -264,24 +268,66 @@ class AnalysisEngine:
             metrics=metrics.model_dump(),
             guardrail_audit=guardrail_audit_payload,
             metadata=metadata,
-            analysis_record=self._build_analysis_record(
-                pcap_path=req.pcap_path,
-                metadata=metadata,
-                summary=summary,
-                findings=findings,
-                deep_dive=deep_dive,
-                sandbox_verification=sandbox_verification,
-            ),
+                analysis_record=self._build_analysis_record(
+                    pcap_path=req.pcap_path,
+                    analysis_profile=plan.analysis_profile,
+                    metadata=metadata,
+                    summary=summary,
+                    findings=findings,
+                    deep_dive=deep_dive,
+                    stage1_execution=self._build_stage1_execution_metadata(
+                        plan=plan,
+                        payload_carving=payload_carving,
+                    ),
+                    sandbox_verification=sandbox_verification,
+                ),
         )
+
+    def _build_skipped_payload_carving_result(self, req: AnalysisRequest, reason: str) -> dict[str, Any]:
+        return {
+            "status": "skipped_no_evidence",
+            "pcap_path": str(Path(req.pcap_path).resolve()),
+            "artifacts_dir": str(Path(req.artifacts_dir).resolve()) if req.artifacts_dir else None,
+            "candidate_count": 0,
+            "selected_candidates": [],
+            "carved_payloads": [],
+            "payload_iocs": [],
+            "payload_deployment_confidence": 0.0,
+            "bytes_reconstructed": 0,
+            "manifest_path": None,
+            "notes": [reason],
+        }
+
+    def _build_stage1_execution_metadata(
+        self,
+        *,
+        plan: Any,
+        payload_carving: dict[str, Any],
+    ) -> dict[str, Any]:
+        return {
+            "requested_profile": plan.analysis_profile,
+            "deep_dive": {
+                "executed": bool(plan.run_deep_dive),
+                "reason": plan.deep_dive_reason,
+                "status": "executed" if plan.run_deep_dive else "skipped",
+            },
+            "payload_carving": {
+                "executed": bool(plan.run_payload_carving),
+                "reason": plan.payload_carving_reason,
+                "status": payload_carving.get("status") if isinstance(payload_carving, dict) else None,
+            },
+        }
 
     def _build_analysis_record(
         self,
         *,
         pcap_path: str,
+        analysis_profile: str,
         metadata: dict[str, Any],
         summary: dict[str, Any],
         findings: dict[str, Any],
         deep_dive: dict[str, Any] | None,
+        stage1_execution: dict[str, Any],
         sandbox_verification: dict[str, Any],
     ) -> dict[str, Any]:
         external_rdp = findings.get("external_rdp", {})
@@ -350,8 +396,9 @@ class AnalysisEngine:
             "payload_carving_status": payload_carving.get("status"),
             "payload_carving_manifest_path": payload_carving.get("manifest_path"),
             "payload_carving_selected_candidates": list(payload_carving.get("selected_candidates") or []),
-            "analysis_profile": "base+dive" if deep_dive else "base",
+            "analysis_profile": analysis_profile,
             "analysis_version": ANALYSIS_VERSION,
+            "stage1_execution": stage1_execution,
         }
         if deep_dive:
             result["deep_dive"] = deep_dive

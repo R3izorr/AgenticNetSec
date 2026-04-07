@@ -15,6 +15,18 @@ export interface JobArtifactReadyTransport {
   guardrail_audit?: boolean
 }
 
+export interface Stage1StepDecisionTransport {
+  executed?: boolean
+  reason?: string | null
+  status?: string | null
+}
+
+export interface Stage1ExecutionTransport {
+  requested_profile?: string | null
+  deep_dive?: Stage1StepDecisionTransport | null
+  payload_carving?: Stage1StepDecisionTransport | null
+}
+
 export interface JobStatusResponseTransport {
   analysis_job_id: string
   group_id?: string | null
@@ -36,6 +48,8 @@ export interface JobStatusResponseTransport {
   risk_level?: string | null
   confidence_score?: number | null
   runtime_seconds_total?: number | null
+  analysis_profile?: string | null
+  stage1_execution?: Stage1ExecutionTransport | null
 }
 
 export interface TotalJobChildTransport {
@@ -50,6 +64,8 @@ export interface TotalJobChildTransport {
   risk_level?: string | null
   confidence_score?: number | null
   runtime_seconds_total?: number | null
+  analysis_profile?: string | null
+  stage1_execution?: Stage1ExecutionTransport | null
 }
 
 export interface TotalJobStatusResponseTransport {
@@ -68,6 +84,7 @@ export interface TotalJobStatusResponseTransport {
   enrichment_status: string
   enrichment_progress: number
   enrichment_error?: string | null
+  analysis_profile?: string | null
   children: TotalJobChildTransport[]
 }
 

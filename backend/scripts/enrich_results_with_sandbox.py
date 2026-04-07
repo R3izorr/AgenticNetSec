@@ -83,8 +83,10 @@ def run_campaign_summary_route(
     records: list[dict[str, Any]],
     aggregate: dict[str, Any],
     *,
-    provider: str = "gemini",
-    model: str | None = None,
+    report_provider: str = "gemini",
+    report_model: str | None = None,
+    planner_provider: str = "openrouter",
+    planner_model: str | None = None,
     require_ai: bool = False,
     progress_callback: Callable[[str, float], None] | None = None,
 ) -> dict[str, Any]:
@@ -96,8 +98,8 @@ def run_campaign_summary_route(
     case_summary = build_case_summary(
         aggregate,
         copied_records,
-        provider=provider,
-        model=model,
+        provider=report_provider,
+        model=report_model,
         require_ai=require_ai,
     )
     if progress_callback:
@@ -106,8 +108,8 @@ def run_campaign_summary_route(
     campaign_plan = build_campaign_weak_sections(
         aggregate=aggregate,
         report_text=case_summary.get("report_text", ""),
-        provider=provider,
-        model=model,
+        provider=planner_provider,
+        model=planner_model,
         require_ai=require_ai,
     )
     weak_sections = campaign_plan.get("weak_sections") or []
@@ -136,8 +138,8 @@ def run_campaign_summary_route(
                 aggregate=aggregate,
                 report_text=case_summary.get("report_text", ""),
                 focus_sections=weak_sections,
-                provider=provider,
-                model=model,
+                provider=planner_provider,
+                model=planner_model,
                 require_ai=require_ai,
             )
             ai_review = run_ai_tshark_queries(enriched_record["path"], ai_plan.get("queries", []))
@@ -161,8 +163,8 @@ def run_campaign_summary_route(
     final_report = generate_results_report_result(
         final_aggregate,
         enriched_records,
-        provider=provider,
-        model=model,
+        provider=report_provider,
+        model=report_model,
         use_ai=True,
         require_ai=require_ai,
     )

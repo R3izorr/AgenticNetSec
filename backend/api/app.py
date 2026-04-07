@@ -27,6 +27,7 @@ for module_dir in (SRC_DIR, SCRIPTS_DIR):
 from analysis_engine import AnalysisEngine, AnalysisRequest
 from enrich_results_with_sandbox import run_campaign_summary_route
 from forensic_schema import JobStatusResponse, TotalJobStatusResponse
+from planner import ANALYSIS_PROFILES
 from summarize_results import build_aggregate
 from .job_store import JobRecord, JobStore
 from .total_job_store import TotalJobChildRef, TotalJobRecord, TotalJobStore
@@ -74,6 +75,16 @@ def _to_int(value: Any, default: int, minimum: int | None = None, maximum: int |
     return parsed
 
 
+def _normalize_analysis_profile(value: Any, default: str = "standard") -> str:
+    candidate = str(value or default).strip().lower()
+    if candidate not in ANALYSIS_PROFILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"analysis_profile must be one of: {', '.join(sorted(ANALYSIS_PROFILES))}.",
+        )
+    return candidate
+
+
 def _serialize_job(job: JobRecord) -> dict[str, Any]:
     return {
         "analysis_job_id": job.analysis_job_id,
@@ -96,6 +107,8 @@ def _serialize_job(job: JobRecord) -> dict[str, Any]:
         "risk_level": job.risk_level,
         "confidence_score": job.confidence_score,
         "runtime_seconds_total": job.runtime_seconds_total,
+        "analysis_profile": job.analysis_profile,
+        "stage1_execution": job.stage1_execution,
     }
 
 
@@ -117,6 +130,8 @@ def _serialize_total_job(job: TotalJobRecord) -> dict[str, Any]:
             "risk_level": child_job.risk_level if child_job else None,
             "confidence_score": child_job.confidence_score if child_job else None,
             "runtime_seconds_total": child_job.runtime_seconds_total if child_job else None,
+            "analysis_profile": child_job.analysis_profile if child_job else job.analysis_profile,
+            "stage1_execution": child_job.stage1_execution if child_job else {},
         }
         if child_payload["status"] == "completed":
             completed_children += 1
@@ -144,6 +159,7 @@ def _serialize_total_job(job: TotalJobRecord) -> dict[str, Any]:
         "enrichment_status": job.enrichment_status,
         "enrichment_progress": job.enrichment_progress,
         "enrichment_error": job.enrichment_error,
+        "analysis_profile": job.analysis_profile,
         "children": children,
     }
 
@@ -167,6 +183,20 @@ def _normalize_pcap_path(raw_path: str) -> str:
         return str(wsl_path if wsl_path.exists() else Path(candidate))
 
     return str(Path(candidate).expanduser().resolve())
+
+
+def _normalize_batch_pcap_paths(raw_paths: list[Any]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_path in raw_paths:
+        if raw_path is None:
+            continue
+        normalized_path = _normalize_pcap_path(str(raw_path))
+        if normalized_path in seen:
+            continue
+        seen.add(normalized_path)
+        normalized.append(normalized_path)
+    return normalized
 
 
 def _save_upload(file: UploadFile) -> tuple[str, str]:
@@ -222,6 +252,8 @@ def _persist_job_artifacts(job_id: str, artifacts: dict[str, Any]) -> None:
         risk_level=(artifacts["report_json"].get("impact") or {}).get("risk_level"),
         confidence_score=(artifacts["report_json"].get("findings") or {}).get("confidence_score"),
         runtime_seconds_total=artifacts["metrics"].get("runtime_seconds_total"),
+        analysis_profile=artifacts["analysis_record"].get("analysis_profile", "standard"),
+        stage1_execution=artifacts["analysis_record"].get("stage1_execution") or {},
         error=None,
     )
 
@@ -559,8 +591,10 @@ def _run_total_job_enrichment_sync(
     campaign_result = run_campaign_summary_route(
         unique_records,
         build_aggregate(unique_records),
-        provider=provider,
-        model=model,
+        report_provider=provider,
+        report_model=model,
+        planner_provider="openrouter",
+        planner_model=None,
         require_ai=require_ai,
         progress_callback=_campaign_progress,
     )
@@ -752,8 +786,10 @@ def _run_all_total_jobs_summary_sync(
     campaign_result = run_campaign_summary_route(
         unique_records,
         build_aggregate(unique_records),
-        provider=provider,
-        model=model,
+        report_provider=provider,
+        report_model=model,
+        planner_provider="openrouter",
+        planner_model=None,
         require_ai=require_ai,
         progress_callback=_campaign_progress,
     )
@@ -964,6 +1000,7 @@ async def create_analysis_job(
     model: str | None = Form(default=None),
     use_ai: str | bool | None = Form(default=None),
     require_ai: str | bool | None = Form(default=None),
+    analysis_profile: str | None = Form(default=None),
 ):
     if not file and not pcap_path and "application/json" in request.headers.get("content-type", ""):
         payload = await request.json()
@@ -972,6 +1009,7 @@ async def create_analysis_job(
         model = model or payload.get("model")
         use_ai = payload.get("use_ai", use_ai)
         require_ai = payload.get("require_ai", require_ai)
+        analysis_profile = payload.get("analysis_profile", analysis_profile)
 
     if file is None and not pcap_path:
         raise HTTPException(status_code=400, detail="Provide either 'file' upload or 'pcap_path'.")
@@ -986,10 +1024,13 @@ async def create_analysis_job(
         source_name = Path(target_path).name
         source_path = target_path
 
+    resolved_analysis_profile = _normalize_analysis_profile(analysis_profile)
+
     job = job_store.create_job(
         source_type=source_type,
         source_name=source_name,
         source_path=source_path,
+        analysis_profile=resolved_analysis_profile,
     )
 
     req = AnalysisRequest(
@@ -998,6 +1039,7 @@ async def create_analysis_job(
         model=model,
         use_ai=_to_bool(use_ai, True),
         require_ai=_to_bool(require_ai, False),
+        analysis_profile=resolved_analysis_profile,
         artifacts_dir=job.artifacts_dir,
     )
 
@@ -1008,59 +1050,170 @@ async def create_analysis_job(
 
 @app.post("/api/v1/analysis/batch")
 async def create_batch_analysis_job(
+    request: Request,
     files: list[UploadFile] = File(default=[]),
     worker_count: str | int | None = Form(default=2),
+    pcap_paths: str | None = Form(default=None),
+    analysis_profile: str | None = Form(default=None),
 ):
-    if not files:
-        raise HTTPException(status_code=400, detail="Provide at least one file for batch analysis.")
+    requested_paths: list[str] = []
+    if not files and "application/json" in request.headers.get("content-type", ""):
+        payload = await request.json()
+        worker_count = payload.get("worker_count", worker_count)
+        requested_paths = _normalize_batch_pcap_paths(payload.get("pcap_paths") or [])
+        analysis_profile = payload.get("analysis_profile", analysis_profile)
+    elif pcap_paths:
+        try:
+            requested_paths = _normalize_batch_pcap_paths(json.loads(pcap_paths))
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid pcap_paths JSON: {exc}") from exc
+
+    if files and requested_paths:
+        raise HTTPException(status_code=400, detail="Provide either uploaded files or pcap_paths, not both.")
+    if not files and not requested_paths:
+        raise HTTPException(status_code=400, detail="Provide at least one file or pcap_paths entry for batch analysis.")
 
     resolved_worker_count = _to_int(worker_count, default=2, minimum=2, maximum=max(2, os.cpu_count() or 2))
-    total_job = total_job_store.create_job(worker_count=resolved_worker_count, files=[])
+    resolved_analysis_profile = _normalize_analysis_profile(analysis_profile)
 
     child_specs: list[dict[str, Any]] = []
-    total_files = len(files)
-    for index, file in enumerate(files):
-        target_path, source_name = _save_upload(file)
+    skipped_files: list[dict[str, Any]] = []
+
+    if files:
+        total_files = len(files)
+        for index, file in enumerate(files):
+            target_path, source_name = _save_upload(file)
+            child_specs.append(
+                {
+                    "filename": source_name,
+                    "source_path": target_path,
+                    "source_type": "upload",
+                    "group_index": index,
+                    "group_total": total_files,
+                    "request": {
+                        "pcap_path": target_path,
+                        "provider": "gemini",
+                        "model": None,
+                        "use_ai": False,
+                        "require_ai": False,
+                        "analysis_profile": resolved_analysis_profile,
+                        "enable_sandbox": False,
+                    },
+                }
+            )
+    else:
+        existing_jobs_by_path = job_store.find_by_source_paths(
+            requested_paths,
+            statuses={"queued", "running", "completed"},
+        )
+        accepted_paths = [
+            path for path in requested_paths if path.lower() not in existing_jobs_by_path
+        ]
+        skipped_files = [
+            {
+                "path": path,
+                "filename": Path(path).name,
+                "reason": "already_in_system",
+                "existing_analysis_job_id": existing_jobs_by_path[path.lower()].analysis_job_id,
+                "existing_status": existing_jobs_by_path[path.lower()].status,
+            }
+            for path in requested_paths
+            if path.lower() in existing_jobs_by_path
+        ]
+
+        total_files = len(accepted_paths)
+        for index, target_path in enumerate(accepted_paths):
+            child_specs.append(
+                {
+                    "filename": Path(target_path).name,
+                    "source_path": target_path,
+                    "source_type": "path",
+                    "group_index": index,
+                    "group_total": total_files,
+                    "request": {
+                        "pcap_path": target_path,
+                        "provider": "gemini",
+                        "model": None,
+                        "use_ai": False,
+                        "require_ai": False,
+                        "analysis_profile": resolved_analysis_profile,
+                        "enable_sandbox": False,
+                    },
+                }
+            )
+
+    if not child_specs:
+        return {
+            "total_job_id": None,
+            "status": "skipped",
+            "current_stage": "skipped_existing_files",
+            "progress": 1.0,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "error": None,
+            "worker_count": resolved_worker_count,
+            "file_count": 0,
+            "completed_children": 0,
+            "failed_children": 0,
+            "deterministic_complete": True,
+            "enrichment_status": "not_started",
+            "enrichment_progress": 0.0,
+            "enrichment_error": None,
+            "analysis_profile": resolved_analysis_profile,
+            "children": [],
+            "accepted_file_count": 0,
+            "skipped_files": skipped_files,
+        }
+
+    total_job = total_job_store.create_job(
+        worker_count=resolved_worker_count,
+        files=[],
+        analysis_profile=resolved_analysis_profile,
+    )
+    total_files = len(child_specs)
+    finalized_child_specs: list[dict[str, Any]] = []
+    for index, item in enumerate(child_specs):
         child_job = job_store.create_job(
-            source_type="upload",
-            source_name=source_name,
-            source_path=target_path,
+            source_type=item["source_type"],
+            source_name=item["filename"],
+            source_path=item["source_path"],
             group_id=total_job.total_job_id,
             group_index=index,
             group_total=total_files,
+            analysis_profile=resolved_analysis_profile,
         )
-        child_specs.append(
+        request_payload = {
+            **item["request"],
+            "artifacts_dir": child_job.artifacts_dir,
+        }
+        finalized_child_specs.append(
             {
                 "analysis_job_id": child_job.analysis_job_id,
-                "filename": source_name,
-                "source_path": target_path,
-                "request": {
-                    "pcap_path": target_path,
-                    "provider": "gemini",
-                    "model": None,
-                    "use_ai": False,
-                    "require_ai": False,
-                    "enable_sandbox": False,
-                    "artifacts_dir": child_job.artifacts_dir,
-                },
+                "filename": item["filename"],
+                "source_path": item["source_path"],
+                "request": request_payload,
             }
         )
 
     total_job_store.update(
         total_job.total_job_id,
-        file_count=len(child_specs),
+        file_count=len(finalized_child_specs),
         children=[
             TotalJobChildRef(
                 analysis_job_id=item["analysis_job_id"],
                 filename=item["filename"],
                 source_path=item["source_path"],
             )
-            for item in child_specs
+            for item in finalized_child_specs
         ],
     )
 
-    asyncio.create_task(_run_total_job(total_job.total_job_id, resolved_worker_count, child_specs))
-    return _serialize_total_job(total_job_store.get(total_job.total_job_id) or total_job)
+    asyncio.create_task(_run_total_job(total_job.total_job_id, resolved_worker_count, finalized_child_specs))
+    return {
+        **_serialize_total_job(total_job_store.get(total_job.total_job_id) or total_job),
+        "accepted_file_count": len(finalized_child_specs),
+        "skipped_files": skipped_files,
+    }
 
 
 @app.get("/api/v1/analysis/{job_id}", response_model=JobStatusResponse)

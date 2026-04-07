@@ -1,4 +1,5 @@
 export type JobTerminalStatus = "completed" | "failed"
+export type AnalysisProfile = "fast" | "standard" | "full"
 
 export interface JobMetadata {
   filename: string | null
@@ -15,6 +16,18 @@ export interface JobArtifactReady {
   reportMarkdown: boolean
   metrics: boolean
   guardrailAudit: boolean
+}
+
+export interface Stage1StepDecision {
+  executed: boolean
+  reason: string | null
+  status: string | null
+}
+
+export interface Stage1Execution {
+  requestedProfile: AnalysisProfile | null
+  deepDive: Stage1StepDecision | null
+  payloadCarving: Stage1StepDecision | null
 }
 
 export interface JobStatus {
@@ -38,6 +51,8 @@ export interface JobStatus {
   riskLevel: string | null
   confidenceScore: number | null
   runtimeSecondsTotal: number | null
+  analysisProfile: AnalysisProfile | null
+  stage1Execution: Stage1Execution | null
 }
 
 export interface TotalJobChild {
@@ -52,6 +67,8 @@ export interface TotalJobChild {
   riskLevel: string | null
   confidenceScore: number | null
   runtimeSecondsTotal: number | null
+  analysisProfile: AnalysisProfile | null
+  stage1Execution: Stage1Execution | null
 }
 
 export interface TotalJobStatus {
@@ -70,6 +87,7 @@ export interface TotalJobStatus {
   enrichmentStatus: string
   enrichmentProgress: number
   enrichmentError: string | null
+  analysisProfile: AnalysisProfile | null
   children: TotalJobChild[]
 }
 
@@ -178,9 +196,11 @@ export interface CreateAnalysisInput {
   model?: string
   useAi?: boolean
   requireAi?: boolean
+  analysisProfile?: AnalysisProfile
 }
 
 export interface BatchCreateAnalysisInput {
   files: File[]
   workerCount: number
+  analysisProfile: AnalysisProfile
 }

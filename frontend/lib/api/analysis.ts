@@ -49,6 +49,7 @@ export async function createBatchAnalysisJob(
     formData.append("files", file)
   }
   formData.append("worker_count", String(input.workerCount))
+  formData.append("analysis_profile", input.analysisProfile)
 
   return apiRequest<TotalJobStatusResponseTransport>("/api/v1/analysis/batch", {
     method: "POST",

@@ -19,6 +19,7 @@ class _AnalysisRequestStub:
     model: str | None = None
     use_ai: bool = True
     require_ai: bool = False
+    analysis_profile: str = "standard"
     enable_sandbox: bool | None = None
     artifacts_dir: str | None = None
 
@@ -163,8 +164,10 @@ class TotalJobEnrichmentCampaignRouteTests(unittest.TestCase):
                     }
                 ],
                 {"file_count": 1},
-                provider="gemini",
-                model=None,
+                report_provider="gemini",
+                report_model=None,
+                planner_provider="openrouter",
+                planner_model=None,
                 require_ai=False,
                 progress_callback=ANY,
             )

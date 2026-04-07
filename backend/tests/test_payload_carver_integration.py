@@ -83,11 +83,18 @@ class PayloadCarverIntegrationTests(unittest.TestCase):
         )
         engine.planner.create_plan = Mock(
             return_value=SimpleNamespace(
+                analysis_profile="full",
                 run_deep_dive=False,
+                deep_dive_reason="full profile disabled deep dive for this file",
+                run_payload_carving=True,
+                payload_carving_reason="full profile always runs payload carving",
                 enable_zero_day_heuristics=False,
                 enable_sandbox_verification=False,
                 use_llm_reasoning=False,
             )
+        )
+        engine.planner.refine_plan = Mock(
+            side_effect=lambda plan, findings: plan
         )
         engine._build_forensic_report = Mock(return_value=(_DummyStructuredReport(), {"audit": "ok"}))
 
@@ -166,6 +173,8 @@ class PayloadCarverIntegrationTests(unittest.TestCase):
         self.assertEqual(artifacts.analysis_record["payload_carving_candidate_count"], 2)
         self.assertEqual(artifacts.analysis_record["payload_carving_status"], "candidate_selection_only")
         self.assertEqual(artifacts.analysis_record["payload_carving_manifest_path"], "carved_manifest.json")
+        self.assertEqual(artifacts.analysis_record["analysis_profile"], "full")
+        self.assertTrue(artifacts.analysis_record["stage1_execution"]["payload_carving"]["executed"])
 
     def test_build_prompt_includes_payload_carving_context(self) -> None:
         prompt = build_prompt(

@@ -5,6 +5,8 @@ import type {
   JobMetadataTransport,
   JobStatusResponseTransport,
   RunMetricsTransport,
+  Stage1ExecutionTransport,
+  Stage1StepDecisionTransport,
   TotalJobStatusResponseTransport,
 } from "@/lib/transport/analysis"
 import type {
@@ -14,6 +16,8 @@ import type {
   JobMetadata,
   JobStatus,
   RunMetrics,
+  Stage1Execution,
+  Stage1StepDecision,
   TotalJobStatus,
 } from "@/lib/types/analysis"
 
@@ -85,6 +89,37 @@ function adaptArtifactReady(
   }
 }
 
+function adaptStage1StepDecision(
+  transport?: Stage1StepDecisionTransport | null
+): Stage1StepDecision | null {
+  if (!transport) {
+    return null
+  }
+  return {
+    executed: Boolean(transport.executed),
+    reason: typeof transport.reason === "string" ? transport.reason : null,
+    status: typeof transport.status === "string" ? transport.status : null,
+  }
+}
+
+function adaptStage1Execution(
+  transport?: Stage1ExecutionTransport | null
+): Stage1Execution | null {
+  if (!transport) {
+    return null
+  }
+  return {
+    requestedProfile:
+      transport.requested_profile === "fast" ||
+      transport.requested_profile === "standard" ||
+      transport.requested_profile === "full"
+        ? transport.requested_profile
+        : null,
+    deepDive: adaptStage1StepDecision(transport.deep_dive),
+    payloadCarving: adaptStage1StepDecision(transport.payload_carving),
+  }
+}
+
 export function adaptJobStatus(transport: JobStatusResponseTransport): JobStatus {
   return {
     analysisJobId: transport.analysis_job_id,
@@ -113,6 +148,13 @@ export function adaptJobStatus(transport: JobStatusResponseTransport): JobStatus
     riskLevel: transport.risk_level ?? null,
     confidenceScore: safeNullableNumber(transport.confidence_score),
     runtimeSecondsTotal: safeNullableNumber(transport.runtime_seconds_total),
+    analysisProfile:
+      transport.analysis_profile === "fast" ||
+      transport.analysis_profile === "standard" ||
+      transport.analysis_profile === "full"
+        ? transport.analysis_profile
+        : null,
+    stage1Execution: adaptStage1Execution(transport.stage1_execution),
   }
 }
 
@@ -135,6 +177,12 @@ export function adaptTotalJobStatus(
     enrichmentStatus: transport.enrichment_status ?? "not_started",
     enrichmentProgress: safeNumber(transport.enrichment_progress, 0),
     enrichmentError: transport.enrichment_error ?? null,
+    analysisProfile:
+      transport.analysis_profile === "fast" ||
+      transport.analysis_profile === "standard" ||
+      transport.analysis_profile === "full"
+        ? transport.analysis_profile
+        : null,
     children: Array.isArray(transport.children)
       ? transport.children.map((child) => ({
           analysisJobId: child.analysis_job_id,
@@ -148,6 +196,13 @@ export function adaptTotalJobStatus(
           riskLevel: child.risk_level ?? null,
           confidenceScore: safeNullableNumber(child.confidence_score),
           runtimeSecondsTotal: safeNullableNumber(child.runtime_seconds_total),
+          analysisProfile:
+            child.analysis_profile === "fast" ||
+            child.analysis_profile === "standard" ||
+            child.analysis_profile === "full"
+              ? child.analysis_profile
+              : null,
+          stage1Execution: adaptStage1Execution(child.stage1_execution),
         }))
       : [],
   }

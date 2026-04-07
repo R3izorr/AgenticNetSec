@@ -18,6 +18,8 @@ Important current behavior:
 
 - stage 1 does not use AI
 - stage 1 does not use sandbox
+- stage 1 supports `fast`, `standard`, and `full` deterministic profiles
+- `standard` is the default and only runs deep dive or payload carving when evidence exists
 - AI and sandbox run only at parent total-job enrichment time
 - duplicate completed PCAPs are removed before parent enrichment
 - partial child-job failures are surfaced in the total-job UI
@@ -152,13 +154,14 @@ Use the smoke inputs already in the repo if available:
 4. Go to `/analysis/new`
 5. Upload one or more PCAPs
 6. Set worker count to `2` or more
-7. Submit
-8. Confirm redirect to `/total-jobs/{totalJobId}`
-9. Wait for deterministic child analysis to finish
-10. Trigger enrichment from:
+7. Select a stage-1 profile
+8. Submit
+9. Confirm redirect to `/total-jobs/{totalJobId}`
+10. Wait for deterministic child analysis to finish
+11. Trigger enrichment from:
    - `/total-jobs`
    - or `/total-jobs/{totalJobId}`
-11. Verify parent artifacts and dedupe summary
+12. Verify parent artifacts and dedupe summary
 
 ## What To Verify In The UI
 
@@ -169,6 +172,7 @@ On `/analysis/new`:
 - multi-file input works
 - one file and many files use the same flow
 - worker count minimum is `2`
+- stage-1 profile selector shows `fast`, `standard`, and `full`
 - submission redirects to a total-job page
 
 ### Total-job list
@@ -188,6 +192,8 @@ On `/total-jobs`:
 On `/total-jobs/{totalJobId}`:
 
 - child jobs appear with status and progress
+- selected stage-1 profile appears on the parent total-job summary
+- child rows show deep-dive and payload-carving execution state
 - failed children are clearly called out
 - enrichment actions appear:
   - `Run AI Summary + Sandbox`
@@ -264,6 +270,16 @@ Expected result:
 - dedupe summary appears on the total-job detail page
 
 ## Verification Commands
+
+### Path-based batch helper smoke test
+
+Linux:
+
+```bash
+python backend/scripts/submit_batch_to_api.py outputs/smoke_inputs --workers 2 --analysis-profile standard
+```
+
+Re-run the same command to confirm skip-existing behavior.
 
 ### Backend compile check
 

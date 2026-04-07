@@ -34,6 +34,7 @@ class TotalJobRecord:
     enrichment_status: str = "not_started"
     enrichment_progress: float = 0.0
     enrichment_error: str | None = None
+    analysis_profile: str = "standard"
     children: list[TotalJobChildRef] = field(default_factory=list)
 
 
@@ -45,7 +46,7 @@ class TotalJobStore:
         self._lock = threading.Lock()
         self._load_existing_jobs()
 
-    def create_job(self, *, worker_count: int, files: list[dict[str, Any]]) -> TotalJobRecord:
+    def create_job(self, *, worker_count: int, files: list[dict[str, Any]], analysis_profile: str = "standard") -> TotalJobRecord:
         total_job_id = f"total_{uuid.uuid4().hex[:12]}"
         artifacts_dir = self.base_dir / total_job_id
         artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -54,6 +55,7 @@ class TotalJobStore:
             artifacts_dir=str(artifacts_dir),
             worker_count=worker_count,
             file_count=len(files),
+            analysis_profile=analysis_profile,
             children=[
                 TotalJobChildRef(
                     analysis_job_id=str(item["analysis_job_id"]),
@@ -125,7 +127,9 @@ class TotalJobStore:
                 continue
             record = self._load_job_record(job_dir)
             if record:
+                record = self._recover_interrupted_total_job(record)
                 self._jobs[record.total_job_id] = record
+                self._persist_record(record)
 
     def _load_job_record(self, job_dir: Path) -> TotalJobRecord | None:
         manifest_path = job_dir / "total_job.json"
@@ -148,3 +152,23 @@ class TotalJobStore:
         manifest_path = Path(record.artifacts_dir) / "total_job.json"
         payload = asdict(record)
         manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    @staticmethod
+    def _recover_interrupted_total_job(record: TotalJobRecord) -> TotalJobRecord:
+        if record.enrichment_status in {"queued", "running"}:
+            record.enrichment_status = "failed"
+            record.enrichment_error = "Interrupted by backend shutdown during enrichment."
+            if record.deterministic_complete:
+                record.status = "completed"
+                record.current_stage = "ready_for_enrichment"
+            else:
+                record.status = "failed"
+                record.current_stage = "failed"
+                record.error = "Interrupted by backend shutdown before deterministic analysis completed."
+            return record
+
+        if record.status in {"queued", "running"} or record.current_stage in {"queued", "deterministic_analysis"}:
+            record.status = "failed"
+            record.current_stage = "failed"
+            record.error = "Interrupted by backend shutdown before deterministic analysis completed."
+        return record
