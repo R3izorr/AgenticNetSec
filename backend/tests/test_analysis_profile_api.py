@@ -36,7 +36,7 @@ sys.modules.setdefault("analysis_engine", analysis_engine_stub)
 
 from backend.api import app as api_app
 from backend.api.job_store import JobStore
-from backend.api.total_job_store import TotalJobStore
+from backend.api.total_job_store import TotalJobChildRef, TotalJobStore
 
 
 class _JsonRequest:
@@ -157,6 +157,54 @@ class AnalysisProfileApiTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(context.exception.status_code, 400)
             self.assertIn("analysis_profile", str(context.exception.detail))
+
+    async def test_total_job_progress_reflects_running_child_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            job_store = JobStore(temp_root / "analysis_jobs")
+            total_job_store = TotalJobStore(temp_root / "total_jobs")
+
+            total_job = total_job_store.create_job(worker_count=2, files=[], analysis_profile="standard")
+            child_job = job_store.create_job(
+                source_type="path",
+                source_name="sample.pcap",
+                source_path=str(temp_root / "sample.pcap"),
+                group_id=total_job.total_job_id,
+                group_index=0,
+                group_total=1,
+                analysis_profile="standard",
+            )
+            job_store.update(
+                child_job.analysis_job_id,
+                status="running",
+                current_phase="analysis",
+                progress=0.2,
+            )
+            total_job_store.update(
+                total_job.total_job_id,
+                status="running",
+                current_stage="deterministic_analysis",
+                progress=0.02,
+                file_count=1,
+                children=[
+                    TotalJobChildRef(
+                        analysis_job_id=child_job.analysis_job_id,
+                        filename=child_job.source_name or "sample.pcap",
+                        source_path=child_job.source_path,
+                    )
+                ],
+            )
+
+            with (
+                patch.object(api_app, "job_store", job_store),
+                patch.object(api_app, "total_job_store", total_job_store),
+            ):
+                response = await api_app.get_total_job_status(total_job.total_job_id)
+
+            self.assertEqual(response.analysis_profile, "standard")
+            self.assertAlmostEqual(response.progress, 0.2)
+            self.assertEqual(response.children[0].analysis_profile, "standard")
+            self.assertAlmostEqual(response.children[0].progress, 0.2)
 
 
 if __name__ == "__main__":

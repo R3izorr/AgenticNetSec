@@ -19,7 +19,8 @@ Important current behavior:
 - stage 1 does not use AI
 - stage 1 does not use sandbox
 - stage 1 supports `fast`, `standard`, and `full` deterministic profiles
-- `standard` is the default and only runs deep dive or payload carving when evidence exists
+- `standard` is the default, only runs deep dive when evidence exists, and skips deterministic payload carving
+- payload-deployment follow-up is deferred to stage-2 sandbox enrichment unless you explicitly use `full`
 - AI and sandbox run only at parent total-job enrichment time
 - duplicate completed PCAPs are removed before parent enrichment
 - partial child-job failures are surfaced in the total-job UI

@@ -9,8 +9,7 @@ import uuid
 
 from scapy.all import DNS, DNSQR, IP, Raw, TCP, UDP, PcapReader
 
-from analyzer import analyze_pcap_summary
-from detectors import collect_all_findings
+from detectors import _scan_detection_surfaces, collect_all_findings
 from deep_dive import build_deep_dive, render_deep_dive_markdown
 from flow_analysis import build_attack_flow
 from forensic_schema import (
@@ -74,7 +73,6 @@ class AnalysisEngine:
         self.planner = AnalysisPlanner()
         self.executor = ToolExecutor(
             allowed_tools={
-                "pcap_summary",
                 "collect_findings",
                 "deep_dive",
                 "reasoning",
@@ -86,6 +84,7 @@ class AnalysisEngine:
 
     def run(self, req: AnalysisRequest, progress_callback: Callable[[str, float], None] | None = None) -> AnalysisArtifacts:
         tracker = MetricsTracker()
+        requested_profile = req.analysis_profile if req.analysis_profile in {"fast", "standard", "full"} else "standard"
 
         if progress_callback:
             progress_callback("ingest", 0.15)
@@ -93,20 +92,14 @@ class AnalysisEngine:
         with tracker.phase("ingest"):
             self.guardrails.validate_input(req.pcap_path)
             input_validity = self.guardrails.describe_input(req.pcap_path)
-            metadata = self._extract_metadata(req.pcap_path)
+            metadata = (
+                self._extract_metadata(req.pcap_path)
+                if requested_profile == "full"
+                else self._extract_lightweight_metadata(req.pcap_path)
+            )
             plan = self.planner.create_plan(metadata, req.use_ai, req.analysis_profile, req.enable_sandbox)
         if progress_callback:
-            progress_callback("parse", 0.35)
-
-        with tracker.phase("parse"):
-            summary = self.executor.execute(
-                "pcap_summary",
-                analyze_pcap_summary,
-                req.pcap_path,
-                policy=ToolPolicy(timeout_seconds=180, retries=1),
-            )
-        if progress_callback:
-            progress_callback("analysis", 0.55)
+            progress_callback("analysis", 0.45)
 
         with tracker.phase("analysis"):
             findings = self.executor.execute(
@@ -115,8 +108,14 @@ class AnalysisEngine:
                 req.pcap_path,
                 policy=ToolPolicy(timeout_seconds=300, retries=1),
             )
+            summary = self._summary_from_detection_surfaces(req.pcap_path)
+            metadata = self._hydrate_metadata_from_summary(metadata, summary)
             plan = self.planner.refine_plan(plan, findings)
-            payload_carving = self._build_skipped_payload_carving_result(req, plan.payload_carving_reason)
+            payload_carving = self._build_skipped_payload_carving_result(
+                req,
+                plan.payload_carving_reason,
+                status="skipped_profile_policy",
+            )
             if plan.run_payload_carving:
                 payload_carving = self.executor.execute(
                     "payload_carving",
@@ -283,9 +282,15 @@ class AnalysisEngine:
                 ),
         )
 
-    def _build_skipped_payload_carving_result(self, req: AnalysisRequest, reason: str) -> dict[str, Any]:
+    def _build_skipped_payload_carving_result(
+        self,
+        req: AnalysisRequest,
+        reason: str,
+        *,
+        status: str = "skipped_profile_policy",
+    ) -> dict[str, Any]:
         return {
-            "status": "skipped_no_evidence",
+            "status": status,
             "pcap_path": str(Path(req.pcap_path).resolve()),
             "artifacts_dir": str(Path(req.artifacts_dir).resolve()) if req.artifacts_dir else None,
             "candidate_count": 0,
@@ -457,6 +462,40 @@ class AnalysisEngine:
             "capture_end": datetime.fromtimestamp(end_time, tz=timezone.utc).isoformat() if end_time else None,
         }
 
+    def _extract_lightweight_metadata(self, pcap_path: str) -> dict[str, Any]:
+        path = Path(pcap_path).resolve()
+        return {
+            "filename": path.name,
+            "path": str(path),
+            "size_bytes": path.stat().st_size,
+            "packet_count": None,
+            "flow_count": None,
+            "capture_start": None,
+            "capture_end": None,
+        }
+
+    def _summary_from_detection_surfaces(self, pcap_path: str) -> dict[str, Any]:
+        summary = (_scan_detection_surfaces(pcap_path).get("summary") or {})
+        return {
+            "total_packets": int(summary.get("total_packets", 0) or 0),
+            "top_ips": list(summary.get("top_ips") or []),
+            "top_ports": list(summary.get("top_ports") or []),
+            "protocols": list(summary.get("protocols") or []),
+            "average_packet_size": float(summary.get("average_packet_size", 0.0) or 0.0),
+            "unusual_ports": list(summary.get("unusual_ports") or []),
+            "unusual_protocols": list(summary.get("unusual_protocols") or []),
+            "scan_candidates": list(summary.get("scan_candidates") or []),
+        }
+
+    def _hydrate_metadata_from_summary(self, metadata: dict[str, Any], summary: dict[str, Any]) -> dict[str, Any]:
+        packet_count = int(summary.get("total_packets", 0) or 0)
+        if metadata.get("packet_count") == packet_count and metadata.get("packet_count") is not None:
+            return metadata
+        return {
+            **metadata,
+            "packet_count": packet_count,
+        }
+
     def _zero_day_heuristics(self, summary: dict[str, Any], findings: dict[str, Any], metadata: dict[str, Any]) -> dict[str, Any]:
         unusual_port_count = len(summary.get("unusual_ports", []))
         unusual_proto_count = len(summary.get("unusual_protocols", []))
@@ -500,7 +539,13 @@ class AnalysisEngine:
     ) -> tuple[ForensicReport, dict[str, Any]]:
         case_id = f"CASE-{uuid.uuid4().hex[:8].upper()}"
 
-        evidence_refs = self._build_evidence_refs(req.pcap_path, metadata, findings)
+        include_frame_numbers = req.analysis_profile == "full"
+        evidence_refs = self._build_evidence_refs(
+            req.pcap_path,
+            metadata,
+            findings,
+            include_frame_numbers=include_frame_numbers,
+        )
         findings_with_sandbox = {**findings, "sandbox_verification": sandbox_verification}
         ioc_list, suspicious_sessions, key_flows = self._collect_iocs_and_sessions(findings_with_sandbox, evidence_refs)
         timeline = self._collect_timeline(findings_with_sandbox, deep_dive, zero_day)
@@ -510,7 +555,16 @@ class AnalysisEngine:
         attack_type, risk_level = self._impact_summary(findings_with_sandbox, zero_day, confidence)
         mitre_techniques = self._collect_mitre_techniques(evidence_refs)
 
-        observation = f"Observed {metadata.get('packet_count', 0)} packets across {metadata.get('flow_count', 0)} flows."
+        packet_count = metadata.get("packet_count")
+        flow_count = metadata.get("flow_count")
+        if packet_count is not None and flow_count is not None:
+            observation = f"Observed {packet_count} packets across {flow_count} flows."
+        elif packet_count is not None:
+            observation = f"Observed {packet_count} packets in the supplied capture."
+        elif flow_count is not None:
+            observation = f"Observed traffic across {flow_count} flows in the supplied capture."
+        else:
+            observation = "Observed network traffic in the supplied capture."
         inference = f"Likely attack class: {attack_type} with risk level {risk_level}."
         recommendation = self._recommendation_summary(findings_with_sandbox, attack_type, confidence)
 
@@ -911,7 +965,14 @@ class AnalysisEngine:
             or findings.get("manual_payload_deployment", {}).get("candidates")
         )
 
-    def _build_evidence_refs(self, pcap_path: str, metadata: dict[str, Any], findings: dict[str, Any]) -> list[EvidenceRef]:
+    def _build_evidence_refs(
+        self,
+        pcap_path: str,
+        metadata: dict[str, Any],
+        findings: dict[str, Any],
+        *,
+        include_frame_numbers: bool,
+    ) -> list[EvidenceRef]:
         source_file = metadata.get("filename", Path(pcap_path).name)
         evidence_refs: list[EvidenceRef] = []
 
@@ -926,7 +987,14 @@ class AnalysisEngine:
                     claim="patient_zero",
                     source_file=source_file,
                     summary=f"External RDP session {external_ip} -> {internal_ip} reached the strongest patient-zero confidence.",
-                    frame_numbers=self._frame_numbers_for_tcp_pair(pcap_path, external_ip, internal_ip, 3389),
+                    frame_numbers=self._maybe_frame_numbers(
+                        include_frame_numbers,
+                        self._frame_numbers_for_tcp_pair,
+                        pcap_path,
+                        external_ip,
+                        internal_ip,
+                        3389,
+                    ),
                     flow=f"{external_ip} -> {internal_ip}:3389",
                     wireshark_filter=f"ip.addr == {external_ip} and ip.addr == {internal_ip} and tcp.port == 3389",
                 )
@@ -949,7 +1017,14 @@ class AnalysisEngine:
                         f"External source {src_ip} probed {source.get('unique_ports')} ports "
                         f"across {source.get('unique_targets')} internal targets."
                     ),
-                    frame_numbers=self._frame_numbers_for_external_scan(pcap_path, src_ip, dst_ip, top_port),
+                    frame_numbers=self._maybe_frame_numbers(
+                        include_frame_numbers,
+                        self._frame_numbers_for_external_scan,
+                        pcap_path,
+                        src_ip,
+                        dst_ip,
+                        top_port,
+                    ),
                     flow=f"{src_ip} -> {dst_ip or 'internal targets'}:{top_port or 'multiple ports'}",
                     wireshark_filter=(
                         f"ip.src == {src_ip} and ip.dst == {dst_ip} and tcp.flags.syn == 1 and tcp.flags.ack == 0"
@@ -968,7 +1043,12 @@ class AnalysisEngine:
                     claim="lateral_movement",
                     source_file=source_file,
                     summary=f"Internal host {src_ip} scanned {scanner.get('unique_targets')} SMB/RPC targets.",
-                    frame_numbers=self._frame_numbers_for_scan_source(pcap_path, src_ip),
+                    frame_numbers=self._maybe_frame_numbers(
+                        include_frame_numbers,
+                        self._frame_numbers_for_scan_source,
+                        pcap_path,
+                        src_ip,
+                    ),
                     flow=f"{src_ip} -> internal hosts on 135/445",
                     wireshark_filter=f"ip.src == {src_ip} and (tcp.dstport == 135 or tcp.dstport == 445)",
                 )
@@ -985,7 +1065,14 @@ class AnalysisEngine:
                     claim="exfiltration",
                     source_file=source_file,
                     summary=f"temp.sh indicator observed from {src_ip} to {dst_ip}:{dst_port}.",
-                    frame_numbers=self._frame_numbers_for_temp_sh(pcap_path, src_ip, dst_ip, dst_port),
+                    frame_numbers=self._maybe_frame_numbers(
+                        include_frame_numbers,
+                        self._frame_numbers_for_temp_sh,
+                        pcap_path,
+                        src_ip,
+                        dst_ip,
+                        dst_port,
+                    ),
                     flow=f"{src_ip} -> {dst_ip}:{dst_port}",
                     wireshark_filter=f"(ip.src == {src_ip} and ip.dst == {dst_ip}) and frame contains \"temp.sh\"",
                 )
@@ -1002,7 +1089,14 @@ class AnalysisEngine:
                     claim="exfiltration",
                     source_file=source_file,
                     summary=f"Large outbound HTTP upload from {src_ip} to {dst_ip}:{dst_port} inferred {upload.get('inferred_upload_bytes')} bytes.",
-                    frame_numbers=self._frame_numbers_for_http_flow(pcap_path, src_ip, dst_ip, dst_port),
+                    frame_numbers=self._maybe_frame_numbers(
+                        include_frame_numbers,
+                        self._frame_numbers_for_http_flow,
+                        pcap_path,
+                        src_ip,
+                        dst_ip,
+                        dst_port,
+                    ),
                     flow=f"{src_ip} -> {dst_ip}:{dst_port}",
                     wireshark_filter=f"ip.src == {src_ip} and ip.dst == {dst_ip} and tcp.dstport == {dst_port} and http.request.method",
                 )
@@ -1020,7 +1114,15 @@ class AnalysisEngine:
                     claim="exfiltration",
                     source_file=source_file,
                     summary=f"Outbound exfiltration candidate {src_ip} -> {dst_ip}:{dst_port} transferred {flow.get('total_bytes')} bytes.",
-                    frame_numbers=self._frame_numbers_for_flow(pcap_path, src_ip, dst_ip, dst_port, transport),
+                    frame_numbers=self._maybe_frame_numbers(
+                        include_frame_numbers,
+                        self._frame_numbers_for_flow,
+                        pcap_path,
+                        src_ip,
+                        dst_ip,
+                        dst_port,
+                        transport,
+                    ),
                     flow=f"{src_ip} -> {dst_ip}:{dst_port}",
                     wireshark_filter=f"ip.src == {src_ip} and ip.dst == {dst_ip} and tcp.dstport == {dst_port}",
                 )
@@ -1035,7 +1137,12 @@ class AnalysisEngine:
                     claim="lateral_movement",
                     source_file=source_file,
                     summary=f"Internal RDP spread from {src_ip} touched {spread.get('unique_targets')} internal targets.",
-                    frame_numbers=self._frame_numbers_for_internal_rdp_source(pcap_path, src_ip),
+                    frame_numbers=self._maybe_frame_numbers(
+                        include_frame_numbers,
+                        self._frame_numbers_for_internal_rdp_source,
+                        pcap_path,
+                        src_ip,
+                    ),
                     flow=f"{src_ip} -> internal hosts:3389",
                     wireshark_filter=f"ip.src == {src_ip} and tcp.dstport == 3389",
                 )
@@ -1052,13 +1159,29 @@ class AnalysisEngine:
                     claim="payload_deployment",
                     source_file=source_file,
                     summary=f"RDP plus SMB/DCERPC correlations suggest manual payload deployment from {src_ip} to {candidate.get('unique_targets')} hosts.",
-                    frame_numbers=self._frame_numbers_for_manual_deployment(pcap_path, src_ip, dst_ip),
+                    frame_numbers=self._maybe_frame_numbers(
+                        include_frame_numbers,
+                        self._frame_numbers_for_manual_deployment,
+                        pcap_path,
+                        src_ip,
+                        dst_ip,
+                    ),
                     flow=f"{src_ip} -> {dst_ip or 'multiple internal hosts'}",
                     wireshark_filter=f"ip.src == {src_ip} and (tcp.dstport == 3389 or tcp.dstport == 445 or tcp.dstport == 135)",
                 )
             )
 
         return evidence_refs
+
+    def _maybe_frame_numbers(
+        self,
+        include_frame_numbers: bool,
+        resolver: Callable[..., list[int]],
+        *args: Any,
+    ) -> list[int]:
+        if not include_frame_numbers:
+            return []
+        return resolver(*args)
 
     def _make_evidence_ref(
         self,

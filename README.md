@@ -28,9 +28,11 @@ As of the current implementation:
     - recommended default
     - always runs metadata, summary, findings, and deterministic report
     - runs deep dive only when base findings show evidence
-    - runs payload carving only when payload-deployment-style evidence exists
+    - skips deterministic payload carving to keep normal stage-1 runs fast
+    - relies on stage-2 sandbox enrichment for payload-deployment follow-up
   - `full`
     - preserves the heavier legacy deterministic path
+    - keeps deterministic payload carving enabled
 - parent enrichment can be triggered later from the UI
 - parent enrichment now:
   - supports run, retry, and rerun

@@ -116,6 +116,7 @@ def _serialize_total_job(job: TotalJobRecord) -> dict[str, Any]:
     children: list[dict[str, Any]] = []
     completed_children = 0
     failed_children = 0
+    child_progress_total = 0.0
     for child_ref in job.children:
         child_job = job_store.get(child_ref.analysis_job_id)
         child_payload = {
@@ -137,11 +138,14 @@ def _serialize_total_job(job: TotalJobRecord) -> dict[str, Any]:
             completed_children += 1
         elif child_payload["status"] == "failed":
             failed_children += 1
+        child_progress_total += max(0.0, min(1.0, float(child_payload["progress"] or 0.0)))
         children.append(child_payload)
 
     progress = job.progress
     if job.file_count > 0 and job.current_stage in {"deterministic_analysis", "ready_for_enrichment"}:
-        progress = max(progress, (completed_children + failed_children) / job.file_count)
+        completed_fraction = (completed_children + failed_children) / job.file_count
+        child_progress_fraction = child_progress_total / job.file_count
+        progress = max(progress, completed_fraction, child_progress_fraction)
 
     return {
         "total_job_id": job.total_job_id,

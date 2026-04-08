@@ -30,8 +30,8 @@ class AnalysisPlanner:
     ) -> PlanConfig:
         import os
 
-        file_size = int(metadata.get("size_bytes", 0))
-        packet_count = int(metadata.get("packet_count", 0))
+        file_size = int(metadata.get("size_bytes", 0) or 0)
+        packet_count = int(metadata.get("packet_count", 0) or 0)
 
         enable_zero_day_heuristics = True
         if enable_sandbox is None:
@@ -52,7 +52,7 @@ class AnalysisPlanner:
             run_deep_dive = False
             deep_dive_reason = "Skipped in fast profile."
             run_payload_carving = False
-            payload_carving_reason = "Skipped in fast profile."
+            payload_carving_reason = "Skipped in fast profile; payload carving is reserved for explicit heavy analysis."
         elif resolved_profile == "full":
             run_deep_dive = packet_count > 20000 or file_size > 50 * 1024 * 1024
             deep_dive_reason = (
@@ -66,7 +66,9 @@ class AnalysisPlanner:
             run_deep_dive = False
             deep_dive_reason = "Awaiting evidence gate from base findings."
             run_payload_carving = False
-            payload_carving_reason = "Awaiting payload-deployment evidence from base findings."
+            payload_carving_reason = (
+                "Skipped in standard profile; payload-deployment follow-up is deferred to sandbox enrichment."
+            )
 
         return PlanConfig(
             analysis_profile=resolved_profile,
@@ -84,11 +86,8 @@ class AnalysisPlanner:
             return plan
 
         run_deep_dive, deep_dive_reason = self._should_run_deep_dive(findings)
-        run_payload_carving, payload_carving_reason = self._should_run_payload_carving(findings)
         plan.run_deep_dive = run_deep_dive
         plan.deep_dive_reason = deep_dive_reason
-        plan.run_payload_carving = run_payload_carving
-        plan.payload_carving_reason = payload_carving_reason
         return plan
 
     def _should_run_deep_dive(self, findings: dict) -> tuple[bool, str]:
@@ -149,19 +148,3 @@ class AnalysisPlanner:
         ):
             return True, "Standard profile enabled deep dive because base findings showed suspicious evidence."
         return False, "Standard profile skipped deep dive because base findings were clean."
-
-    def _should_run_payload_carving(self, findings: dict) -> tuple[bool, str]:
-        manual_drop_candidates = [
-            item
-            for item in (findings.get("manual_payload_deployment", {}) or {}).get("candidates", [])
-            if item.get("suspicious")
-        ]
-        suspicious_spreaders = [
-            item
-            for item in (findings.get("rdp_payload_deployment", {}) or {}).get("spreaders", [])
-            if item.get("suspicious")
-        ]
-        uploads = list((findings.get("large_http_posts", {}) or {}).get("uploads", []) or [])
-        if manual_drop_candidates or suspicious_spreaders or uploads:
-            return True, "Standard profile enabled payload carving because payload-deployment evidence was present."
-        return False, "Standard profile skipped payload carving because no payload-deployment evidence was present."

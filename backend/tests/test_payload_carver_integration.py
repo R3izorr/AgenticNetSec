@@ -81,6 +81,18 @@ class PayloadCarverIntegrationTests(unittest.TestCase):
                 "capture_end": None,
             }
         )
+        engine._summary_from_detection_surfaces = Mock(
+            return_value={
+                "total_packets": 10,
+                "top_ips": [],
+                "top_ports": [],
+                "protocols": {},
+                "average_packet_size": 100.0,
+                "unusual_ports": [],
+                "unusual_protocols": [],
+                "scan_candidates": [],
+            }
+        )
         engine.planner.create_plan = Mock(
             return_value=SimpleNamespace(
                 analysis_profile="full",
@@ -127,17 +139,6 @@ class PayloadCarverIntegrationTests(unittest.TestCase):
         def fake_execute(name, func, *args, **kwargs):  # type: ignore[no-untyped-def]
             nonlocal reasoning_context
             tool_calls.append(name)
-            if name == "pcap_summary":
-                return {
-                    "total_packets": 10,
-                    "top_ips": [],
-                    "top_ports": [],
-                    "protocols": {},
-                    "average_packet_size": 100.0,
-                    "unusual_ports": [],
-                    "unusual_protocols": [],
-                    "scan_candidates": [],
-                }
             if name == "collect_findings":
                 return findings
             if name == "payload_carving":
@@ -165,7 +166,7 @@ class PayloadCarverIntegrationTests(unittest.TestCase):
             )
         )
 
-        self.assertEqual(tool_calls, ["pcap_summary", "collect_findings", "payload_carving", "reasoning"])
+        self.assertEqual(tool_calls, ["collect_findings", "payload_carving", "reasoning"])
         self.assertIsNotNone(reasoning_context)
         self.assertEqual((reasoning_context or {}).get("payload_carving"), payload_carving)
         self.assertEqual(artifacts.analysis_record["payload_iocs"], ["sha256:abc123"])

@@ -1,7 +1,8 @@
-﻿# Python
+# Python
 __pycache__/
 *.pyc
 .venv/
+venv/
 backend/venv/
 .virtualenv_data/
 .tmp/
@@ -14,7 +15,12 @@ frontend/.next/
 # OS/editor
 .DS_Store
 Thumbs.db
+/.codex
 
 # Runtime artifacts
 outputs/uploads/
 outputs/analysis_jobs/
+outputs/total_jobs/
+
+# Local repo noise
+/package-lock.json

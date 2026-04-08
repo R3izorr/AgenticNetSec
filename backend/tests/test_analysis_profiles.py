@@ -114,14 +114,13 @@ class AnalysisProfileEngineTests(unittest.TestCase):
                 "capture_end": None,
             }
         )
+        engine._summary_from_detection_surfaces = Mock(return_value=_summary_payload())
         engine._build_forensic_report = Mock(return_value=(_DummyStructuredReport(), {"audit": "ok"}))
 
         tool_calls: list[str] = []
 
         def fake_execute(name, func, *args, **kwargs):  # type: ignore[no-untyped-def]
             tool_calls.append(name)
-            if name == "pcap_summary":
-                return _summary_payload()
             if name == "collect_findings":
                 return findings
             if name == "payload_carving":
@@ -166,20 +165,21 @@ class AnalysisProfileEngineTests(unittest.TestCase):
         findings["manual_payload_deployment"] = {"candidates": [{"suspicious": True}]}
         tool_calls, record = self._run_engine(analysis_profile="fast", findings=findings)
 
-        self.assertEqual(tool_calls, ["pcap_summary", "collect_findings", "zero_day_heuristics", "reasoning"])
+        self.assertEqual(tool_calls, ["collect_findings", "zero_day_heuristics", "reasoning"])
         self.assertEqual(record["analysis_profile"], "fast")
-        self.assertEqual(record["payload_carving_status"], "skipped_no_evidence")
+        self.assertEqual(record["payload_carving_status"], "skipped_profile_policy")
         self.assertFalse(record["stage1_execution"]["deep_dive"]["executed"])
         self.assertFalse(record["stage1_execution"]["payload_carving"]["executed"])
+        self.assertIn("fast profile", record["stage1_execution"]["payload_carving"]["reason"].lower())
 
     def test_standard_profile_skips_heavy_steps_when_findings_are_clean(self) -> None:
         tool_calls, record = self._run_engine(analysis_profile="standard", findings=_base_findings())
 
-        self.assertEqual(tool_calls, ["pcap_summary", "collect_findings", "zero_day_heuristics", "reasoning"])
+        self.assertEqual(tool_calls, ["collect_findings", "zero_day_heuristics", "reasoning"])
         self.assertEqual(record["analysis_profile"], "standard")
-        self.assertEqual(record["payload_carving_status"], "skipped_no_evidence")
+        self.assertEqual(record["payload_carving_status"], "skipped_profile_policy")
         self.assertIn("clean", record["stage1_execution"]["deep_dive"]["reason"].lower())
-        self.assertIn("no payload-deployment evidence", record["stage1_execution"]["payload_carving"]["reason"].lower())
+        self.assertIn("sandbox enrichment", record["stage1_execution"]["payload_carving"]["reason"].lower())
 
     def test_standard_profile_runs_deep_dive_for_non_payload_evidence_only(self) -> None:
         findings = _base_findings()
@@ -191,15 +191,16 @@ class AnalysisProfileEngineTests(unittest.TestCase):
         self.assertTrue(record["stage1_execution"]["deep_dive"]["executed"])
         self.assertFalse(record["stage1_execution"]["payload_carving"]["executed"])
 
-    def test_standard_profile_runs_payload_carving_when_payload_evidence_exists(self) -> None:
+    def test_standard_profile_defers_payload_carving_even_when_payload_evidence_exists(self) -> None:
         findings = _base_findings()
         findings["large_http_posts"] = {"uploads": [{"dst_ip": "10.0.0.7"}]}
         tool_calls, record = self._run_engine(analysis_profile="standard", findings=findings)
 
         self.assertIn("deep_dive", tool_calls)
-        self.assertIn("payload_carving", tool_calls)
-        self.assertEqual(record["payload_carving_status"], "candidate_selection_only")
-        self.assertTrue(record["stage1_execution"]["payload_carving"]["executed"])
+        self.assertNotIn("payload_carving", tool_calls)
+        self.assertEqual(record["payload_carving_status"], "skipped_profile_policy")
+        self.assertFalse(record["stage1_execution"]["payload_carving"]["executed"])
+        self.assertIn("sandbox enrichment", record["stage1_execution"]["payload_carving"]["reason"].lower())
 
     def test_full_profile_preserves_heavy_behavior(self) -> None:
         metadata = {
@@ -222,6 +223,33 @@ class AnalysisProfileEngineTests(unittest.TestCase):
         self.assertEqual(record["analysis_profile"], "full")
         self.assertTrue(record["stage1_execution"]["deep_dive"]["executed"])
         self.assertTrue(record["stage1_execution"]["payload_carving"]["executed"])
+
+    def test_non_full_evidence_refs_skip_frame_number_resolution(self) -> None:
+        engine = AnalysisEngine()
+        engine._frame_numbers_for_tcp_pair = Mock(side_effect=AssertionError("frame lookup should not run"))  # type: ignore[method-assign]
+
+        findings = _base_findings()
+        findings["external_rdp"] = {
+            "sessions": [],
+            "patient_zero_candidate": {
+                "external_ip": "203.0.113.10",
+                "internal_ip": "10.0.0.5",
+            },
+        }
+
+        refs = engine._build_evidence_refs(
+            "backend/tests/test_analysis_profiles.py",
+            {
+                "filename": "sample.pcap",
+                "path": "/tmp/sample.pcap",
+                "size_bytes": 1234,
+            },
+            findings,
+            include_frame_numbers=False,
+        )
+
+        self.assertEqual(len(refs), 1)
+        self.assertEqual(refs[0].frame_numbers, [])
 
 
 if __name__ == "__main__":

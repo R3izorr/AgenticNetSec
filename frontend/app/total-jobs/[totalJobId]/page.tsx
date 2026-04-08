@@ -89,6 +89,9 @@ function formatStage1Step(value: { executed?: boolean; status?: string | null } 
   if (value.executed) {
     return "Executed"
   }
+  if (value.status === "skipped_profile_policy") {
+    return "Skipped: profile policy"
+  }
   return value.status === "skipped_no_evidence" ? "Skipped: no evidence" : "Skipped"
 }
 

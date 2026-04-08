@@ -214,7 +214,8 @@ The API batch flow now supports three deterministic stage-1 profiles:
   - recommended default
   - always runs metadata, summary, findings, deterministic report
   - runs deep dive only when evidence is present
-  - runs payload carving only when payload-deployment evidence is present
+  - skips deterministic payload carving to keep normal stage-1 batches faster
+  - defers payload-deployment follow-up to sandbox enrichment
 - `full`
   - preserves the heavier legacy deterministic path
   - payload carving always runs
