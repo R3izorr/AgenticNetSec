@@ -2,238 +2,372 @@
 
 ## Overview
 
-AgenticNetSec currently has two execution paths in the codebase:
+AgenticNetSec currently supports two live execution paths:
 
-1. Single-file analysis job
+1. Legacy single-file analysis
 - `POST /api/v1/analysis`
-- accepts one upload or one `pcap_path`
-- runs the existing `AnalysisEngine`
-- can still use AI and sandbox depending on request flags and backend runtime settings
+- accepts one uploaded PCAP or one `pcap_path`
+- runs `AnalysisEngine` directly
+- can still use optional AI and sandbox behavior on that single-file path
 
 2. Batch-first total-job analysis
 - `POST /api/v1/analysis/batch`
-- accepts one or more uploaded PCAP files
+- accepts one or more uploaded PCAPs or JSON `pcap_paths`
 - creates one parent `total_job`
-- creates one child analysis job per file
-- runs deterministic code-only analysis first
-- supports a later parent-level enrichment trigger for AI summary and sandbox
+- creates one child `analysis_job` per file
+- runs deterministic stage 1 first
+- defers parent-level AI and sandbox enrichment to an explicit stage 2 trigger
 
-The current direction of the system is:
-- deterministic first pass per file
-- parent job tracks the batch
-- AI summary and sandbox are deferred until explicitly triggered later
+The current product direction is total-job-first:
+
+- stage 1 is deterministic and batch-friendly
+- stage 2 is deliberate and parent-scoped
+- large corpora can also be summarized through one combined all-total-jobs route
+
+## Current Execution Model
+
+### Stage 1: deterministic child analysis
+
+Each child `analysis_job` produces the usual analyst artifacts plus a flattened `analysis_record.json` for later aggregation.
+
+For the batch path, child requests are intentionally forced to:
+
+- `use_ai = false`
+- `enable_sandbox = false`
+
+This keeps initial batch execution cheaper, more predictable, and easier to scale.
+
+### Stage 2: parent enrichment
+
+Parent enrichment is triggered later through:
+
+- `POST /api/v1/total-jobs/{total_job_id}/enrich`
+
+The live enrichment route is:
+
+1. initial AI campaign summary
+2. campaign weak-section planning
+3. sandbox verification over deduplicated child records
+4. targeted AI-authored `tshark` follow-up for selected files
+5. delayed stage-2 payload carving when the evidence warrants it
+6. final AI report over enriched records
+
+### All-total-jobs summary
+
+The `/total-jobs` page also supports one combined summary across completed child jobs from all total jobs through:
+
+- `GET /api/v1/total-jobs/summary/status`
+- `POST /api/v1/total-jobs/summary/enrich`
+- `GET /api/v1/total-jobs/summary/json`
+- `GET /api/v1/total-jobs/summary/markdown`
+- `GET /api/v1/total-jobs/summary/sandbox`
+
+That combined path reuses the same campaign route as per-total-job enrichment, but writes into:
+
+- `outputs/total_jobs/__all_jobs_summary/`
 
 ## Current Code Structure
 
 ### Frontend
 
+The live frontend is a Next.js App Router application under `frontend/`.
+
+Relevant routes:
+
 - `frontend/app/analysis/new/page.tsx`
   - batch-first submission UI
-  - accepts one or more PCAP files
-  - sends `worker_count` with a minimum UI value of `2`
+  - supports multi-file uploads
+  - sends `worker_count`
+  - sends `analysis_profile`
+- `frontend/app/total-jobs/page.tsx`
+  - total-job list
+  - rerun/retry enrichment actions
+  - combined all-total-jobs summary controls and artifacts
+- `frontend/app/total-jobs/[totalJobId]/page.tsx`
+  - single parent batch detail
+  - deterministic progress
+  - enrichment progress
+  - dedupe visibility
+  - summary and sandbox artifact display
+- `frontend/app/analysis/[jobId]/page.tsx`
+  - legacy single-child drill-down still exists
+
+Relevant frontend support modules:
+
 - `frontend/lib/api/analysis.ts`
-  - frontend HTTP client for child-job and total-job APIs
 - `frontend/lib/transport/analysis.ts`
-  - raw transport contracts shaped like backend API responses
 - `frontend/lib/adapters/analysis.ts`
-  - transport-to-UI model mapping
-- `frontend/lib/types/analysis.ts`
-  - frontend domain types
 - `frontend/hooks/use-total-jobs.ts`
-  - total-job list polling
 - `frontend/hooks/use-total-job-status.ts`
-  - single total-job polling
-- `frontend/components/layout/app-shell.tsx`
-  - navigation now includes `Total Jobs`
 
-Current frontend state:
-- batch submission is implemented
-- total-job API integration is implemented at the data layer
-- legacy child-job pages still exist
-- the total-job page now supports both parent-level per-batch summary actions and one combined all-total-jobs summary action so large rolling imports can be summarized in one place
-
-### Backend API
+### Backend API Layer
 
 - `backend/api/app.py`
   - FastAPI entrypoint
-  - single-job routes
-  - batch-first total-job routes
-  - background orchestration for child analysis and later enrichment
+  - child-job routes
+  - total-job routes
+  - all-total-jobs summary routes
+  - background orchestration
 - `backend/api/job_store.py`
-  - child analysis job persistence
+  - persisted child-job state under `outputs/analysis_jobs/`
 - `backend/api/total_job_store.py`
-  - parent total-job persistence
+  - persisted parent total-job state under `outputs/total_jobs/`
 
 ### Backend Analysis Core
 
 - `backend/src/analysis_engine.py`
-  - main analysis pipeline
-  - now persists an internal `analysis_record` for later total-job enrichment
+  - orchestrates stage 1
+  - persists `analysis_record.json`
 - `backend/src/planner.py`
-  - request planning
-  - supports request-level `enable_sandbox`
+  - resolves `fast`, `standard`, and `full`
+  - controls deep dive and deterministic payload carving behavior
 - `backend/src/analyzer.py`
-  - packet summary and metadata extraction
+  - summary and metadata extraction
 - `backend/src/detectors.py`
-  - rule-based network findings
+  - deterministic network findings
 - `backend/src/deep_dive.py`
-  - deeper evidence interpretation for richer captures
+  - evidence-heavy deeper interpretation when enabled
+- `backend/src/payload_carver.py`
+  - deterministic payload carving
+  - used in `full` stage 1 and again in stage 2 enrichment
+- `backend/src/sandbox_verifier.py`
+  - bounded `tshark` verification
+- `backend/src/ai_tshark_planner.py`
+  - campaign weak-section planning
+  - file selection for follow-up
+  - per-file AI-authored `tshark` query generation
 - `backend/src/report_ai.py`
-  - deterministic or provider-backed report rendering
-- `backend/src/guardrails.py`
-  - report validation and review signaling
+  - structured report generation
+  - deterministic fallback rendering
+  - aggregate campaign reporting
 
-### Backend Enrichment Helpers
+### Backend Enrichment Orchestration
 
-- `backend/build_aggregate.py`
-  - aggregate record building across analyzed files
-- `backend/generate_results_report.py`
-  - parent-level markdown summary generation
-- `backend/enrich_record.py`
-  - sandbox-oriented enrichment helpers used during delayed parent enrichment
+- `backend/scripts/enrich_results_with_sandbox.py`
+  - owns the live campaign route used by the API
+  - runs:
+    - initial summary
+    - planner
+    - sandbox verification
+    - optional AI `tshark`
+    - stage-2 payload carving
+    - final report
+- `backend/scripts/summarize_results.py`
+  - aggregate signal builder reused by the API
 
 ## Current Mermaid Diagram
 
 ```mermaid
 flowchart TD
-    A[Frontend Batch Submit\n/analysis/new] --> B[POST /api/v1/analysis/batch]
-    B --> C[FastAPI app.py]
-    C --> D[Create total_job\noutputs/total_jobs/<total_job_id>/total_job.json]
-    C --> E[Create child analysis jobs\noutputs/analysis_jobs/<analysis_job_id>/job.json]
-    E --> F[ProcessPoolExecutor\nmin 2 workers]
-    F --> G[AnalysisEngine.run\nuse_ai=false\nenable_sandbox=false]
-    G --> H[analyzer.py\ndetectors.py\ndeep_dive.py\nreport_ai fallback/code path]
-    H --> I[Child artifacts\nreport.json\nreport.md\nmetrics.json\nguardrail_audit.json\nanalysis_record.json]
-    I --> J[Total job stage = ready_for_enrichment]
-    J --> K[Frontend Total Job Page\nplanned consumer of total-job APIs]
-    K --> L[POST /api/v1/total-jobs/{id}/enrich]
-    L --> M[Load child analysis_record.json files]
-    M --> N[build_aggregate + generate_results_report]
-    M --> O[enrich_record / sandbox enrichment]
-    N --> P[summary.json + summary.md]
-    O --> Q[sandbox.json]
-    P --> R[Total job stage = enrichment_completed]
-    Q --> R
+    U["User / Analyst"] --> FE["Next.js frontend"]
+
+    subgraph FE_APP["Frontend"]
+        F1["/analysis/new<br/>batch upload + profile selection"]
+        F2["/total-jobs<br/>list, rerun, all-jobs summary"]
+        F3["/total-jobs/{id}<br/>progress, dedupe, artifacts"]
+        F4["Legacy child-job pages<br/>/analysis/{jobId}"]
+    end
+
+    FE --> F1
+    FE --> F2
+    FE --> F3
+    FE --> F4
+
+    F1 --> API_BATCH["POST /api/v1/analysis/batch"]
+    F4 --> API_SINGLE["POST /api/v1/analysis"]
+    F2 --> API_LIST["GET /api/v1/total-jobs<br/>GET /api/v1/total-jobs/summary/status"]
+    F2 --> API_ALL["POST /api/v1/total-jobs/summary/enrich"]
+    F3 --> API_ONE["GET /api/v1/total-jobs/{id}<br/>POST /api/v1/total-jobs/{id}/enrich"]
+
+    subgraph STAGE1["Stage 1: child analysis"]
+        S1["Create total_job + child analysis_job records"]
+        S2["ProcessPoolExecutor<br/>batch-first fan-out"]
+        S0["Batch child request policy<br/>use_ai=false<br/>enable_sandbox=false"]
+        S3["AnalysisEngine.run"]
+        S4["AnalysisPlanner<br/>profiles: fast | standard | full"]
+        S5["Metadata + base findings"]
+        S6["Deep dive<br/>fast: off<br/>standard: evidence-gated<br/>full: legacy threshold gate"]
+        S7["Deterministic payload carving<br/>fast: off<br/>standard: deferred<br/>full: on"]
+        S8["report.json / report.md<br/>metrics.json / guardrail_audit.json<br/>analysis_record.json"]
+    end
+
+    API_BATCH --> S1
+    S1 --> S2
+    S2 --> S0
+    S0 --> S3
+    API_SINGLE --> S3
+    S3 --> S4
+    S4 --> S5
+    S5 --> S6
+    S5 --> S7
+    S6 --> S8
+    S7 --> S8
+
+    subgraph STORES["Persistence"]
+        P1["outputs/analysis_jobs/<analysis_job_id>/"]
+        P2["outputs/total_jobs/<total_job_id>/"]
+        P3["outputs/total_jobs/__all_jobs_summary/"]
+    end
+
+    S8 --> P1
+    S1 --> P2
+
+    subgraph ENRICH["Stage 2: parent campaign enrichment"]
+        E1["Load completed child analysis_record.json"]
+        E2["Dedupe records before enrichment"]
+        E3["Initial campaign summary<br/>report provider default: Gemini"]
+        E4["Campaign weak-section planner<br/>planner provider default: OpenRouter"]
+        E5["Sandbox verification for every deduped record"]
+        E6["AI-authored tshark follow-up<br/>selected related files only"]
+        E7["Delayed stage-2 payload carving<br/>persist under parent artifacts"]
+        E8["Final campaign report<br/>same requested report provider"]
+        E9["Write aggregate_summary, scan_results,<br/>initial_summary.md, campaign_plan.json,<br/>summary.json/.md, sandbox.json"]
+    end
+
+    API_ONE --> E1
+    P1 --> E1
+    E1 --> E2
+    E2 --> E3
+    E3 --> E4
+    E2 --> E5
+    E4 --> E6
+    E5 --> E7
+    E6 --> E8
+    E7 --> E8
+    E8 --> E9
+    E9 --> P2
+
+    subgraph ALLJOBS["Combined all-total-jobs summary"]
+        A1["Collect completed child records<br/>across all total jobs"]
+        A2["Reuse the same campaign route"]
+        A3["Write mirrored artifacts + status.json"]
+    end
+
+    API_ALL --> A1
+    P1 --> A1
+    A1 --> A2
+    A2 --> A3
+    A3 --> P3
 ```
 
 ## Main Runtime Flow
 
-### 1. Ingestion
+### 1. Single-file path
 
-#### Single-file path
+The single-file API remains available for direct per-PCAP analysis:
+
 - `POST /api/v1/analysis`
-- receives one file or one `pcap_path`
-- creates one `analysis_job`
-- starts one async background run
 
-#### Batch-first path
+It still runs the same `AnalysisEngine`, but it is no longer the primary product path.
+
+### 2. Batch stage 1
+
+The primary entrypoint is:
+
 - `POST /api/v1/analysis/batch`
-- receives one or more uploaded files
-- validates worker count with a minimum of `2`
-- creates:
-  - one `total_job`
-  - one child `analysis_job` per file
-- dispatches child work through a `ProcessPoolExecutor`
 
-## 2. Child Analysis Pipeline
+This path:
 
-Each child job runs through `backend/src/analysis_engine.py`.
+1. validates files or JSON `pcap_paths`
+2. normalizes `analysis_profile`
+3. creates one parent `total_job`
+4. creates one child `analysis_job` per file
+5. fans out child work through a `ProcessPoolExecutor`
+6. updates parent progress as child jobs advance
 
-Current pipeline stages:
-- input validation
-- metadata extraction
-- packet summary analysis
-- heuristic detections
-- optional deep dive for larger captures
-- report construction
-- metrics generation
-- guardrail audit generation
-- internal `analysis_record` generation for later batch enrichment
+The parent is considered ready for stage 2 when deterministic child processing is complete.
 
-Core modules involved:
-- `backend/src/analyzer.py`
-  - compact packet and protocol summary
-- `backend/src/detectors.py`
-  - rule-based findings such as:
-    - external remote access indicators
-    - external scanning
-    - SMB/RPC scanning
-    - DCERPC account activity
-    - exfiltration indicators
-    - payload deployment indicators
-- `backend/src/deep_dive.py`
-  - additional narrative and A/B/C/D attack-stage interpretation
-- `backend/src/report_ai.py`
-  - report generation
-  - can produce provider-backed AI output or deterministic fallback text
-- `backend/src/guardrails.py`
-  - output consistency and human-review decisioning
+### 3. Child analysis pipeline
 
-## 3. Deterministic-First Batch Behavior
+Each child job runs through `AnalysisEngine.run()` and persists:
 
-The current batch-first path forces stage 1 child analysis to run with:
-- `use_ai = false`
-- `enable_sandbox = false`
-
-This means the initial batch execution is designed to:
-- produce baseline per-file artifacts quickly
-- avoid AI cost in the first pass
-- avoid sandbox execution in the first pass
-- preserve enough structured information for later enrichment
-
-The additional persisted artifact that enables this is:
+- `report.json`
+- `report.md`
+- `metrics.json`
+- `guardrail_audit.json`
 - `analysis_record.json`
 
-Stored per child job in:
-- `outputs/analysis_jobs/<analysis_job_id>/`
+The `analysis_record.json` artifact is the stable bridge into parent enrichment.
 
-## 4. Parent Total Job
+### 4. Stage 1 profiles
 
-The parent job is persisted by `backend/api/total_job_store.py`.
+The live planner behavior is:
 
-It tracks:
-- total job ID
-- batch file count
-- worker count
-- child job references
-- deterministic stage progress
-- enrichment stage progress
-- enrichment error state
+- `fast`
+  - lightweight metadata
+  - deterministic only
+  - skips deep dive
+  - skips deterministic payload carving
+- `standard`
+  - default profile
+  - lightweight metadata
+  - deterministic only
+  - deep dive runs only after suspicious base findings are present
+  - deterministic payload carving is skipped entirely
+  - payload-deployment follow-up is deferred to stage 2 enrichment
+- `full`
+  - heavier deterministic path
+  - full metadata extraction
+  - deterministic payload carving always runs
+  - deep dive keeps the legacy size and packet threshold gate
 
-Stored in:
-- `outputs/total_jobs/<total_job_id>/total_job.json`
+### 5. Parent enrichment route
 
-Current parent stages in code:
-- `queued`
-- `deterministic_analysis`
-- `ready_for_enrichment`
-- `enrichment_running`
-- `enrichment_completed`
-- `failed`
+The parent enrichment route in `backend/scripts/enrich_results_with_sandbox.py` is now the live stage-2 backend flow.
 
-## 5. Delayed Enrichment Flow
+For one total job it:
 
-Parent-level enrichment is currently triggered by:
-- `POST /api/v1/total-jobs/{total_job_id}/enrich`
+1. loads completed child `analysis_record.json` files
+2. deduplicates repeated records before AI and sandbox
+3. creates an initial campaign summary
+4. asks the campaign planner which ABCD sections are weak
+5. selects related files for targeted follow-up
+6. runs sandbox verification across every deduplicated record
+7. runs AI-authored `tshark` follow-up only for selected files
+8. runs delayed payload carving when stage-1 findings, sandbox evidence, or weak `D` justify it
+9. builds a final aggregate summary
+10. renders the final campaign report
 
-This flow currently does the following:
-- loads completed child `analysis_record.json` artifacts
-- enriches records with sandbox-oriented follow-up using `enrich_record`
-- builds aggregate signals with `build_aggregate`
-- generates batch summary markdown with `generate_results_report`
-- writes parent-level artifacts
+The live route signature intentionally splits providers:
 
-Parent-level output artifacts:
-- `summary.json`
-- `summary.md`
-- `sandbox.json`
+- report provider defaults to `gemini`
+- planner provider defaults to `openrouter`
 
-Stored in:
-- `outputs/total_jobs/<total_job_id>/`
+### 6. Stage-2 delayed payload carving
 
-## 6. Current API Surface
+Payload carving is no longer only a stage-1 concern.
 
-### Child analysis APIs
+During parent enrichment:
+
+- `backend/scripts/enrich_results_with_sandbox.py` may call `run_payload_carving()`
+- the enriched record gains:
+  - `payload_carving_status`
+  - `payload_iocs`
+  - `carved_payloads`
+  - `payload_carving_manifest_path`
+  - `payload_carving_stage = "stage2_sandbox_enrichment"`
+- carving artifacts are persisted under the parent artifact folder, not the child folder
+
+This keeps normal `standard` stage-1 runs fast while still letting stage 2 improve payload-deployment evidence when needed.
+
+### 7. All-total-jobs summary route
+
+The all-jobs summary route uses the same campaign flow as a per-total-job enrichment run, but its source set is:
+
+- all completed child jobs across all total jobs
+
+It persists into:
+
+- `outputs/total_jobs/__all_jobs_summary/`
+
+and tracks progress separately in:
+
+- `outputs/total_jobs/__all_jobs_summary/status.json`
+
+## Current API Surface
+
+### Child-job APIs
+
 - `POST /api/v1/analysis`
 - `GET /api/v1/analysis`
 - `GET /api/v1/analysis/{job_id}`
@@ -242,7 +376,8 @@ Stored in:
 - `GET /api/v1/analysis/{job_id}/metrics`
 - `GET /api/v1/analysis/{job_id}/guardrail-audit`
 
-### Parent total-job APIs
+### Total-job APIs
+
 - `POST /api/v1/analysis/batch`
 - `GET /api/v1/total-jobs`
 - `GET /api/v1/total-jobs/{total_job_id}`
@@ -251,13 +386,24 @@ Stored in:
 - `GET /api/v1/total-jobs/{total_job_id}/summary.md`
 - `GET /api/v1/total-jobs/{total_job_id}/sandbox`
 
-## 7. Storage Model
+### All-total-jobs summary APIs
 
-### Child job artifacts
+- `GET /api/v1/total-jobs/summary/status`
+- `POST /api/v1/total-jobs/summary/enrich`
+- `GET /api/v1/total-jobs/summary/json`
+- `GET /api/v1/total-jobs/summary/markdown`
+- `GET /api/v1/total-jobs/summary/sandbox`
+
+## Storage Model
+
+### Child-job artifacts
+
 Stored in:
+
 - `outputs/analysis_jobs/<analysis_job_id>/`
 
-Current files:
+Common files:
+
 - `job.json`
 - `report.json`
 - `report.md`
@@ -265,81 +411,105 @@ Current files:
 - `guardrail_audit.json`
 - `analysis_record.json`
 
-### Parent total-job artifacts
+### Total-job artifacts
+
 Stored in:
+
 - `outputs/total_jobs/<total_job_id>/`
 
-Current files:
-- `total_job.json`
-- `summary.json` after enrichment
-- `summary.md` after enrichment
-- `sandbox.json` after enrichment
+Common files after enrichment:
 
-### Offline script artifacts
-Still present for script-based workflows:
+- `total_job.json`
+- `aggregate_summary.json`
+- `scan_results.json`
+- `scan_results.jsonl`
+- `scan_results.ai-tshark.jsonl`
+- `initial_summary.md`
+- `campaign_plan.json`
+- `summary.json`
+- `summary.md`
+- `sandbox.json`
+- `sandbox-payload-carving/...`
+
+### All-total-jobs summary artifacts
+
+Stored in:
+
+- `outputs/total_jobs/__all_jobs_summary/`
+
+Common files:
+
+- `status.json`
+- `aggregate_summary.json`
+- `scan_results.json`
+- `scan_results.jsonl`
+- `scan_results.ai-tshark.jsonl`
+- `initial_summary.md`
+- `campaign_plan.json`
+- `summary.json`
+- `summary.md`
+- `sandbox.json`
+- `sandbox-payload-carving/...`
+
+### Offline result artifacts
+
+Older script-oriented outputs still exist and are still useful for some manual workflows:
+
 - `outputs/scan_results.jsonl`
 - `outputs/scan_results.ai-tshark.jsonl`
 - `outputs/aggregate_summary.json`
 - `outputs/incident_report.md`
 
-## 8. Frontend Structure
+## Provider and Execution Boundaries
 
-The frontend is currently a Next.js app under `frontend/`.
+### Deterministic stage 1 is allowed to
 
-Current frontend responsibilities in code:
-- submit batch uploads from `/analysis/new`
-- send worker count with a minimum UI value of `2`
-- keep legacy child-job views for per-file artifacts
-- move navigation toward total-job-based monitoring
-
-Current frontend integration points:
-- `frontend/lib/api/analysis.ts`
-- `frontend/lib/transport/analysis.ts`
-- `frontend/lib/types/analysis.ts`
-- `frontend/lib/adapters/analysis.ts`
-
-The frontend is in transition from a child-job-first UX to a total-job-first UX.
-
-## 9. Execution Boundaries
-
-### What deterministic stage 1 is allowed to do
 - parse PCAPs locally
 - run rule-based analysis
-- build deterministic reports
-- persist structured artifacts for later enrichment
+- build deterministic artifacts
+- persist analysis records for later aggregation
 
-### What stage 1 does not do in the batch-first path
-- no AI summary
-- no sandbox verification
+### Batch stage 1 does not do
 
-### What parent enrichment is allowed to do
-- read child artifacts
-- build aggregate summary context
-- run AI summary generation
-- run sandbox-oriented enrichment helpers
+- AI summary generation
+- sandbox verification
+- delayed parent-level enrichment
 
-### What AI is not allowed to do
-- execute arbitrary shell commands
-- operate outside bounded backend flows
-- access unrestricted raw environment tooling directly
+### Parent enrichment is allowed to
 
-### What the sandbox path is allowed to do
-- run bounded `tshark` queries
-- inspect one PCAP at a time
-- return compact structured results
+- read child analysis artifacts
+- dedupe repeated records
+- generate campaign-level summaries
+- run bounded sandbox verification
+- run targeted AI-authored `tshark` follow-up
+- run delayed payload carving inside parent artifact boundaries
 
-## 10. Current Limitations
+### Provider behavior
 
-- The architecture doc previously described the older offline-summary-first model and is now being updated to reflect the live batch-first API structure.
-- The backend currently supports both the legacy single-file API path and the new total-job batch path, so the system is in an overlap phase rather than a fully simplified final state.
-- The frontend total-job UX is not yet fully complete even though the backend total-job APIs now exist.
-- The enrichment path currently reuses offline enrichment helpers and should later be tightened into a more explicit parent-job service layer.
-- The base detection logic remains somewhat RDP-biased and may still under-detect some WinRM or VPN-centric access patterns.
+Environment variables override `backend/config/local_settings.py`.
 
-## 11. Recommended Near-Term Direction
+Current intended split for the campaign route is:
 
-1. Finish the total-job-first frontend pages.
+- Gemini for initial campaign summary and final report
+- OpenRouter for campaign planning and targeted `tshark` follow-up
+
+Report generation now respects the requested provider for that report path. If a requested report provider is unavailable, the system falls back to deterministic report text instead of silently switching to another provider.
+
+### Sandbox behavior
+
+The sandbox path is limited to bounded `tshark` verification and compact structured outputs. It is not a general command-execution path for AI.
+
+## Current Limitations
+
+- The repo still supports both the legacy single-file path and the newer total-job-first path, so the system is intentionally in an overlap phase.
+- Some older docs and helper scripts still describe the previous offline-summary-first mental model.
+- Detection logic still has historical bias toward certain ingress or lateral-movement shapes and may need more balancing for WinRM or VPN-heavy incidents.
+- The frontend is now functionally total-job aware, but it still retains legacy child-job pages for drill-down and compatibility.
+
+## Recommended Near-Term Direction
+
+1. Keep total-job pages as the primary UX.
 2. Keep child-job pages as drill-down views only.
-3. Treat `analysis_record.json` as the stable bridge between deterministic stage 1 and enrichment stage 2.
-4. Keep AI summary and sandbox as explicit second-step operations.
-5. Continue moving shared batch logic into reusable backend services instead of duplicating script behavior and API behavior.
+3. Continue treating `analysis_record.json` as the stable handoff from deterministic stage 1 to enrichment stage 2.
+4. Keep parent enrichment explicit and operator-triggered.
+5. Continue consolidating duplicated script and API orchestration around the campaign route rather than maintaining parallel flow descriptions.
