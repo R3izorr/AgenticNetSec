@@ -20,7 +20,11 @@ from enrich_results_with_sandbox import run_campaign_summary_route  # noqa: E402
 class CampaignSummaryRouteTests(unittest.TestCase):
     def test_route_runs_initial_summary_then_sandbox_then_targeted_follow_up_then_final_report(self) -> None:
         records = [
-            {"file": "a.pcap", "path": "/tmp/a.pcap"},
+            {
+                "file": "a.pcap",
+                "path": "/tmp/a.pcap",
+                "manual_payload_deployment_candidates": [{"src_ip": "10.0.0.5", "unique_targets": 2, "suspicious": True, "targets": []}],
+            },
             {"file": "b.pcap", "path": "/tmp/b.pcap"},
         ]
         aggregate = {"file_count": 2}
@@ -63,6 +67,18 @@ class CampaignSummaryRouteTests(unittest.TestCase):
                 return_value={"file_count": 2, "files_with_ai_tshark_follow_up": 1},
             ) as build_aggregate,
             patch(
+                "enrich_results_with_sandbox.run_payload_carving",
+                return_value={
+                    "status": "heuristic_only",
+                    "candidate_count": 1,
+                    "selected_candidates": [{"candidate_id": "smb-0-0"}],
+                    "carved_payloads": [],
+                    "payload_iocs": ["sha256:abc123"],
+                    "payload_deployment_confidence": 0.35,
+                    "manifest_path": "carved_manifest.json",
+                },
+            ) as run_payload_carving,
+            patch(
                 "enrich_results_with_sandbox.generate_results_report_result",
                 return_value=type(
                     "Result",
@@ -87,6 +103,7 @@ class CampaignSummaryRouteTests(unittest.TestCase):
                 planner_model="openai/gpt-5-mini",
                 require_ai=False,
                 progress_callback=lambda stage, progress: progress_events.append((stage, progress)),
+                artifacts_dir="/tmp/total-job",
             )
 
         build_case_summary.assert_called_once_with(
@@ -115,6 +132,18 @@ class CampaignSummaryRouteTests(unittest.TestCase):
             require_ai=False,
         )
         run_ai_tshark_queries.assert_called_once_with("/tmp/b.pcap", [{"name": "temp_sh_follow_up", "stage": "C"}])
+        run_payload_carving.assert_called_once_with(
+            "/tmp/a.pcap",
+            {
+                "manual_payload_deployment": {
+                    "candidates": [{"src_ip": "10.0.0.5", "unique_targets": 2, "suspicious": True, "targets": []}],
+                },
+                "rdp_payload_deployment": {"spreaders": []},
+                "large_http_posts": {"uploads": []},
+                "temp_sh_traffic": {"hits": []},
+            },
+            artifacts_dir="/tmp/total-job/sandbox-payload-carving/001-a.pcap",
+        )
         build_aggregate.assert_called_once()
         generate_results_report_result.assert_called_once_with(
             {"file_count": 2, "files_with_ai_tshark_follow_up": 1},
@@ -131,6 +160,12 @@ class CampaignSummaryRouteTests(unittest.TestCase):
         self.assertEqual(result["final_report_markdown"], "final report")
         self.assertEqual(result["final_report"]["status"], "ai_generated")
         self.assertTrue(result["final_report"]["ai_callable"])
+        self.assertEqual(result["enriched_records"][0]["payload_carving_status"], "heuristic_only")
+        self.assertEqual(result["enriched_records"][0]["payload_iocs"], ["sha256:abc123"])
+        self.assertEqual(
+            result["enriched_records"][0]["payload_carving_manifest_path"],
+            "/tmp/total-job/sandbox-payload-carving/001-a.pcap/carved_manifest.json",
+        )
         self.assertEqual(result["enriched_records"][0]["ai_tshark_query_count"], 0)
         self.assertEqual(result["enriched_records"][1]["ai_tshark_query_count"], 1)
         self.assertIn(("initial_summary", 0.35), progress_events)

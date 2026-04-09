@@ -363,13 +363,15 @@ def _build_ai_markdown_notice(
 ) -> str:
     ai_callable = "yes" if fallback_used is False else "no"
     fallback_text = "yes" if fallback_used else "no"
+    provider_label = "Provider used" if fallback_used is False else "Provider requested"
+    model_label = "Model used" if fallback_used is False else "Model requested"
     details = [
         f"AI requested: yes",
         f"AI callable: {ai_callable}",
         f"Fallback used: {fallback_text}",
         f"Status: {status or 'unknown'}",
-        f"Provider used: {provider or 'unknown'}",
-        f"Model used: {model or 'default'}",
+        f"{provider_label}: {provider or 'unknown'}",
+        f"{model_label}: {model or 'default'}",
     ]
     return "\n".join(
         [
@@ -601,6 +603,7 @@ def _run_total_job_enrichment_sync(
         planner_model=None,
         require_ai=require_ai,
         progress_callback=_campaign_progress,
+        artifacts_dir=total_job.artifacts_dir,
     )
     enriched_records = campaign_result["enriched_records"]
     aggregate = campaign_result["aggregate"]
@@ -796,6 +799,7 @@ def _run_all_total_jobs_summary_sync(
         planner_model=None,
         require_ai=require_ai,
         progress_callback=_campaign_progress,
+        artifacts_dir=ALL_TOTAL_JOBS_SUMMARY_DIR,
     )
     enriched_records = campaign_result["enriched_records"]
     aggregate = campaign_result["aggregate"]

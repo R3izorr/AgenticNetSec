@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 import unittest
+from unittest import mock
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -16,6 +17,7 @@ from report_ai import (  # noqa: E402
     build_results_prompt,
     generate_report,
     generate_results_report,
+    generate_results_report_result,
 )
 
 
@@ -238,6 +240,124 @@ class ReportAiTests(unittest.TestCase):
         self.assertIn("files_with_heuristic_payload_only", batch_prompt)
         self.assertIn("ai_tshark_review", batch_prompt)
         self.assertIn("files_with_ai_tshark_follow_up", batch_prompt)
+
+    @mock.patch("report_ai._generate_with_ollama")
+    @mock.patch("report_ai._generate_with_groq")
+    @mock.patch("report_ai._generate_with_openai")
+    @mock.patch("report_ai._generate_with_openrouter")
+    @mock.patch("report_ai._generate_with_gemini")
+    def test_generate_results_report_does_not_cross_fallback_providers(
+        self,
+        mock_gemini: mock.Mock,
+        mock_openrouter: mock.Mock,
+        mock_openai: mock.Mock,
+        mock_groq: mock.Mock,
+        mock_ollama: mock.Mock,
+    ) -> None:
+        mock_gemini.return_value = None
+        aggregate = {
+            "file_count": 1,
+            "attack_flow": {"likely_path": None},
+            "files_with_external_rdp": 0,
+            "files_with_external_port_scans": 0,
+            "files_with_vpn_like_ingress": 0,
+            "files_with_smb_rpc_scanning": 0,
+            "files_with_dcerpc_account_markers": 0,
+            "files_with_temp_sh_hits": 0,
+            "files_with_outbound_exfil_candidates": 0,
+            "files_with_large_http_uploads": 0,
+            "files_with_internal_rdp_spread": 0,
+            "files_with_manual_payload_deployment": 0,
+            "files_with_payload_carving_candidates": 0,
+            "files_with_recovered_payload_artifacts": 0,
+            "files_with_partial_payload_evidence": 0,
+            "files_with_heuristic_payload_only": 0,
+            "interesting_files": {},
+            "top_patient_zero_candidates": [],
+            "top_deep_dive_focus_hosts": [],
+        }
+
+        result = generate_results_report_result(
+            aggregate,
+            [],
+            provider="gemini",
+            model="gemini-test",
+            use_ai=True,
+            require_ai=False,
+        )
+
+        self.assertTrue(result.fallback_used)
+        self.assertEqual(result.provider, "gemini")
+        self.assertEqual(result.model, "gemini-test")
+        mock_gemini.assert_called_once()
+        mock_openrouter.assert_not_called()
+        mock_openai.assert_not_called()
+        mock_groq.assert_not_called()
+        mock_ollama.assert_not_called()
+
+    @mock.patch("report_ai._get_setting")
+    @mock.patch("report_ai._generate_with_ollama")
+    @mock.patch("report_ai._generate_with_groq")
+    @mock.patch("report_ai._generate_with_openai")
+    @mock.patch("report_ai._generate_with_openrouter")
+    @mock.patch("report_ai._generate_with_gemini")
+    def test_generate_results_report_fallback_keeps_provider_default_model_metadata(
+        self,
+        mock_gemini: mock.Mock,
+        mock_openrouter: mock.Mock,
+        mock_openai: mock.Mock,
+        mock_groq: mock.Mock,
+        mock_ollama: mock.Mock,
+        mock_get_setting: mock.Mock,
+    ) -> None:
+        def fake_get_setting(name: str, default: object = None) -> object:
+            if name == "GEMINI_MODEL":
+                return "gemini-default-test"
+            if name == "REPORT_MODEL":
+                return None
+            return default
+
+        mock_get_setting.side_effect = fake_get_setting
+        mock_gemini.return_value = None
+        aggregate = {
+            "file_count": 1,
+            "attack_flow": {"likely_path": None},
+            "files_with_external_rdp": 0,
+            "files_with_external_port_scans": 0,
+            "files_with_vpn_like_ingress": 0,
+            "files_with_smb_rpc_scanning": 0,
+            "files_with_dcerpc_account_markers": 0,
+            "files_with_temp_sh_hits": 0,
+            "files_with_outbound_exfil_candidates": 0,
+            "files_with_large_http_uploads": 0,
+            "files_with_internal_rdp_spread": 0,
+            "files_with_manual_payload_deployment": 0,
+            "files_with_payload_carving_candidates": 0,
+            "files_with_recovered_payload_artifacts": 0,
+            "files_with_partial_payload_evidence": 0,
+            "files_with_heuristic_payload_only": 0,
+            "interesting_files": {},
+            "top_patient_zero_candidates": [],
+            "top_deep_dive_focus_hosts": [],
+        }
+
+        result = generate_results_report_result(
+            aggregate,
+            [],
+            provider="gemini",
+            model=None,
+            use_ai=True,
+            require_ai=False,
+        )
+
+        self.assertTrue(result.fallback_used)
+        self.assertEqual(result.provider, "gemini")
+        self.assertEqual(result.model, "gemini-default-test")
+        mock_gemini.assert_called_once()
+        mock_openrouter.assert_not_called()
+        mock_openai.assert_not_called()
+        mock_groq.assert_not_called()
+        mock_ollama.assert_not_called()
 
 
 if __name__ == "__main__":

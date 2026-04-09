@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 import sys
 from typing import Any, Callable
 
@@ -18,6 +19,7 @@ for module_path in (SRC_DIR, CONFIG_DIR):
 
 from sandbox_verifier import run_sandbox_verification, sandbox_verification_enabled
 from sandbox_verifier import run_ai_tshark_queries
+from payload_carver import run_payload_carving
 from summarize_results import build_aggregate, load_results
 from verification_planner import build_verification_plan
 from report_ai import generate_results_report_result
@@ -79,6 +81,103 @@ def enrich_record_with_plan(record: dict[str, Any], plan: dict[str, Any]) -> dic
     return record
 
 
+def _payload_carving_findings_from_record(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "manual_payload_deployment": {
+            "candidates": list(record.get("manual_payload_deployment_candidates") or []),
+        },
+        "rdp_payload_deployment": {
+            "spreaders": list(record.get("suspicious_internal_rdp_spread") or []),
+        },
+        "large_http_posts": {
+            "uploads": list(record.get("large_http_uploads") or []),
+        },
+        "temp_sh_traffic": {
+            "hits": list(record.get("temp_sh_hits") or []),
+        },
+    }
+
+
+def _should_run_stage2_payload_carving(
+    record: dict[str, Any],
+    *,
+    plan: dict[str, Any] | None = None,
+    ai_plan: dict[str, Any] | None = None,
+) -> bool:
+    if record.get("manual_payload_deployment_candidates"):
+        return True
+    if record.get("suspicious_internal_rdp_spread"):
+        return True
+    if record.get("large_http_uploads"):
+        return True
+    if record.get("temp_sh_hits"):
+        return True
+
+    sandbox = record.get("sandbox_verification") or {}
+    if ((sandbox.get("payload_deployment") or {}).get("candidate_count", 0) or 0) > 0:
+        return True
+    if (sandbox.get("exfiltration") or {}).get("verified_temp_sh_flows"):
+        return True
+
+    requested_checks = list((plan or {}).get("requested_checks") or [])
+    if "payload_deployment" in requested_checks:
+        weak_sections = list((ai_plan or {}).get("weak_sections") or [])
+        return "D" in weak_sections
+
+    return False
+
+
+def _record_payload_artifacts_dir(
+    artifacts_root: str | Path | None,
+    record: dict[str, Any],
+    index: int,
+) -> str | None:
+    if not artifacts_root:
+        return None
+    root = Path(artifacts_root).expanduser().resolve() / "sandbox-payload-carving"
+    label = str(record.get("file") or Path(str(record.get("path") or f"record-{index}")).name or f"record-{index}")
+    safe_label = re.sub(r"[^A-Za-z0-9._-]+", "_", label).strip("._") or f"record-{index}"
+    return str(root / f"{index:03d}-{safe_label}")
+
+
+def _resolve_payload_manifest_path(
+    payload_carving: dict[str, Any],
+    *,
+    artifacts_dir: str | Path | None = None,
+) -> str | None:
+    manifest_path = payload_carving.get("manifest_path")
+    if not manifest_path:
+        return None
+    resolved_manifest_path = Path(str(manifest_path))
+    if resolved_manifest_path.is_absolute() or not artifacts_dir:
+        return str(resolved_manifest_path)
+    return str(Path(artifacts_dir).expanduser().resolve() / resolved_manifest_path)
+
+
+def _merge_payload_carving_record(
+    record: dict[str, Any],
+    payload_carving: dict[str, Any],
+    *,
+    artifacts_dir: str | Path | None = None,
+) -> dict[str, Any]:
+    merged_payload_carving = dict(payload_carving)
+    resolved_manifest_path = _resolve_payload_manifest_path(
+        merged_payload_carving,
+        artifacts_dir=artifacts_dir,
+    )
+    merged_payload_carving["manifest_path"] = resolved_manifest_path
+    record["payload_carving"] = merged_payload_carving
+    record["carved_payloads"] = list(merged_payload_carving.get("carved_payloads") or [])
+    record["payload_iocs"] = list(merged_payload_carving.get("payload_iocs") or [])
+    record["payload_deployment_confidence"] = float(merged_payload_carving.get("payload_deployment_confidence", 0.0) or 0.0)
+    record["payload_carving_candidate_count"] = int(merged_payload_carving.get("candidate_count", 0) or 0)
+    record["payload_carving_status"] = merged_payload_carving.get("status")
+    record["payload_carving_manifest_path"] = resolved_manifest_path
+    record["payload_carving_selected_candidates"] = list(merged_payload_carving.get("selected_candidates") or [])
+    record["payload_carving_stage"] = "stage2_sandbox_enrichment"
+    return record
+
+
 def run_campaign_summary_route(
     records: list[dict[str, Any]],
     aggregate: dict[str, Any],
@@ -89,6 +188,7 @@ def run_campaign_summary_route(
     planner_model: str | None = None,
     require_ai: bool = False,
     progress_callback: Callable[[str, float], None] | None = None,
+    artifacts_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     copied_records = [dict(record) for record in records]
     all_checks_plan = {
@@ -148,6 +248,23 @@ def run_campaign_summary_route(
             enriched_record["ai_tshark_query_count"] = len((ai_review.get("queries") or []))
         else:
             enriched_record["ai_tshark_query_count"] = 0
+
+        if _should_run_stage2_payload_carving(
+            enriched_record,
+            plan=all_checks_plan,
+            ai_plan=ai_plan,
+        ):
+            payload_artifacts_dir = _record_payload_artifacts_dir(artifacts_dir, enriched_record, index)
+            payload_carving = run_payload_carving(
+                enriched_record["path"],
+                _payload_carving_findings_from_record(enriched_record),
+                artifacts_dir=payload_artifacts_dir,
+            )
+            enriched_record = _merge_payload_carving_record(
+                enriched_record,
+                payload_carving,
+                artifacts_dir=payload_artifacts_dir,
+            )
 
         enriched_records.append(enriched_record)
         if progress_callback:

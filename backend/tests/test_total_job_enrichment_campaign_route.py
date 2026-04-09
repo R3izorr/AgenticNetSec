@@ -170,6 +170,7 @@ class TotalJobEnrichmentCampaignRouteTests(unittest.TestCase):
                 planner_model=None,
                 require_ai=False,
                 progress_callback=ANY,
+                artifacts_dir=total_job.artifacts_dir,
             )
 
             summary_payload = total_job_store.read_json_artifact(total_job.total_job_id, "summary.json")
@@ -200,6 +201,8 @@ class TotalJobEnrichmentCampaignRouteTests(unittest.TestCase):
             self.assertIn("> Final Campaign Report AI Status", final_summary_markdown)
             self.assertIn("> AI callable: no", final_summary_markdown)
             self.assertIn("> Fallback used: yes", final_summary_markdown)
+            self.assertIn("> Provider requested: gemini", final_summary_markdown)
+            self.assertIn("> Model requested: gemini-2.5-flash", final_summary_markdown)
             self.assertIn("# Final Campaign Report", final_summary_markdown)
 
             ai_tshark_jsonl_path = Path(total_job.artifacts_dir or "") / "scan_results.ai-tshark.jsonl"

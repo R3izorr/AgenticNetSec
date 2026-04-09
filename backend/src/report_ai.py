@@ -1376,6 +1376,24 @@ def _generate_with_provider(
     return None
 
 
+def _normalize_requested_provider(provider: str | None) -> str:
+    normalized = (provider or "openrouter").strip().lower()
+    return normalized or "openrouter"
+
+
+def _resolve_requested_model(provider: str | None, model: str | None) -> str:
+    normalized_provider = _normalize_requested_provider(provider)
+    resolved_model = _model_for_provider(
+        normalized_provider,
+        model,
+        normalized_provider,
+    )
+    if resolved_model:
+        return str(resolved_model)
+    configured_report_model = _get_setting("REPORT_MODEL", "fallback")
+    return str(configured_report_model or "fallback")
+
+
 def _generate_best_result(
     prompt: str,
     *,
@@ -1590,11 +1608,13 @@ def _generate_sectioned_report(
     attack_flow: str | None = None,
     fallback_text: str,
 ) -> ReportGenerationResult:
+    requested_provider = _normalize_requested_provider(provider)
+    requested_model = _resolve_requested_model(requested_provider, model)
     if not use_ai:
         return _result_from_text(
             text=fallback_text,
-            provider=provider,
-            model=str(model or _get_setting("REPORT_MODEL", "fallback")),
+            provider=requested_provider,
+            model=requested_model,
             fallback_used=True,
         )
 
@@ -1609,15 +1629,16 @@ def _generate_sectioned_report(
         )
         result = _generate_best_result(
             prompt,
-            provider=provider,
+            provider=requested_provider,
             model=model,
             require_ai=require_ai,
+            allow_provider_fallback=False,
         )
         if not result:
             return _result_from_text(
                 text=fallback_text,
-                provider=provider,
-                model=str(model or _get_setting("REPORT_MODEL", "fallback")),
+                provider=requested_provider,
+                model=requested_model,
                 fallback_used=True,
             )
         section_results.append(result)
