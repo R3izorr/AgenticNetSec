@@ -89,14 +89,18 @@ class TotalJobEnrichmentCampaignRouteTests(unittest.TestCase):
                     "model": "gemini-2.5-flash",
                     "report_text": "# Initial Campaign Summary\n\nWeak point in section C.",
                     "fallback_used": False,
+                    "api_attempted": True,
                     "llm_tokens_in": 11,
                     "llm_tokens_out": 22,
                     "ai_callable": True,
+                    "failure_reason": None,
                     "status": "ai_generated",
                 },
                 "campaign_plan": {
                     "planner_source": "ai",
+                    "ai_api_attempted": True,
                     "weak_sections": ["C"],
+                    "failure_reason": None,
                     "section_reasons": {"C": "Exfiltration evidence needed more validation."},
                 },
                 "selected_follow_up_records": [
@@ -126,7 +130,9 @@ class TotalJobEnrichmentCampaignRouteTests(unittest.TestCase):
                     "provider": "gemini",
                     "model": "gemini-2.5-flash",
                     "fallback_used": True,
+                    "api_attempted": False,
                     "ai_callable": False,
+                    "failure_reason": "no_api_call",
                     "status": "fallback_report",
                     "report_text": "# Final Campaign Report\n\nFollow-up complete.",
                 },
@@ -186,8 +192,10 @@ class TotalJobEnrichmentCampaignRouteTests(unittest.TestCase):
             self.assertEqual(summary_payload["initial_summary"]["report_text"], campaign_result["initial_summary"]["report_text"])
             self.assertEqual(summary_payload["campaign_plan"]["weak_sections"], ["C"])
             self.assertTrue(summary_payload["ai_execution"]["initial_summary"]["ai_callable"])
+            self.assertTrue(summary_payload["ai_execution"]["initial_summary"]["api_attempted"])
             self.assertFalse(summary_payload["ai_execution"]["final_report"]["ai_callable"])
             self.assertTrue(summary_payload["ai_execution"]["final_report"]["fallback_used"])
+            self.assertFalse(summary_payload["ai_execution"]["final_report"]["api_attempted"])
             self.assertEqual(
                 summary_payload["selected_follow_up_records"],
                 [{"file": "campaign-a.pcap", "path": "/tmp/campaign-a.pcap"}],
@@ -196,9 +204,11 @@ class TotalJobEnrichmentCampaignRouteTests(unittest.TestCase):
             self.assertEqual(sandbox_payload["record_count"], 1)
             self.assertEqual(campaign_plan_payload["campaign_plan"]["weak_sections"], ["C"])
             self.assertIn("> Initial Campaign Summary AI Status", initial_summary_markdown)
+            self.assertIn("> API attempted: yes", initial_summary_markdown)
             self.assertIn("> AI callable: yes", initial_summary_markdown)
             self.assertIn("# Initial Campaign Summary", initial_summary_markdown)
             self.assertIn("> Final Campaign Report AI Status", final_summary_markdown)
+            self.assertIn("> API attempted: no", final_summary_markdown)
             self.assertIn("> AI callable: no", final_summary_markdown)
             self.assertIn("> Fallback used: yes", final_summary_markdown)
             self.assertIn("> Provider requested: gemini", final_summary_markdown)

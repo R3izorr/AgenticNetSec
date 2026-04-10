@@ -271,6 +271,9 @@ def _load_analysis_record(job_id: str) -> dict[str, Any]:
     return job_store.read_json_artifact(job_id, "analysis_record.json")
 
 
+_PCAP_FINGERPRINT_CACHE: dict[tuple[str, int, int], str] = {}
+
+
 def _fingerprint_pcap(path: str | None) -> str | None:
     if not path:
         return None
@@ -279,6 +282,12 @@ def _fingerprint_pcap(path: str | None) -> str | None:
     if not file_path.exists() or not file_path.is_file():
         return None
 
+    stat = file_path.stat()
+    cache_key = (str(file_path.resolve()), stat.st_size, int(stat.st_mtime_ns))
+    cached = _PCAP_FINGERPRINT_CACHE.get(cache_key)
+    if cached:
+        return cached
+
     digest = hashlib.sha256()
     with file_path.open("rb") as handle:
         while True:
@@ -286,7 +295,9 @@ def _fingerprint_pcap(path: str | None) -> str | None:
             if not chunk:
                 break
             digest.update(chunk)
-    return digest.hexdigest()
+    fingerprint = digest.hexdigest()
+    _PCAP_FINGERPRINT_CACHE[cache_key] = fingerprint
+    return fingerprint
 
 
 def _dedupe_analysis_records(records: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -364,14 +375,17 @@ def _build_ai_markdown_notice(
     provider: str | None,
     model: str | None,
     fallback_used: bool | None,
+    api_attempted: bool | None = None,
     status: str | None,
 ) -> str:
     ai_callable = "yes" if fallback_used is False else "no"
+    api_attempted_text = "unknown" if api_attempted is None else ("yes" if api_attempted else "no")
     fallback_text = "yes" if fallback_used else "no"
     provider_label = "Provider used" if fallback_used is False else "Provider requested"
     model_label = "Model used" if fallback_used is False else "Model requested"
     details = [
         f"AI requested: yes",
+        f"API attempted: {api_attempted_text}",
         f"AI callable: {ai_callable}",
         f"Fallback used: {fallback_text}",
         f"Status: {status or 'unknown'}",
@@ -639,20 +653,26 @@ def _run_total_job_enrichment_sync(
                     "provider": case_summary.get("provider"),
                     "model": case_summary.get("model"),
                     "fallback_used": bool(case_summary.get("fallback_used", False)),
+                    "api_attempted": case_summary.get("api_attempted"),
                     "ai_callable": bool(case_summary.get("ai_callable", False)),
                     "status": case_summary.get("status"),
+                    "failure_reason": case_summary.get("failure_reason"),
                 },
                 "campaign_plan": {
                     "planner_source": campaign_plan.get("planner_source"),
                     "planner_provider": campaign_plan.get("planner_provider"),
                     "planner_model": campaign_plan.get("planner_model"),
+                    "ai_api_attempted": campaign_plan.get("ai_api_attempted"),
+                    "failure_reason": campaign_plan.get("failure_reason"),
                 },
                 "final_report": {
                     "provider": final_report.get("provider"),
                     "model": final_report.get("model"),
                     "fallback_used": bool(final_report.get("fallback_used", False)),
+                    "api_attempted": final_report.get("api_attempted"),
                     "ai_callable": bool(final_report.get("ai_callable", False)),
                     "status": final_report.get("status"),
+                    "failure_reason": final_report.get("failure_reason"),
                 },
             },
             "initial_summary": case_summary,
@@ -670,6 +690,7 @@ def _run_total_job_enrichment_sync(
             provider=case_summary.get("provider"),
             model=case_summary.get("model"),
             fallback_used=case_summary.get("fallback_used"),
+            api_attempted=case_summary.get("api_attempted"),
             status=case_summary.get("status"),
         )
         + str(case_summary.get("report_text", "")),
@@ -691,6 +712,7 @@ def _run_total_job_enrichment_sync(
             provider=final_report.get("provider"),
             model=final_report.get("model"),
             fallback_used=final_report.get("fallback_used"),
+            api_attempted=final_report.get("api_attempted"),
             status=final_report.get("status"),
         )
         + summary_markdown,
@@ -838,20 +860,26 @@ def _run_all_total_jobs_summary_sync(
                         "provider": case_summary.get("provider"),
                         "model": case_summary.get("model"),
                         "fallback_used": bool(case_summary.get("fallback_used", False)),
+                        "api_attempted": case_summary.get("api_attempted"),
                         "ai_callable": bool(case_summary.get("ai_callable", False)),
                         "status": case_summary.get("status"),
+                        "failure_reason": case_summary.get("failure_reason"),
                     },
                     "campaign_plan": {
                         "planner_source": campaign_plan.get("planner_source"),
                         "planner_provider": campaign_plan.get("planner_provider"),
                         "planner_model": campaign_plan.get("planner_model"),
+                        "ai_api_attempted": campaign_plan.get("ai_api_attempted"),
+                        "failure_reason": campaign_plan.get("failure_reason"),
                     },
                     "final_report": {
                         "provider": final_report.get("provider"),
                         "model": final_report.get("model"),
                         "fallback_used": bool(final_report.get("fallback_used", False)),
+                        "api_attempted": final_report.get("api_attempted"),
                         "ai_callable": bool(final_report.get("ai_callable", False)),
                         "status": final_report.get("status"),
+                        "failure_reason": final_report.get("failure_reason"),
                     },
                 },
                 "initial_summary": case_summary,
@@ -871,6 +899,7 @@ def _run_all_total_jobs_summary_sync(
             provider=case_summary.get("provider"),
             model=case_summary.get("model"),
             fallback_used=case_summary.get("fallback_used"),
+            api_attempted=case_summary.get("api_attempted"),
             status=case_summary.get("status"),
         )
         + str(case_summary.get("report_text", ""))
@@ -895,6 +924,7 @@ def _run_all_total_jobs_summary_sync(
             provider=final_report.get("provider"),
             model=final_report.get("model"),
             fallback_used=final_report.get("fallback_used"),
+            api_attempted=final_report.get("api_attempted"),
             status=final_report.get("status"),
         )
         + summary_markdown
@@ -1119,19 +1149,38 @@ async def create_batch_analysis_job(
             requested_paths,
             statuses={"queued", "running", "completed"},
         )
+        existing_jobs_by_name = job_store.find_by_source_names(
+            [Path(path).name for path in requested_paths],
+            statuses={"queued", "running", "completed"},
+        )
         accepted_paths = [
-            path for path in requested_paths if path.lower() not in existing_jobs_by_path
+            path
+            for path in requested_paths
+            if path.lower() not in existing_jobs_by_path
+            and Path(path).name.lower() not in existing_jobs_by_name
         ]
         skipped_files = [
             {
                 "path": path,
                 "filename": Path(path).name,
-                "reason": "already_in_system",
-                "existing_analysis_job_id": existing_jobs_by_path[path.lower()].analysis_job_id,
-                "existing_status": existing_jobs_by_path[path.lower()].status,
+                "reason": (
+                    "already_in_system_same_path"
+                    if path.lower() in existing_jobs_by_path
+                    else "already_in_system_same_source_name"
+                ),
+                "existing_analysis_job_id": (
+                    existing_jobs_by_path[path.lower()].analysis_job_id
+                    if path.lower() in existing_jobs_by_path
+                    else existing_jobs_by_name[Path(path).name.lower()].analysis_job_id
+                ),
+                "existing_status": (
+                    existing_jobs_by_path[path.lower()].status
+                    if path.lower() in existing_jobs_by_path
+                    else existing_jobs_by_name[Path(path).name.lower()].status
+                ),
             }
             for path in requested_paths
-            if path.lower() in existing_jobs_by_path
+            if path.lower() in existing_jobs_by_path or Path(path).name.lower() in existing_jobs_by_name
         ]
 
         total_files = len(accepted_paths)

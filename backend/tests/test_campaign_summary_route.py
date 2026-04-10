@@ -33,7 +33,13 @@ class CampaignSummaryRouteTests(unittest.TestCase):
         with (
             patch(
                 "enrich_results_with_sandbox.build_case_summary",
-                return_value={"provider": "gemini", "model": None, "report_text": "initial report"},
+                return_value={
+                    "provider": "gemini",
+                    "model": None,
+                    "report_text": "initial report",
+                    "api_attempted": True,
+                    "failure_reason": None,
+                },
             ) as build_case_summary,
             patch(
                 "enrich_results_with_sandbox.build_campaign_weak_sections",
@@ -88,6 +94,8 @@ class CampaignSummaryRouteTests(unittest.TestCase):
                         "provider": "gemini",
                         "model": "gemini-2.5-flash",
                         "fallback_used": False,
+                        "api_attempted": True,
+                        "failure_reason": None,
                         "llm_tokens_in": 12,
                         "llm_tokens_out": 34,
                     },

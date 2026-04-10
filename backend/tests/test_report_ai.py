@@ -12,6 +12,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from report_ai import (  # noqa: E402
+    ReportGenerationResult,
     _build_aggregate,
     build_prompt,
     build_results_prompt,
@@ -289,6 +290,7 @@ class ReportAiTests(unittest.TestCase):
         self.assertTrue(result.fallback_used)
         self.assertEqual(result.provider, "gemini")
         self.assertEqual(result.model, "gemini-test")
+        self.assertFalse(result.api_attempted)
         mock_gemini.assert_called_once()
         mock_openrouter.assert_not_called()
         mock_openai.assert_not_called()
@@ -353,11 +355,60 @@ class ReportAiTests(unittest.TestCase):
         self.assertTrue(result.fallback_used)
         self.assertEqual(result.provider, "gemini")
         self.assertEqual(result.model, "gemini-default-test")
+        self.assertFalse(result.api_attempted)
         mock_gemini.assert_called_once()
         mock_openrouter.assert_not_called()
         mock_openai.assert_not_called()
         mock_groq.assert_not_called()
         mock_ollama.assert_not_called()
+
+    @mock.patch("report_ai._generate_with_openrouter")
+    def test_generate_text_report_metadata_marks_no_api_call_when_provider_never_attempted(
+        self,
+        mock_openrouter: mock.Mock,
+    ) -> None:
+        mock_openrouter.return_value = ReportGenerationResult(
+            text="",
+            provider="openrouter",
+            model="openai/gpt-5-mini",
+            fallback_used=True,
+            api_attempted=False,
+            failure_reason="missing_api_key",
+        )
+        aggregate = {
+            "file_count": 1,
+            "attack_flow": {"likely_path": None},
+            "files_with_external_rdp": 0,
+            "files_with_external_port_scans": 0,
+            "files_with_vpn_like_ingress": 0,
+            "files_with_smb_rpc_scanning": 0,
+            "files_with_dcerpc_account_markers": 0,
+            "files_with_temp_sh_hits": 0,
+            "files_with_outbound_exfil_candidates": 0,
+            "files_with_large_http_uploads": 0,
+            "files_with_internal_rdp_spread": 0,
+            "files_with_manual_payload_deployment": 0,
+            "files_with_payload_carving_candidates": 0,
+            "files_with_recovered_payload_artifacts": 0,
+            "files_with_partial_payload_evidence": 0,
+            "files_with_heuristic_payload_only": 0,
+            "interesting_files": {},
+            "top_patient_zero_candidates": [],
+            "top_deep_dive_focus_hosts": [],
+        }
+
+        result = generate_results_report_result(
+            aggregate,
+            [],
+            provider="openrouter",
+            model="openai/gpt-5-mini",
+            use_ai=True,
+            require_ai=False,
+        )
+
+        self.assertTrue(result.fallback_used)
+        self.assertFalse(result.api_attempted)
+        self.assertEqual(result.failure_reason, "missing_api_key")
 
 
 if __name__ == "__main__":

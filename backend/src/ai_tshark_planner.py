@@ -39,6 +39,7 @@ def build_case_summary(
             "llm_tokens_in": 0,
             "llm_tokens_out": 0,
             "ai_callable": False,
+            "api_attempted": False,
             "status": "file_provided",
         }
     result = generate_results_report_result(
@@ -57,6 +58,8 @@ def build_case_summary(
         "llm_tokens_in": result.llm_tokens_in,
         "llm_tokens_out": result.llm_tokens_out,
         "ai_callable": not result.fallback_used,
+        "api_attempted": result.api_attempted,
+        "failure_reason": result.failure_reason,
         "status": "ai_generated" if not result.fallback_used else "fallback_report",
     }
 
@@ -80,22 +83,27 @@ def build_ai_tshark_plan(
         require_ai=require_ai,
         allow_provider_fallback=False,
     )
-    if not result:
+    heuristic = _heuristic_record_plan(record, aggregate, focus_sections=focus_sections)
+    if not result or not result.text:
         return {
-            "planner_source": "none",
-            "weak_sections": [],
-            "queries": [],
+            **heuristic,
+            "planner_source": "heuristic_after_ai_failure" if result and result.api_attempted else "heuristic_no_api_call",
+            "planner_provider": result.provider if result else provider,
+            "planner_model": result.model if result else model,
+            "ai_api_attempted": bool(result.api_attempted) if result else False,
+            "failure_reason": result.failure_reason if result else "no_api_call",
         }
 
     parsed = _parse_plan(result.text)
     if not parsed:
         return {
-            "planner_source": "parse_failure",
+            **heuristic,
+            "planner_source": "heuristic_after_ai_parse_failure",
             "planner_provider": result.provider,
             "planner_model": result.model,
+            "ai_api_attempted": bool(result.api_attempted),
+            "failure_reason": result.failure_reason,
             "raw_text": result.text,
-            "weak_sections": [],
-            "queries": [],
         }
 
     parsed["planner_source"] = "ai"
@@ -121,22 +129,27 @@ def build_campaign_weak_sections(
         require_ai=require_ai,
         allow_provider_fallback=False,
     )
-    if not result:
+    heuristic = _heuristic_campaign_plan(aggregate, report_text)
+    if not result or not result.text:
         return {
-            "planner_source": "none",
-            "weak_sections": [],
-            "section_reasons": {},
+            **heuristic,
+            "planner_source": "heuristic_after_ai_failure" if result and result.api_attempted else "heuristic_no_api_call",
+            "planner_provider": result.provider if result else provider,
+            "planner_model": result.model if result else model,
+            "ai_api_attempted": bool(result.api_attempted) if result else False,
+            "failure_reason": result.failure_reason if result else "no_api_call",
         }
 
     parsed = _parse_campaign_plan(result.text)
     if not parsed:
         return {
-            "planner_source": "parse_failure",
+            **heuristic,
+            "planner_source": "heuristic_after_ai_parse_failure",
             "planner_provider": result.provider,
             "planner_model": result.model,
+            "ai_api_attempted": bool(result.api_attempted),
+            "failure_reason": result.failure_reason,
             "raw_text": result.text,
-            "weak_sections": [],
-            "section_reasons": {},
         }
 
     parsed["planner_source"] = "ai"
@@ -176,7 +189,36 @@ def select_records_for_sections(
 
     by_file = {record.get("file"): record for record in records if record.get("file")}
     selected = [by_file[file_name] for file_name in ordered_files if file_name in by_file]
-    return selected[:limit] if limit else selected
+    if selected:
+        return selected[:limit] if limit else selected
+
+    scored_records: list[tuple[int, dict[str, Any]]] = []
+    for record in records:
+        score = 0
+        if "A" in weak_sections:
+            score += 3 if record.get("patient_zero_candidate") else 0
+            score += int(record.get("suspicious_external_rdp_count") or 0)
+        if "B" in weak_sections:
+            score += 3 if record.get("suspicious_smb_rpc_scanners") else 0
+            score += 2 if record.get("possible_dcerpc_account_changes") else 0
+            score += 1 if record.get("suspicious_internal_rdp_spread") else 0
+        if "C" in weak_sections:
+            score += 3 if record.get("temp_sh_hits") else 0
+            score += 2 if record.get("possible_outbound_exfil_flows") else 0
+            score += 1 if record.get("large_http_uploads") else 0
+        if "D" in weak_sections:
+            score += 3 if record.get("manual_payload_deployment_candidates") else 0
+            score += 2 if record.get("suspicious_internal_rdp_spread") else 0
+        if score <= 0 and record.get("patient_zero_candidate"):
+            score = 1
+        if score > 0:
+            scored_records.append((score, record))
+
+    scored_records.sort(key=lambda item: (-item[0], str(item[1].get("file") or "")))
+    fallback_selected = [record for _, record in scored_records]
+    if not fallback_selected:
+        fallback_selected = list(records)
+    return fallback_selected[:limit] if limit else fallback_selected[: min(4, len(fallback_selected))]
 
 
 def _planner_system_prompt() -> str:
@@ -273,6 +315,80 @@ def _planner_system_prompt() -> str:
         - Do not explain outside JSON.
         """
     ).strip()
+
+
+def _heuristic_campaign_plan(aggregate: dict[str, Any], report_text: str) -> dict[str, Any]:
+    weak_sections: list[str] = []
+    reasons: dict[str, str] = {}
+
+    report_lower = report_text.lower()
+    if _section_looks_weak(report_text, "Initial Access") and not (aggregate.get("files_with_external_rdp") or aggregate.get("files_with_vpn_like_ingress")):
+        weak_sections.append("A")
+        reasons["A"] = "Initial access remains weak and lacks direct remote-management confirmation."
+    if _section_looks_weak(report_text, "Lateral Movement & Discovery") or (
+        not aggregate.get("files_with_smb_rpc_scanning") and not aggregate.get("files_with_dcerpc_account_markers")
+    ):
+        weak_sections.append("B")
+        reasons["B"] = "Discovery and lateral movement are still thin or mostly inferred."
+    if _section_looks_weak(report_text, "Exfiltration") or (
+        not aggregate.get("files_with_temp_sh_hits")
+        and not aggregate.get("files_with_outbound_exfil_candidates")
+        and not aggregate.get("files_with_large_http_uploads")
+    ):
+        weak_sections.append("C")
+        reasons["C"] = "Exfiltration remains under-evidenced and needs targeted outbound verification."
+    if _section_looks_weak(report_text, "Payload Deployment") or (
+        not aggregate.get("files_with_manual_payload_deployment")
+        and not aggregate.get("files_with_internal_rdp_spread")
+        and not aggregate.get("files_with_recovered_payload_artifacts")
+    ):
+        weak_sections.append("D")
+        reasons["D"] = "Payload deployment is still mostly inferred or lacks recovered artifacts."
+
+    if not weak_sections and "weak" in report_lower:
+        weak_sections = ["B", "C", "D"]
+        reasons = {
+            "B": "Discovery remains weak in the report narrative.",
+            "C": "Exfiltration remains weak in the report narrative.",
+            "D": "Payload deployment remains weak in the report narrative.",
+        }
+
+    return {
+        "weak_sections": weak_sections[:3],
+        "section_reasons": {key: reasons[key] for key in weak_sections[:3]},
+    }
+
+
+def _heuristic_record_plan(
+    record: dict[str, Any],
+    aggregate: dict[str, Any],
+    *,
+    focus_sections: list[str] | None = None,
+) -> dict[str, Any]:
+    requested_sections = [item for item in (focus_sections or []) if item in {"A", "B", "C", "D"}]
+    if not requested_sections:
+        if not record.get("possible_outbound_exfil_flows") and not record.get("temp_sh_hits") and not record.get("large_http_uploads"):
+            requested_sections.append("C")
+        if not record.get("manual_payload_deployment_candidates") and not record.get("suspicious_internal_rdp_spread"):
+            requested_sections.append("D")
+        if not record.get("suspicious_smb_rpc_scanners") and not record.get("possible_dcerpc_account_changes"):
+            requested_sections.append("B")
+    if not requested_sections:
+        requested_sections = ["B"]
+
+    candidate_hosts = _candidate_hosts(record, aggregate)
+    queries: list[dict[str, Any]] = []
+    for section in requested_sections:
+        query = _heuristic_query_for_section(section, record, candidate_hosts)
+        if query:
+            queries.append(query)
+        if len(queries) >= 4:
+            break
+
+    return {
+        "weak_sections": requested_sections[:4],
+        "queries": queries,
+    }
 
 
 def _campaign_system_prompt() -> str:
@@ -435,6 +551,147 @@ def _relevant_report_excerpt(report_text: str, focus_sections: list[str]) -> str
     if not excerpt:
         excerpt = report_text[:2400]
     return excerpt[:4000]
+
+
+def _section_looks_weak(report_text: str, title: str) -> bool:
+    block = _section_block(report_text, title)
+    if not block:
+        return False
+    lowered = block.lower()
+    weakness_markers = (
+        "no direct evidence",
+        "weakly supported",
+        "heuristic",
+        "inferred",
+        "unconfirmed",
+        "gap",
+        "limited",
+        "thin",
+        "absence of",
+        "no payload artifacts",
+    )
+    return any(marker in lowered for marker in weakness_markers)
+
+
+def _section_block(report_text: str, title: str) -> str:
+    wanted_heading = f"## {title}".lower()
+    current_heading = ""
+    current_lines: list[str] = []
+    selected = ""
+
+    def flush() -> None:
+        nonlocal selected
+        if current_heading == wanted_heading:
+            selected = "\n".join(current_lines).strip()
+
+    for raw_line in report_text.splitlines():
+        line = raw_line.strip()
+        if line.startswith("## "):
+            flush()
+            current_heading = line.lower()
+            current_lines = []
+            continue
+        if current_heading:
+            current_lines.append(raw_line)
+    flush()
+    return selected
+
+
+def _candidate_hosts(record: dict[str, Any], aggregate: dict[str, Any]) -> list[str]:
+    hosts: list[str] = []
+    for host in [
+        record.get("deep_dive_focus_host"),
+        (record.get("patient_zero_candidate") or {}).get("internal_ip"),
+    ]:
+        if host and host not in hosts:
+            hosts.append(host)
+    for item in (aggregate.get("top_patient_zero_candidates") or [])[:5]:
+        host = item.get("internal_ip")
+        if host and host not in hosts:
+            hosts.append(host)
+    return hosts[:6]
+
+
+def _ip_filter(hosts: list[str]) -> str:
+    comparisons = [f"ip.addr == {host}" for host in hosts if host]
+    if not comparisons:
+        return ""
+    return "(" + " || ".join(comparisons) + ")"
+
+
+def _heuristic_query_for_section(section: str, record: dict[str, Any], hosts: list[str]) -> dict[str, Any] | None:
+    host_filter = _ip_filter(hosts)
+    if section == "A":
+        display_filter = "tcp.dstport == 3389"
+        if host_filter:
+            display_filter += f" && {host_filter}"
+        return {
+            "name": "initial_access_rdp_focus",
+            "stage": "A",
+            "display_filter": display_filter,
+            "fields": ["frame.time_epoch", "ip.src", "ip.dst", "tcp.srcport", "tcp.dstport", "tcp.flags"],
+            "max_rows": 80,
+            "reason": f"Confirm external RDP ingress around suspected patient-zero hosts {', '.join(hosts) or 'already flagged systems'}.",
+        }
+    if section == "B":
+        display_filter = "(tcp.dstport == 445 || tcp.dstport == 135)"
+        if host_filter:
+            display_filter += f" && {host_filter}"
+        return {
+            "name": "lateral_movement_smb_rpc_focus",
+            "stage": "B",
+            "display_filter": display_filter,
+            "fields": ["frame.time_epoch", "ip.src", "ip.dst", "tcp.dstport", "dcerpc.cn_call_id"],
+            "max_rows": 120,
+            "reason": f"Check SMB/RPC discovery or admin activity involving hosts {', '.join(hosts) or 'already flagged systems'}.",
+        }
+    if section == "C":
+        exfil_candidates = record.get("possible_outbound_exfil_flows") or []
+        display_filter = (
+            'http.request.method == "POST" || http.request.method == "PUT" || '
+            'http.host contains "temp.sh" || tls.handshake.extensions_server_name contains "temp.sh"'
+        )
+        if exfil_candidates:
+            candidate_ips = []
+            for item in exfil_candidates[:3]:
+                for key in ("external_ip", "dst_ip", "ip"):
+                    value = item.get(key)
+                    if value and value not in candidate_ips:
+                        candidate_ips.append(value)
+            if candidate_ips:
+                display_filter += " && (" + " || ".join(f"ip.addr == {value}" for value in candidate_ips) + ")"
+        elif host_filter:
+            display_filter += f" && {host_filter}"
+        return {
+            "name": "exfiltration_http_temp_sh_focus",
+            "stage": "C",
+            "display_filter": display_filter,
+            "fields": [
+                "frame.time_epoch",
+                "ip.src",
+                "ip.dst",
+                "tcp.dstport",
+                "http.request.method",
+                "http.host",
+                "http.request.uri",
+                "tls.handshake.extensions_server_name",
+            ],
+            "max_rows": 100,
+            "reason": "Validate outbound upload behavior and temp.sh-style destinations around the candidate exfil flow.",
+        }
+    if section == "D":
+        display_filter = "(tcp.dstport == 3389 || tcp.dstport == 445 || tcp.dstport == 135)"
+        if host_filter:
+            display_filter += f" && {host_filter}"
+        return {
+            "name": "payload_deployment_internal_spread_focus",
+            "stage": "D",
+            "display_filter": display_filter,
+            "fields": ["frame.time_epoch", "ip.src", "ip.dst", "tcp.dstport", "tcp.flags", "smb.cmd"],
+            "max_rows": 120,
+            "reason": f"Check whether suspected compromised hosts {', '.join(hosts) or 'already flagged systems'} spread internally over RDP/SMB/RPC.",
+        }
+    return None
 
 
 def _parse_plan(text: str) -> dict[str, Any] | None:

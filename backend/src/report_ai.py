@@ -57,6 +57,8 @@ class ReportGenerationResult:
     llm_tokens_in: int = 0
     llm_tokens_out: int = 0
     fallback_used: bool = False
+    api_attempted: bool = False
+    failure_reason: str | None = None
 
 
 REPORT_SECTIONS = [
@@ -815,8 +817,11 @@ def _result_from_text(
     model: str,
     usage_payload: Any | None = None,
     fallback_used: bool = False,
+    api_attempted: bool | None = None,
+    failure_reason: str | None = None,
 ) -> ReportGenerationResult:
     llm_tokens_in, llm_tokens_out = _extract_usage_tokens(usage_payload)
+    resolved_api_attempted = bool(api_attempted) if api_attempted is not None else usage_payload is not None
     return ReportGenerationResult(
         text=text.strip(),
         provider=provider,
@@ -824,6 +829,25 @@ def _result_from_text(
         llm_tokens_in=llm_tokens_in,
         llm_tokens_out=llm_tokens_out,
         fallback_used=fallback_used,
+        api_attempted=resolved_api_attempted,
+        failure_reason=failure_reason,
+    )
+
+
+def _failure_result(
+    *,
+    provider: str,
+    model: str,
+    api_attempted: bool,
+    failure_reason: str,
+) -> ReportGenerationResult:
+    return ReportGenerationResult(
+        text="",
+        provider=provider,
+        model=model,
+        fallback_used=True,
+        api_attempted=api_attempted,
+        failure_reason=failure_reason,
     )
 
 
@@ -882,13 +906,18 @@ def _extract_text_from_response_payload(response: Any) -> str:
 
 def _generate_with_openai(prompt: str, model: str | None) -> ReportGenerationResult | None:
     api_key = _get_secret("OPENAI_API_KEY")
+    selected_model = str(model or _get_setting("OPENAI_MODEL", "gpt-5-mini"))
     if not api_key:
         print(
             "OpenAI unavailable: OPENAI_API_KEY is not set in the environment or local_settings.py. Using fallback report.",
             file=sys.stderr,
         )
-        return None
-    selected_model = str(model or _get_setting("OPENAI_MODEL", "gpt-5-mini"))
+        return _failure_result(
+            provider="openai",
+            model=selected_model,
+            api_attempted=False,
+            failure_reason="missing_api_key",
+        )
     max_output_tokens = max(200, _get_setting_int("OPENAI_MAX_OUTPUT_TOKENS", _get_setting_int("REPORT_MAX_OUTPUT_TOKENS", 1200)))
     try:
         from openai import OpenAI
@@ -911,12 +940,18 @@ def _generate_with_openai(prompt: str, model: str | None) -> ReportGenerationRes
                         provider="openai",
                         model=selected_model,
                         usage_payload=response,
+                        api_attempted=True,
                     )
                 print(
                     f"OpenAI model {selected_model} returned no text on attempt {attempt}/{retry_attempts}.",
                     file=sys.stderr,
                 )
-                break
+                return _failure_result(
+                    provider="openai",
+                    model=selected_model,
+                    api_attempted=True,
+                    failure_reason="empty_response",
+                )
             except Exception as exc:
                 is_last_attempt = attempt >= retry_attempts
                 if _is_transient_api_error(exc) and not is_last_attempt:
@@ -931,22 +966,42 @@ def _generate_with_openai(prompt: str, model: str | None) -> ReportGenerationRes
                     f"OpenAI request failed on model {selected_model} attempt {attempt}/{retry_attempts}: {exc}.",
                     file=sys.stderr,
                 )
-                break
+                return _failure_result(
+                    provider="openai",
+                    model=selected_model,
+                    api_attempted=True,
+                    failure_reason="request_failed",
+                )
     except Exception as exc:
         print(f"OpenAI client setup failed: {exc}. Using fallback report.", file=sys.stderr)
-        return None
-    return None
+        return _failure_result(
+            provider="openai",
+            model=selected_model,
+            api_attempted=False,
+            failure_reason="client_setup_failed",
+        )
+    return _failure_result(
+        provider="openai",
+        model=selected_model,
+        api_attempted=False,
+        failure_reason="no_api_call",
+    )
 
 
 def _generate_with_openrouter(prompt: str, model: str | None) -> ReportGenerationResult | None:
     api_key = _get_secret("OPENROUTER_API_KEY")
+    selected_model = str(model or _get_setting("OPENROUTER_MODEL", "openai/gpt-5-mini"))
     if not api_key:
         print(
             "OpenRouter unavailable: OPENROUTER_API_KEY is not set in the environment or local_settings.py. Trying next report option.",
             file=sys.stderr,
         )
-        return None
-    selected_model = str(model or _get_setting("OPENROUTER_MODEL", "openai/gpt-5-mini"))
+        return _failure_result(
+            provider="openrouter",
+            model=selected_model,
+            api_attempted=False,
+            failure_reason="missing_api_key",
+        )
     base_url = str(_get_setting("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")).rstrip("/")
     max_output_tokens = max(200, _get_setting_int("OPENROUTER_MAX_OUTPUT_TOKENS", _get_setting_int("REPORT_MAX_OUTPUT_TOKENS", 900)))
     try:
@@ -980,12 +1035,18 @@ def _generate_with_openrouter(prompt: str, model: str | None) -> ReportGeneratio
                         provider="openrouter",
                         model=selected_model,
                         usage_payload=response,
+                        api_attempted=True,
                     )
                 print(
                     f"OpenRouter model {selected_model} returned no text on attempt {attempt}/{retry_attempts}.",
                     file=sys.stderr,
                 )
-                break
+                return _failure_result(
+                    provider="openrouter",
+                    model=selected_model,
+                    api_attempted=True,
+                    failure_reason="empty_response",
+                )
             except Exception as exc:
                 is_last_attempt = attempt >= retry_attempts
                 if _is_transient_api_error(exc) and not is_last_attempt:
@@ -1000,22 +1061,42 @@ def _generate_with_openrouter(prompt: str, model: str | None) -> ReportGeneratio
                     f"OpenRouter request failed on model {selected_model} attempt {attempt}/{retry_attempts}: {exc}. Trying next report option.",
                     file=sys.stderr,
                 )
-                break
+                return _failure_result(
+                    provider="openrouter",
+                    model=selected_model,
+                    api_attempted=True,
+                    failure_reason="request_failed",
+                )
     except Exception as exc:
         print(f"OpenRouter client setup failed: {exc}. Trying next report option.", file=sys.stderr)
-        return None
-    return None
+        return _failure_result(
+            provider="openrouter",
+            model=selected_model,
+            api_attempted=False,
+            failure_reason="client_setup_failed",
+        )
+    return _failure_result(
+        provider="openrouter",
+        model=selected_model,
+        api_attempted=False,
+        failure_reason="no_api_call",
+    )
 
 
 def _generate_with_groq(prompt: str, model: str | None) -> ReportGenerationResult | None:
     api_key = _get_secret("GROQ_API_KEY")
+    selected_model = str(model or _get_setting("GROQ_MODEL", "openai/gpt-oss-20b"))
     if not api_key:
         print(
             "Groq unavailable: GROQ_API_KEY is not set in the environment or local_settings.py. Using fallback report.",
             file=sys.stderr,
         )
-        return None
-    selected_model = str(model or _get_setting("GROQ_MODEL", "openai/gpt-oss-20b"))
+        return _failure_result(
+            provider="groq",
+            model=selected_model,
+            api_attempted=False,
+            failure_reason="missing_api_key",
+        )
     max_output_tokens = max(200, _get_setting_int("GROQ_MAX_OUTPUT_TOKENS", _get_setting_int("REPORT_MAX_OUTPUT_TOKENS", 1200)))
     try:
         from openai import OpenAI
@@ -1041,12 +1122,18 @@ def _generate_with_groq(prompt: str, model: str | None) -> ReportGenerationResul
                         provider="groq",
                         model=selected_model,
                         usage_payload=response,
+                        api_attempted=True,
                     )
                 print(
                     f"Groq model {selected_model} returned no text on attempt {attempt}/{retry_attempts}.",
                     file=sys.stderr,
                 )
-                break
+                return _failure_result(
+                    provider="groq",
+                    model=selected_model,
+                    api_attempted=True,
+                    failure_reason="empty_response",
+                )
             except Exception as exc:
                 is_last_attempt = attempt >= retry_attempts
                 if _is_transient_api_error(exc) and not is_last_attempt:
@@ -1061,11 +1148,26 @@ def _generate_with_groq(prompt: str, model: str | None) -> ReportGenerationResul
                     f"Groq request failed on model {selected_model} attempt {attempt}/{retry_attempts}: {exc}.",
                     file=sys.stderr,
                 )
-                break
+                return _failure_result(
+                    provider="groq",
+                    model=selected_model,
+                    api_attempted=True,
+                    failure_reason="request_failed",
+                )
     except Exception as exc:
         print(f"Groq client setup failed: {exc}. Using fallback report.", file=sys.stderr)
-        return None
-    return None
+        return _failure_result(
+            provider="groq",
+            model=selected_model,
+            api_attempted=False,
+            failure_reason="client_setup_failed",
+        )
+    return _failure_result(
+        provider="groq",
+        model=selected_model,
+        api_attempted=False,
+        failure_reason="no_api_call",
+    )
 
 
 def _get_secret(name: str) -> str | None:
@@ -1173,12 +1275,18 @@ def _get_gemini_api_key_source() -> str | None:
 def _generate_with_gemini(prompt: str, model: str | None) -> ReportGenerationResult | None:
     api_key = _get_gemini_api_key()
     key_source = _get_gemini_api_key_source()
+    requested_model = str(model or _get_setting("GEMINI_MODEL", "gemini-2.5-flash"))
     if not api_key:
         print(
             "Gemini unavailable: neither GEMINI_API_KEY nor GOOGLE_API_KEY is set in the environment or local_settings.py. Using fallback report.",
             file=sys.stderr,
         )
-        return None
+        return _failure_result(
+            provider="gemini",
+            model=requested_model,
+            api_attempted=False,
+            failure_reason="missing_api_key",
+        )
     try:
         from google import genai
 
@@ -1186,6 +1294,7 @@ def _generate_with_gemini(prompt: str, model: str | None) -> ReportGenerationRes
         retry_attempts = max(1, _get_setting_int("GEMINI_RETRY_ATTEMPTS", 3))
         retry_delay = max(0.5, _get_setting_float("GEMINI_RETRY_DELAY_SECONDS", 2.0))
         model_candidates = _get_gemini_model_candidates(model)
+        api_attempted = False
 
         for model_index, candidate_model in enumerate(model_candidates, start=1):
             print(
@@ -1194,6 +1303,7 @@ def _generate_with_gemini(prompt: str, model: str | None) -> ReportGenerationRes
             )
             for attempt in range(1, retry_attempts + 1):
                 try:
+                    api_attempted = True
                     response = client.models.generate_content(
                         model=candidate_model,
                         contents=f"{SYSTEM_PROMPT}\n\n{prompt}",
@@ -1210,6 +1320,7 @@ def _generate_with_gemini(prompt: str, model: str | None) -> ReportGenerationRes
                             provider="gemini",
                             model=candidate_model,
                             usage_payload=response,
+                            api_attempted=True,
                         )
                     print(
                         f"Gemini model {candidate_model} returned no text. Trying next option if available.",
@@ -1232,10 +1343,20 @@ def _generate_with_gemini(prompt: str, model: str | None) -> ReportGenerationRes
                     )
                     break
         print("Gemini unavailable after retries and model fallbacks. Using fallback report.", file=sys.stderr)
+        return _failure_result(
+            provider="gemini",
+            model=model_candidates[0] if model_candidates else requested_model,
+            api_attempted=api_attempted,
+            failure_reason="empty_response_or_request_failed",
+        )
     except Exception as exc:
         print(f"Gemini client setup failed: {exc}. Using fallback report.", file=sys.stderr)
-        return None
-    return None
+        return _failure_result(
+            provider="gemini",
+            model=requested_model,
+            api_attempted=False,
+            failure_reason="client_setup_failed",
+        )
 
 
 def _get_ollama_model_candidates(primary_model: str | None) -> list[str]:
@@ -1261,6 +1382,7 @@ def _generate_with_ollama(prompt: str, model: str | None) -> ReportGenerationRes
     base_url = _get_ollama_base_url()
     model_candidates = _get_ollama_model_candidates(model)
     timeout_seconds = max(30.0, _get_setting_float("OLLAMA_TIMEOUT_SECONDS", 300.0))
+    api_attempted = False
 
     for model_index, candidate_model in enumerate(model_candidates, start=1):
         print(
@@ -1284,6 +1406,7 @@ def _generate_with_ollama(prompt: str, model: str | None) -> ReportGenerationRes
             method="POST",
         )
         try:
+            api_attempted = True
             with urllib_request.urlopen(request, timeout=timeout_seconds) as response:
                 payload = json.loads(response.read().decode("utf-8"))
             text = payload.get("response")
@@ -1297,6 +1420,7 @@ def _generate_with_ollama(prompt: str, model: str | None) -> ReportGenerationRes
                     provider="ollama",
                     model=candidate_model,
                     usage_payload=payload,
+                    api_attempted=True,
                 )
             print(
                 f"Ollama model {candidate_model} returned no text. Trying next option if available.",
@@ -1313,14 +1437,24 @@ def _generate_with_ollama(prompt: str, model: str | None) -> ReportGenerationRes
                 f"Ollama unavailable at {base_url}: {exc}. Install/start Ollama or adjust OLLAMA_BASE_URL. Using fallback report.",
                 file=sys.stderr,
             )
-            return None
+            return _failure_result(
+                provider="ollama",
+                model=candidate_model,
+                api_attempted=api_attempted,
+                failure_reason="unavailable",
+            )
         except Exception as exc:
             print(
                 f"Ollama request failed on model {candidate_model}: {exc}.",
                 file=sys.stderr,
             )
     print("Ollama unavailable after trying configured model candidates. Using fallback report.", file=sys.stderr)
-    return None
+    return _failure_result(
+        provider="ollama",
+        model=model_candidates[0] if model_candidates else str(model or "qwen2.5:7b-instruct"),
+        api_attempted=api_attempted,
+        failure_reason="empty_response_or_request_failed",
+    )
 
 
 def _resolve_provider_chain(provider: str) -> list[str]:
@@ -1404,6 +1538,7 @@ def _generate_best_result(
 ) -> ReportGenerationResult | None:
     provider_chain = _resolve_provider_chain(provider) if allow_provider_fallback else [(provider or "auto").strip().lower()]
     preferred_provider = provider_chain[0] if provider_chain else provider
+    failure_results: list[ReportGenerationResult] = []
     for candidate_provider in provider_chain:
         result = _generate_with_provider(
             prompt,
@@ -1411,11 +1546,25 @@ def _generate_best_result(
             model,
             preferred_provider=preferred_provider,
         )
-        if result:
+        if result and result.text:
             return result
+        if result:
+            failure_results.append(result)
     if require_ai:
         raise RuntimeError(f"{provider} report generation failed")
-    return None
+    requested_provider = _normalize_requested_provider(provider)
+    requested_model = _resolve_requested_model(requested_provider, model)
+    api_attempted = any(result.api_attempted for result in failure_results)
+    failure_reason = next(
+        (result.failure_reason for result in failure_results if result.failure_reason),
+        "no_api_call",
+    )
+    return _failure_result(
+        provider=requested_provider,
+        model=requested_model,
+        api_attempted=api_attempted,
+        failure_reason=failure_reason,
+    )
 
 
 def _combine_results(
@@ -1442,6 +1591,8 @@ def _combine_results(
         llm_tokens_in=sum(result.llm_tokens_in for result in results),
         llm_tokens_out=sum(result.llm_tokens_out for result in results),
         fallback_used=fallback_used or any(result.fallback_used for result in results),
+        api_attempted=any(result.api_attempted for result in results),
+        failure_reason=next((result.failure_reason for result in results if result.failure_reason), None),
     )
 
 
@@ -1634,12 +1785,14 @@ def _generate_sectioned_report(
             require_ai=require_ai,
             allow_provider_fallback=False,
         )
-        if not result:
+        if not result or not result.text:
             return _result_from_text(
                 text=fallback_text,
                 provider=requested_provider,
                 model=requested_model,
                 fallback_used=True,
+                api_attempted=result.api_attempted if result else False,
+                failure_reason=result.failure_reason if result else "no_api_call",
             )
         section_results.append(result)
         section_bodies[section_key] = result.text.strip()

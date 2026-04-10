@@ -7,7 +7,21 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 from typing import Any
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CONFIG_DIR = PROJECT_ROOT / "backend" / "config"
+config_path = str(CONFIG_DIR)
+if config_path not in sys.path:
+    sys.path.insert(0, config_path)
+
+try:
+    import local_settings as _local_settings
+except ModuleNotFoundError:
+    _local_settings = None
+except Exception:
+    _local_settings = None
 
 REMOTE_MANAGEMENT_FILTER = "tcp and (tcp.port == 3389 or tcp.port == 5985 or tcp.port == 5986)"
 INTERNAL_SCAN_FILTER = "tcp and (tcp.dstport == 135 or tcp.dstport == 445)"
@@ -60,6 +74,29 @@ def sandbox_verification_enabled() -> bool:
     return _load_config().enabled
 
 
+def _get_setting(name: str, default: Any = None) -> Any:
+    if os.getenv(name):
+        return os.getenv(name)
+    if _local_settings is not None and hasattr(_local_settings, name):
+        return getattr(_local_settings, name)
+    return default
+
+
+def _get_setting_bool(name: str, default: bool) -> bool:
+    value = _get_setting(name, default)
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _get_setting_int(name: str, default: int) -> int:
+    value = _get_setting(name, default)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _is_internal_ip(value: str | None) -> bool:
     if not value:
         return False
@@ -86,12 +123,13 @@ def _is_external_ip(value: str | None) -> bool:
 
 
 def _load_config() -> SandboxRuntimeConfig:
-    enabled = os.getenv("AGENTIC_SANDBOX_VERIFY", "").strip().lower() in {"1", "true", "yes", "on"}
-    mode = os.getenv("AGENTIC_SANDBOX_MODE", "auto").strip().lower() or "auto"
-    image = os.getenv("AGENTIC_SANDBOX_IMAGE", "agenticnetsec-forensics-sandbox").strip() or "agenticnetsec-forensics-sandbox"
-    timeout_seconds = max(15, int(os.getenv("AGENTIC_SANDBOX_TIMEOUT", "120") or "120"))
-    max_rows = max(10, int(os.getenv("AGENTIC_SANDBOX_MAX_ROWS", "400") or "400"))
-    max_pairs = max(3, int(os.getenv("AGENTIC_SANDBOX_MAX_PAIRS", "8") or "8"))
+    host_tshark_available = shutil.which("tshark") is not None
+    enabled = _get_setting_bool("AGENTIC_SANDBOX_VERIFY", host_tshark_available)
+    mode = str(_get_setting("AGENTIC_SANDBOX_MODE", "host" if host_tshark_available else "auto")).strip().lower() or "auto"
+    image = str(_get_setting("AGENTIC_SANDBOX_IMAGE", "agenticnetsec-forensics-sandbox")).strip() or "agenticnetsec-forensics-sandbox"
+    timeout_seconds = max(15, _get_setting_int("AGENTIC_SANDBOX_TIMEOUT", 120))
+    max_rows = max(10, _get_setting_int("AGENTIC_SANDBOX_MAX_ROWS", 400))
+    max_pairs = max(3, _get_setting_int("AGENTIC_SANDBOX_MAX_PAIRS", 8))
     return SandboxRuntimeConfig(
         enabled=enabled,
         mode=mode,
