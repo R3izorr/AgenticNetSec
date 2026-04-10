@@ -55,6 +55,11 @@ total_job_store = TotalJobStore(TOTAL_JOBS_DIR)
 engine = AnalysisEngine()
 
 
+@app.get("/")
+async def root():
+    return {"message": "AgenticNetSec API is running", "version": "1.0.0"}
+
+
 def _to_bool(value: Any, default: bool) -> bool:
     if value is None:
         return default

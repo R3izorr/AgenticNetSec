@@ -1,0 +1,50 @@
+{
+  "analysis_job_id": "analysis_1587f19b2f1a",
+  "status": "completed",
+  "current_phase": "completed",
+  "progress": 1.0,
+  "guardrail_state": "Yes",
+  "created_at": "2026-04-10T08:22:30.811129+00:00",
+  "updated_at": "2026-04-10T11:00:22.920330+00:00",
+  "error": null,
+  "artifacts_dir": "/home/asus/project/AgenticNetSec/outputs/analysis_jobs/analysis_1587f19b2f1a",
+  "source_type": "upload",
+  "source_name": "34936-sensor-250309-00002493_redacted.pcap",
+  "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775809350_34936-sensor-250309-00002493_redacted.pcap",
+  "metadata": {
+    "filename": "upload_1775809350_34936-sensor-250309-00002493_redacted.pcap",
+    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775809350_34936-sensor-250309-00002493_redacted.pcap",
+    "size_bytes": 345584344,
+    "packet_count": 1391999,
+    "flow_count": null,
+    "capture_start": null,
+    "capture_end": null
+  },
+  "artifact_ready": {
+    "report_json": true,
+    "report_markdown": true,
+    "metrics": true,
+    "guardrail_audit": true
+  },
+  "attack_type": "scan/lateral-movement",
+  "risk_level": "low",
+  "confidence_score": 0.488,
+  "runtime_seconds_total": 415.134,
+  "group_id": "total_db52cec20d17",
+  "group_index": 28,
+  "group_total": 29,
+  "analysis_profile": "standard",
+  "stage1_execution": {
+    "requested_profile": "standard",
+    "deep_dive": {
+      "executed": true,
+      "reason": "Standard profile enabled deep dive because base findings showed suspicious evidence.",
+      "status": "executed"
+    },
+    "payload_carving": {
+      "executed": false,
+      "reason": "Skipped in standard profile; payload-deployment follow-up is deferred to sandbox enrichment.",
+      "status": "skipped_profile_policy"
+    }
+  }
+}

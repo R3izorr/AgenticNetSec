@@ -1,0 +1,1127 @@
+{
+  "file": "upload_1775799214_34936-sensor-250308-00002452_redacted.pcap",
+  "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775799214_34936-sensor-250308-00002452_redacted.pcap",
+  "size_bytes": 272233737,
+  "total_packets": 1125430,
+  "top_ips": [
+    {
+      "ip": "10.128.239.57",
+      "packet_count": 860110
+    },
+    {
+      "ip": "10.128.239.21",
+      "packet_count": 98881
+    },
+    {
+      "ip": "45.135.232.124",
+      "packet_count": 91205
+    },
+    {
+      "ip": "10.128.239.20",
+      "packet_count": 85882
+    },
+    {
+      "ip": "179.60.146.33",
+      "packet_count": 73862
+    }
+  ],
+  "top_ports": [
+    {
+      "port": 3389,
+      "packet_count": 802121
+    },
+    {
+      "port": 53,
+      "packet_count": 53248
+    },
+    {
+      "port": 49671,
+      "packet_count": 47723
+    },
+    {
+      "port": 49668,
+      "packet_count": 42755
+    },
+    {
+      "port": 445,
+      "packet_count": 42431
+    }
+  ],
+  "patient_zero_candidate": {
+    "external_ip": "45.135.232.124",
+    "internal_ip": "10.128.239.57",
+    "first_seen": 1765296995.663519,
+    "last_seen": 1765448166.573569,
+    "duration_seconds": 151170.91,
+    "packet_count": 91205,
+    "total_bytes": 14109278,
+    "handshake_complete": true,
+    "application_packets": 53131,
+    "post_login_unique_internal_targets": 21,
+    "sample_events": [
+      {
+        "timestamp": 1765296995.663519,
+        "src_ip": "45.135.232.124",
+        "dst_ip": "10.128.239.57",
+        "src_port": 36220,
+        "dst_port": 3389,
+        "has_payload": false,
+        "basis": "external SYN toward RDP service"
+      },
+      {
+        "timestamp": 1765296995.727243,
+        "src_ip": "10.128.239.57",
+        "dst_ip": "45.135.232.124",
+        "src_port": 3389,
+        "dst_port": 36220,
+        "has_payload": false,
+        "basis": "internal SYN-ACK from RDP service"
+      },
+      {
+        "timestamp": 1765296995.921831,
+        "src_ip": "45.135.232.124",
+        "dst_ip": "10.128.239.57",
+        "src_port": 36220,
+        "dst_port": 3389,
+        "has_payload": false,
+        "basis": "external ACK completing RDP handshake"
+      },
+      {
+        "timestamp": 1765296995.985413,
+        "src_ip": "45.135.232.124",
+        "dst_ip": "10.128.239.57",
+        "src_port": 36220,
+        "dst_port": 3389,
+        "has_payload": true,
+        "basis": "external RDP application packet"
+      },
+      {
+        "timestamp": 1765296996.047456,
+        "src_ip": "10.128.239.57",
+        "dst_ip": "45.135.232.124",
+        "src_port": 3389,
+        "dst_port": 36220,
+        "has_payload": true,
+        "basis": "internal RDP application response"
+      }
+    ],
+    "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
+    "suspicious": true,
+    "confidence_score": 80
+  },
+  "suspicious_external_rdp_count": 240,
+  "suspicious_external_port_scanners": [],
+  "suspicious_vpn_count": 0,
+  "suspicious_smb_rpc_scanners": [
+    {
+      "src_ip": "10.128.239.57",
+      "first_seen": 1765297022.481348,
+      "last_seen": 1765317310.911989,
+      "duration_seconds": 20288.43,
+      "connection_attempts": 23,
+      "unique_targets": 21,
+      "top_ports": [
+        {
+          "port": 445,
+          "count": 21
+        },
+        {
+          "port": 135,
+          "count": 2
+        }
+      ],
+      "sample_events": [
+        {
+          "timestamp": 1765297022.481348,
+          "dst_ip": "10.128.239.150",
+          "dst_port": 445,
+          "basis": "new internal SMB/RPC target attempt"
+        },
+        {
+          "timestamp": 1765297031.957929,
+          "dst_ip": "10.128.239.153",
+          "dst_port": 445,
+          "basis": "new internal SMB/RPC target attempt"
+        },
+        {
+          "timestamp": 1765297032.018731,
+          "dst_ip": "10.128.239.39",
+          "dst_port": 445,
+          "basis": "new internal SMB/RPC target attempt"
+        },
+        {
+          "timestamp": 1765297032.149474,
+          "dst_ip": "10.128.239.24",
+          "dst_port": 445,
+          "basis": "new internal SMB/RPC target attempt"
+        },
+        {
+          "timestamp": 1765297032.275195,
+          "dst_ip": "10.128.239.28",
+          "dst_port": 445,
+          "basis": "new internal SMB/RPC target attempt"
+        }
+      ],
+      "basis": "Internal host attempted connections to many peers over SMB/RPC ports 445/135.",
+      "suspicious": true
+    }
+  ],
+  "possible_dcerpc_account_changes": [],
+  "temp_sh_hits": [],
+  "large_http_uploads": [],
+  "possible_outbound_exfil_flows": [],
+  "suspicious_internal_rdp_spread": [],
+  "manual_payload_deployment_candidates": [],
+  "carved_payloads": [],
+  "payload_iocs": [],
+  "payload_deployment_confidence": 0.0,
+  "payload_carving_candidate_count": 0,
+  "payload_carving_status": "skipped_profile_policy",
+  "payload_carving_manifest_path": null,
+  "payload_carving_selected_candidates": [],
+  "analysis_profile": "standard",
+  "analysis_version": "2026-04-03-api-batch-v1",
+  "stage1_execution": {
+    "requested_profile": "standard",
+    "deep_dive": {
+      "executed": true,
+      "reason": "Standard profile enabled deep dive because base findings showed suspicious evidence.",
+      "status": "executed"
+    },
+    "payload_carving": {
+      "executed": false,
+      "reason": "Skipped in standard profile; payload-deployment follow-up is deferred to sandbox enrichment.",
+      "status": "skipped_profile_policy"
+    }
+  },
+  "deep_dive": {
+    "focus_host": "10.128.239.57",
+    "patient_zero_candidate": {
+      "external_ip": "45.135.232.124",
+      "internal_ip": "10.128.239.57",
+      "first_seen": 1765296995.663519,
+      "last_seen": 1765448166.573569,
+      "duration_seconds": 151170.91,
+      "packet_count": 91205,
+      "total_bytes": 14109278,
+      "handshake_complete": true,
+      "application_packets": 53131,
+      "post_login_unique_internal_targets": 21,
+      "sample_events": [
+        {
+          "timestamp": 1765296995.663519,
+          "src_ip": "45.135.232.124",
+          "dst_ip": "10.128.239.57",
+          "src_port": 36220,
+          "dst_port": 3389,
+          "has_payload": false,
+          "basis": "external SYN toward RDP service"
+        },
+        {
+          "timestamp": 1765296995.727243,
+          "src_ip": "10.128.239.57",
+          "dst_ip": "45.135.232.124",
+          "src_port": 3389,
+          "dst_port": 36220,
+          "has_payload": false,
+          "basis": "internal SYN-ACK from RDP service"
+        },
+        {
+          "timestamp": 1765296995.921831,
+          "src_ip": "45.135.232.124",
+          "dst_ip": "10.128.239.57",
+          "src_port": 36220,
+          "dst_port": 3389,
+          "has_payload": false,
+          "basis": "external ACK completing RDP handshake"
+        },
+        {
+          "timestamp": 1765296995.985413,
+          "src_ip": "45.135.232.124",
+          "dst_ip": "10.128.239.57",
+          "src_port": 36220,
+          "dst_port": 3389,
+          "has_payload": true,
+          "basis": "external RDP application packet"
+        },
+        {
+          "timestamp": 1765296996.047456,
+          "src_ip": "10.128.239.57",
+          "dst_ip": "45.135.232.124",
+          "src_port": 3389,
+          "dst_port": 36220,
+          "has_payload": true,
+          "basis": "internal RDP application response"
+        }
+      ],
+      "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
+      "suspicious": true,
+      "confidence_score": 80
+    },
+    "suspected_attack_flow": {
+      "focus_host": "10.128.239.57",
+      "strongest_external_ip": "45.135.232.124",
+      "likely_path": "Initial Access -> Discovery",
+      "stages": [
+        {
+          "stage": "reconnaissance",
+          "supported": false,
+          "confidence": 0.0,
+          "first_seen": null,
+          "evidence_summary": "No strong external reconnaissance signal was isolated in this file."
+        },
+        {
+          "stage": "initial_access",
+          "supported": true,
+          "confidence": 0.9,
+          "first_seen": "2025-12-09T16:16:35.663519+00:00",
+          "evidence_summary": "External RDP from 45.135.232.124 into 10.128.239.57 shows handshake/application evidence and post-login behavior change."
+        },
+        {
+          "stage": "discovery",
+          "supported": true,
+          "weakly_supported": false,
+          "confidence": 0.9,
+          "first_seen": "2025-12-09T16:17:02.481348+00:00",
+          "evidence_summary": "10.128.239.57 generated SMB/RPC scanning toward 21 internal targets."
+        },
+        {
+          "stage": "administrative_activity",
+          "supported": false,
+          "weakly_supported": true,
+          "confidence": 0.35,
+          "first_seen": "2025-12-09T21:55:08.919178+00:00",
+          "evidence_summary": "Generic SMB/DCERPC marker strings were observed near the focus host, but they did not meet the account-change threshold."
+        },
+        {
+          "stage": "exfiltration",
+          "supported": false,
+          "confidence": 0.0,
+          "first_seen": null,
+          "evidence_summary": "No direct exfiltration indicator was isolated in this file."
+        },
+        {
+          "stage": "payload_deployment",
+          "supported": false,
+          "weakly_supported": false,
+          "confidence": 0.0,
+          "first_seen": null,
+          "evidence_summary": "No strong internal RDP payload-deployment pattern was isolated in this file."
+        }
+      ],
+      "summary": "Likely path for this file: Initial Access -> Discovery"
+    },
+    "reconnaissance": {
+      "first_seen": null,
+      "external_scan_sources": [],
+      "interpretation": "No strong external reconnaissance pattern was isolated in this file."
+    },
+    "initial_access": {
+      "top_ingress_sessions": [
+        {
+          "external_ip": "45.135.232.124",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1765296995.663519,
+          "last_seen": 1765448166.573569,
+          "duration_seconds": 151170.91,
+          "packet_count": 91205,
+          "total_bytes": 14109278,
+          "handshake_complete": true,
+          "application_packets": 53131,
+          "post_login_unique_internal_targets": 21,
+          "sample_events": [
+            {
+              "timestamp": 1765296995.663519,
+              "src_ip": "45.135.232.124",
+              "dst_ip": "10.128.239.57",
+              "src_port": 36220,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external SYN toward RDP service"
+            },
+            {
+              "timestamp": 1765296995.727243,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "45.135.232.124",
+              "src_port": 3389,
+              "dst_port": 36220,
+              "has_payload": false,
+              "basis": "internal SYN-ACK from RDP service"
+            },
+            {
+              "timestamp": 1765296995.921831,
+              "src_ip": "45.135.232.124",
+              "dst_ip": "10.128.239.57",
+              "src_port": 36220,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external ACK completing RDP handshake"
+            },
+            {
+              "timestamp": 1765296995.985413,
+              "src_ip": "45.135.232.124",
+              "dst_ip": "10.128.239.57",
+              "src_port": 36220,
+              "dst_port": 3389,
+              "has_payload": true,
+              "basis": "external RDP application packet"
+            },
+            {
+              "timestamp": 1765296996.047456,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "45.135.232.124",
+              "src_port": 3389,
+              "dst_port": 36220,
+              "has_payload": true,
+              "basis": "internal RDP application response"
+            }
+          ],
+          "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
+          "suspicious": true,
+          "confidence_score": 80
+        },
+        {
+          "external_ip": "179.60.146.33",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1765297000.078731,
+          "last_seen": 1765448165.719542,
+          "duration_seconds": 151165.64,
+          "packet_count": 73862,
+          "total_bytes": 13234106,
+          "handshake_complete": true,
+          "application_packets": 47564,
+          "post_login_unique_internal_targets": 21,
+          "sample_events": [
+            {
+              "timestamp": 1765297000.078731,
+              "src_ip": "179.60.146.33",
+              "dst_ip": "10.128.239.57",
+              "src_port": 49731,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external SYN toward RDP service"
+            },
+            {
+              "timestamp": 1765297000.138607,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "179.60.146.33",
+              "src_port": 3389,
+              "dst_port": 49731,
+              "has_payload": false,
+              "basis": "internal SYN-ACK from RDP service"
+            },
+            {
+              "timestamp": 1765297002.039347,
+              "src_ip": "179.60.146.33",
+              "dst_ip": "10.128.239.57",
+              "src_port": 49731,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external ACK completing RDP handshake"
+            },
+            {
+              "timestamp": 1765297002.105661,
+              "src_ip": "179.60.146.33",
+              "dst_ip": "10.128.239.57",
+              "src_port": 49731,
+              "dst_port": 3389,
+              "has_payload": true,
+              "basis": "external RDP application packet"
+            },
+            {
+              "timestamp": 1765297002.241743,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "179.60.146.33",
+              "src_port": 3389,
+              "dst_port": 49731,
+              "has_payload": true,
+              "basis": "internal RDP application response"
+            }
+          ],
+          "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
+          "suspicious": true,
+          "confidence_score": 80
+        },
+        {
+          "external_ip": "179.60.146.34",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1765297012.635278,
+          "last_seen": 1765443803.621835,
+          "duration_seconds": 146790.99,
+          "packet_count": 73423,
+          "total_bytes": 13174266,
+          "handshake_complete": true,
+          "application_packets": 47367,
+          "post_login_unique_internal_targets": 21,
+          "sample_events": [
+            {
+              "timestamp": 1765297012.635278,
+              "src_ip": "179.60.146.34",
+              "dst_ip": "10.128.239.57",
+              "src_port": 54816,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external SYN toward RDP service"
+            },
+            {
+              "timestamp": 1765297012.698478,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "179.60.146.34",
+              "src_port": 3389,
+              "dst_port": 54816,
+              "has_payload": false,
+              "basis": "internal SYN-ACK from RDP service"
+            },
+            {
+              "timestamp": 1765297012.968614,
+              "src_ip": "179.60.146.34",
+              "dst_ip": "10.128.239.57",
+              "src_port": 54816,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external ACK completing RDP handshake"
+            },
+            {
+              "timestamp": 1765297013.031153,
+              "src_ip": "179.60.146.34",
+              "dst_ip": "10.128.239.57",
+              "src_port": 54816,
+              "dst_port": 3389,
+              "has_payload": true,
+              "basis": "external RDP application packet"
+            },
+            {
+              "timestamp": 1765297013.291153,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "179.60.146.34",
+              "src_port": 3389,
+              "dst_port": 54816,
+              "has_payload": true,
+              "basis": "internal RDP application response"
+            }
+          ],
+          "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
+          "suspicious": true,
+          "confidence_score": 80
+        },
+        {
+          "external_ip": "141.98.11.8",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1765297018.296996,
+          "last_seen": 1765448164.884278,
+          "duration_seconds": 151146.59,
+          "packet_count": 48731,
+          "total_bytes": 6822586,
+          "handshake_complete": true,
+          "application_packets": 25462,
+          "post_login_unique_internal_targets": 21,
+          "sample_events": [
+            {
+              "timestamp": 1765297018.296996,
+              "src_ip": "141.98.11.8",
+              "dst_ip": "10.128.239.57",
+              "src_port": 3104,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external SYN toward RDP service"
+            },
+            {
+              "timestamp": 1765297018.360993,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "141.98.11.8",
+              "src_port": 3389,
+              "dst_port": 3104,
+              "has_payload": false,
+              "basis": "internal SYN-ACK from RDP service"
+            },
+            {
+              "timestamp": 1765297018.739562,
+              "src_ip": "141.98.11.8",
+              "dst_ip": "10.128.239.57",
+              "src_port": 3104,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external ACK completing RDP handshake"
+            },
+            {
+              "timestamp": 1765297019.157852,
+              "src_ip": "141.98.11.8",
+              "dst_ip": "10.128.239.57",
+              "src_port": 3104,
+              "dst_port": 3389,
+              "has_payload": true,
+              "basis": "external RDP application packet"
+            },
+            {
+              "timestamp": 1765297019.348602,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "141.98.11.8",
+              "src_port": 3389,
+              "dst_port": 3104,
+              "has_payload": true,
+              "basis": "internal RDP application response"
+            }
+          ],
+          "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
+          "suspicious": true,
+          "confidence_score": 80
+        },
+        {
+          "external_ip": "92.255.85.173",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1765297010.194518,
+          "last_seen": 1765448151.572807,
+          "duration_seconds": 151141.38,
+          "packet_count": 46559,
+          "total_bytes": 6193739,
+          "handshake_complete": true,
+          "application_packets": 22501,
+          "post_login_unique_internal_targets": 21,
+          "sample_events": [
+            {
+              "timestamp": 1765297010.194518,
+              "src_ip": "92.255.85.173",
+              "dst_ip": "10.128.239.57",
+              "src_port": 52530,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external SYN toward RDP service"
+            },
+            {
+              "timestamp": 1765297010.255812,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "92.255.85.173",
+              "src_port": 3389,
+              "dst_port": 52530,
+              "has_payload": false,
+              "basis": "internal SYN-ACK from RDP service"
+            },
+            {
+              "timestamp": 1765297010.925367,
+              "src_ip": "92.255.85.173",
+              "dst_ip": "10.128.239.57",
+              "src_port": 52530,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external ACK completing RDP handshake"
+            },
+            {
+              "timestamp": 1765297010.992317,
+              "src_ip": "92.255.85.173",
+              "dst_ip": "10.128.239.57",
+              "src_port": 52530,
+              "dst_port": 3389,
+              "has_payload": true,
+              "basis": "external RDP application packet"
+            },
+            {
+              "timestamp": 1765297011.057027,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "92.255.85.173",
+              "src_port": 3389,
+              "dst_port": 52530,
+              "has_payload": true,
+              "basis": "internal RDP application response"
+            }
+          ],
+          "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
+          "suspicious": true,
+          "confidence_score": 80
+        },
+        {
+          "external_ip": "141.98.11.127",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1765308827.369706,
+          "last_seen": 1765448164.719853,
+          "duration_seconds": 139337.35,
+          "packet_count": 39537,
+          "total_bytes": 5265147,
+          "handshake_complete": true,
+          "application_packets": 19003,
+          "post_login_unique_internal_targets": 21,
+          "sample_events": [
+            {
+              "timestamp": 1765308827.369706,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "141.98.11.127",
+              "src_port": 3389,
+              "dst_port": 33234,
+              "has_payload": false,
+              "basis": "internal SYN-ACK from RDP service"
+            },
+            {
+              "timestamp": 1765308827.427096,
+              "src_ip": "141.98.11.127",
+              "dst_ip": "10.128.239.57",
+              "src_port": 33234,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external SYN toward RDP service"
+            },
+            {
+              "timestamp": 1765308828.291626,
+              "src_ip": "141.98.11.127",
+              "dst_ip": "10.128.239.57",
+              "src_port": 33234,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external ACK completing RDP handshake"
+            },
+            {
+              "timestamp": 1765308830.169291,
+              "src_ip": "141.98.11.127",
+              "dst_ip": "10.128.239.57",
+              "src_port": 33234,
+              "dst_port": 3389,
+              "has_payload": true,
+              "basis": "external RDP application packet"
+            },
+            {
+              "timestamp": 1765308830.284575,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "141.98.11.127",
+              "src_port": 3389,
+              "dst_port": 33234,
+              "has_payload": true,
+              "basis": "internal RDP application response"
+            }
+          ],
+          "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
+          "suspicious": true,
+          "confidence_score": 80
+        },
+        {
+          "external_ip": "141.98.10.225",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1765323447.051108,
+          "last_seen": 1765448103.14716,
+          "duration_seconds": 124656.1,
+          "packet_count": 38350,
+          "total_bytes": 5222167,
+          "handshake_complete": true,
+          "application_packets": 19127,
+          "post_login_unique_internal_targets": 21,
+          "sample_events": [
+            {
+              "timestamp": 1765323447.051108,
+              "src_ip": "141.98.10.225",
+              "dst_ip": "10.128.239.57",
+              "src_port": 27236,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external SYN toward RDP service"
+            },
+            {
+              "timestamp": 1765323447.109174,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "141.98.10.225",
+              "src_port": 3389,
+              "dst_port": 27236,
+              "has_payload": false,
+              "basis": "internal SYN-ACK from RDP service"
+            },
+            {
+              "timestamp": 1765323447.653798,
+              "src_ip": "141.98.10.225",
+              "dst_ip": "10.128.239.57",
+              "src_port": 27236,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external ACK completing RDP handshake"
+            },
+            {
+              "timestamp": 1765323448.432046,
+              "src_ip": "141.98.10.225",
+              "dst_ip": "10.128.239.57",
+              "src_port": 27236,
+              "dst_port": 3389,
+              "has_payload": true,
+              "basis": "external RDP application packet"
+            },
+            {
+              "timestamp": 1765323448.490622,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "141.98.10.225",
+              "src_port": 3389,
+              "dst_port": 27236,
+              "has_payload": true,
+              "basis": "internal RDP application response"
+            }
+          ],
+          "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
+          "suspicious": true,
+          "confidence_score": 80
+        },
+        {
+          "external_ip": "91.238.181.7",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1765364264.525593,
+          "last_seen": 1765448130.572563,
+          "duration_seconds": 83866.05,
+          "packet_count": 25881,
+          "total_bytes": 4054304,
+          "handshake_complete": true,
+          "application_packets": 15789,
+          "post_login_unique_internal_targets": 21,
+          "sample_events": [
+            {
+              "timestamp": 1765364264.525593,
+              "src_ip": "91.238.181.7",
+              "dst_ip": "10.128.239.57",
+              "src_port": 34571,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external SYN toward RDP service"
+            },
+            {
+              "timestamp": 1765364264.581936,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "91.238.181.7",
+              "src_port": 3389,
+              "dst_port": 34571,
+              "has_payload": false,
+              "basis": "internal SYN-ACK from RDP service"
+            },
+            {
+              "timestamp": 1765364265.057137,
+              "src_ip": "91.238.181.7",
+              "dst_ip": "10.128.239.57",
+              "src_port": 34571,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external ACK completing RDP handshake"
+            },
+            {
+              "timestamp": 1765364265.116123,
+              "src_ip": "91.238.181.7",
+              "dst_ip": "10.128.239.57",
+              "src_port": 34571,
+              "dst_port": 3389,
+              "has_payload": true,
+              "basis": "external RDP application packet"
+            },
+            {
+              "timestamp": 1765364265.334028,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "91.238.181.7",
+              "src_port": 3389,
+              "dst_port": 34571,
+              "has_payload": true,
+              "basis": "internal RDP application response"
+            }
+          ],
+          "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
+          "suspicious": true,
+          "confidence_score": 80
+        },
+        {
+          "external_ip": "45.141.87.180",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1765394252.830218,
+          "last_seen": 1765446920.771042,
+          "duration_seconds": 52667.94,
+          "packet_count": 24467,
+          "total_bytes": 3775613,
+          "handshake_complete": true,
+          "application_packets": 14894,
+          "post_login_unique_internal_targets": 21,
+          "sample_events": [
+            {
+              "timestamp": 1765394252.830218,
+              "src_ip": "45.141.87.180",
+              "dst_ip": "10.128.239.57",
+              "src_port": 28178,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external SYN toward RDP service"
+            },
+            {
+              "timestamp": 1765394252.889933,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "45.141.87.180",
+              "src_port": 3389,
+              "dst_port": 28178,
+              "has_payload": false,
+              "basis": "internal SYN-ACK from RDP service"
+            },
+            {
+              "timestamp": 1765394321.539796,
+              "src_ip": "45.141.87.180",
+              "dst_ip": "10.128.239.57",
+              "src_port": 28178,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external ACK completing RDP handshake"
+            },
+            {
+              "timestamp": 1765394321.597804,
+              "src_ip": "45.141.87.180",
+              "dst_ip": "10.128.239.57",
+              "src_port": 28178,
+              "dst_port": 3389,
+              "has_payload": true,
+              "basis": "external RDP application packet"
+            },
+            {
+              "timestamp": 1765394321.750457,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "45.141.87.180",
+              "src_port": 3389,
+              "dst_port": 28178,
+              "has_payload": true,
+              "basis": "internal RDP application response"
+            }
+          ],
+          "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
+          "suspicious": true,
+          "confidence_score": 80
+        },
+        {
+          "external_ip": "45.135.232.19",
+          "internal_ip": "10.128.239.57",
+          "first_seen": 1765311023.734308,
+          "last_seen": 1765376619.698911,
+          "duration_seconds": 65595.96,
+          "packet_count": 24236,
+          "total_bytes": 3748383,
+          "handshake_complete": true,
+          "application_packets": 14213,
+          "post_login_unique_internal_targets": 21,
+          "sample_events": [
+            {
+              "timestamp": 1765311023.734308,
+              "src_ip": "45.135.232.19",
+              "dst_ip": "10.128.239.57",
+              "src_port": 49178,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external SYN toward RDP service"
+            },
+            {
+              "timestamp": 1765311023.792765,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "45.135.232.19",
+              "src_port": 3389,
+              "dst_port": 49178,
+              "has_payload": false,
+              "basis": "internal SYN-ACK from RDP service"
+            },
+            {
+              "timestamp": 1765311024.307024,
+              "src_ip": "45.135.232.19",
+              "dst_ip": "10.128.239.57",
+              "src_port": 49178,
+              "dst_port": 3389,
+              "has_payload": false,
+              "basis": "external ACK completing RDP handshake"
+            },
+            {
+              "timestamp": 1765311024.366448,
+              "src_ip": "45.135.232.19",
+              "dst_ip": "10.128.239.57",
+              "src_port": 49178,
+              "dst_port": 3389,
+              "has_payload": true,
+              "basis": "external RDP application packet"
+            },
+            {
+              "timestamp": 1765311024.425899,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "45.135.232.19",
+              "src_port": 3389,
+              "dst_port": 49178,
+              "has_payload": true,
+              "basis": "internal RDP application response"
+            }
+          ],
+          "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
+          "suspicious": true,
+          "confidence_score": 80
+        }
+      ],
+      "first_seen": "2025-12-09T16:16:35.663519+00:00",
+      "last_seen": "2025-12-11T10:16:06.573569+00:00",
+      "duration_seconds": 151170.91,
+      "interpretation": "External RDP into 10.128.239.57 is the strongest initial-access hypothesis."
+    },
+    "lateral_movement_and_discovery": {
+      "focus_host": "10.128.239.57",
+      "first_scan_seen": "2025-12-09T16:17:02.481348+00:00",
+      "first_internal_rdp_spread_seen": null,
+      "top_lateral_ports": [
+        {
+          "port": 445,
+          "count": 6575
+        },
+        {
+          "port": 135,
+          "count": 23
+        },
+        {
+          "port": 389,
+          "count": 12
+        },
+        {
+          "port": 88,
+          "count": 7
+        }
+      ],
+      "sample_lateral_targets": [
+        {
+          "dst_ip": "10.128.239.29",
+          "count": 600
+        },
+        {
+          "dst_ip": "10.128.239.39",
+          "count": 447
+        },
+        {
+          "dst_ip": "10.128.239.24",
+          "count": 447
+        },
+        {
+          "dst_ip": "10.128.239.28",
+          "count": 447
+        },
+        {
+          "dst_ip": "10.128.239.35",
+          "count": 447
+        },
+        {
+          "dst_ip": "10.128.239.47",
+          "count": 447
+        },
+        {
+          "dst_ip": "10.128.239.23",
+          "count": 359
+        },
+        {
+          "dst_ip": "10.128.239.36",
+          "count": 356
+        },
+        {
+          "dst_ip": "10.128.239.160",
+          "count": 354
+        },
+        {
+          "dst_ip": "10.128.239.150",
+          "count": 330
+        }
+      ],
+      "smb_rpc_scanners": [
+        {
+          "src_ip": "10.128.239.57",
+          "first_seen": 1765297022.481348,
+          "last_seen": 1765317310.911989,
+          "duration_seconds": 20288.43,
+          "connection_attempts": 23,
+          "unique_targets": 21,
+          "top_ports": [
+            {
+              "port": 445,
+              "count": 21
+            },
+            {
+              "port": 135,
+              "count": 2
+            }
+          ],
+          "sample_events": [
+            {
+              "timestamp": 1765297022.481348,
+              "dst_ip": "10.128.239.150",
+              "dst_port": 445,
+              "basis": "new internal SMB/RPC target attempt"
+            },
+            {
+              "timestamp": 1765297031.957929,
+              "dst_ip": "10.128.239.153",
+              "dst_port": 445,
+              "basis": "new internal SMB/RPC target attempt"
+            },
+            {
+              "timestamp": 1765297032.018731,
+              "dst_ip": "10.128.239.39",
+              "dst_port": 445,
+              "basis": "new internal SMB/RPC target attempt"
+            },
+            {
+              "timestamp": 1765297032.149474,
+              "dst_ip": "10.128.239.24",
+              "dst_port": 445,
+              "basis": "new internal SMB/RPC target attempt"
+            },
+            {
+              "timestamp": 1765297032.275195,
+              "dst_ip": "10.128.239.28",
+              "dst_port": 445,
+              "basis": "new internal SMB/RPC target attempt"
+            }
+          ],
+          "basis": "Internal host attempted connections to many peers over SMB/RPC ports 445/135.",
+          "suspicious": true
+        }
+      ],
+      "internal_rdp_spread": [],
+      "interpretation": "The focus host shows rapid internal discovery and lateral movement patterns aligned with the challenge scenario."
+    },
+    "administrative_activity": {
+      "first_marker_seen": "2025-12-09T21:55:08.919178+00:00",
+      "dcerpc_account_markers": [
+        {
+          "src_ip": "10.128.239.57",
+          "dst_ip": "10.128.239.23",
+          "marker_counts": {
+            "c$": 1
+          },
+          "sample_events": [
+            {
+              "timestamp": 1765317308.919178,
+              "src_ip": "10.128.239.57",
+              "dst_ip": "10.128.239.23",
+              "src_port": 51404,
+              "dst_port": 445,
+              "matches": [
+                "c$"
+              ],
+              "basis": "DCERPC/SMB payload contained account or group administration markers"
+            }
+          ],
+          "basis": "Observed DCERPC/SMB marker strings associated with account or group administration activity.",
+          "possible_account_or_group_change": false
+        }
+      ],
+      "interpretation": "Possible account or group administration markers were observed over SMB/DCERPC."
+    },
+    "exfiltration": {
+      "first_exfil_indicator_seen": null,
+      "temp_sh_hits": [],
+      "large_http_uploads": [],
+      "outbound_exfil_candidates": [],
+      "interpretation": "No direct exfiltration indicator was observed in this file."
+    },
+    "payload_deployment": {
+      "likely_operator_driven_rdp": false,
+      "manual_drop_candidates": [],
+      "spread_summary": [],
+      "interpretation": "No strong internal RDP fan-out suggesting payload deployment was observed in this file."
+    },
+    "analyst_filters": [
+      "ip.addr == 10.128.239.57 and tcp.port == 3389",
+      "ip.src == 10.128.239.57 and tcp.dstport in {135,445,3389,5985,5986}",
+      "ip.addr == 10.128.239.57 and tcp.port == 445",
+      "ip.addr == 10.128.239.57 and dcerpc",
+      "ip.addr == 45.135.232.124 and ip.addr == 10.128.239.57 and tcp.port == 3389",
+      "http.request.method == \"POST\"",
+      "http.host contains \"temp.sh\" or tls.handshake.extensions_server_name contains \"temp.sh\""
+    ],
+    "notes": [
+      "The challenge hypothesis fits an external-to-internal RDP compromise focused on 10.128.239.57.",
+      "The same host that received external RDP also generated broad SMB/RPC discovery, which supports rapid post-login network mapping.",
+      "This PCAP does not currently show the challenge's expected exfiltration indicators, so exfil may be elsewhere in the capture set or via another protocol.",
+      "PCAP alone cannot prove whether RDP access came from bought credentials, brute force, or a vulnerable exposed service."
+    ]
+  },
+  "deep_dive_focus_host": "10.128.239.57",
+  "deep_dive_ingress_external_ip": "45.135.232.124"
+}

@@ -29,4 +29,3 @@ REPORT_MODEL = "openai/gpt-5-mini"
 # OLLAMA_MODEL = "qwen2.5:3b"
 # OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 # OLLAMA_TIMEOUT_SECONDS = 300
-

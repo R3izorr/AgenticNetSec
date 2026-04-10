@@ -1,0 +1,121 @@
+{
+  "total_job_id": "total_9f9c55d4b7f0",
+  "status": "completed",
+  "current_stage": "enrichment_completed",
+  "progress": 1.0,
+  "created_at": "2026-04-10T01:34:12.032735+00:00",
+  "updated_at": "2026-04-10T04:20:31.325294+00:00",
+  "error": null,
+  "artifacts_dir": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_9f9c55d4b7f0",
+  "worker_count": 4,
+  "file_count": 20,
+  "completed_children": 20,
+  "failed_children": 0,
+  "deterministic_complete": true,
+  "enrichment_status": "completed",
+  "enrichment_progress": 1.0,
+  "enrichment_error": null,
+  "analysis_profile": "standard",
+  "children": [
+    {
+      "analysis_job_id": "analysis_a0eaf3d8b96d",
+      "filename": "34936-sensor-250303-00002384_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784844_34936-sensor-250303-00002384_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_f827a26f10d0",
+      "filename": "34936-sensor-250303-00002385_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784845_34936-sensor-250303-00002385_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_8ceec1915c64",
+      "filename": "34936-sensor-250303-00002386_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784846_34936-sensor-250303-00002386_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_366c6e6c794b",
+      "filename": "34936-sensor-250303-00002387_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784846_34936-sensor-250303-00002387_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_47662ce64c3c",
+      "filename": "34936-sensor-250304-00002388_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784847_34936-sensor-250304-00002388_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_d2b04920be20",
+      "filename": "34936-sensor-250304-00002389_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784848_34936-sensor-250304-00002389_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_e1d30eff4682",
+      "filename": "34936-sensor-250304-00002390_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784849_34936-sensor-250304-00002390_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_2d6b61a66aa7",
+      "filename": "34936-sensor-250304-00002391_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784849_34936-sensor-250304-00002391_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_1e53ab0c137a",
+      "filename": "34936-sensor-250304-00002392_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784850_34936-sensor-250304-00002392_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_cf327a939629",
+      "filename": "34936-sensor-250304-00002393_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784851_34936-sensor-250304-00002393_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_5aedad91a45f",
+      "filename": "34936-sensor-250304-00002394_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784851_34936-sensor-250304-00002394_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_d36a9535862f",
+      "filename": "34936-sensor-250304-00002395_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784851_34936-sensor-250304-00002395_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_63a3281a651d",
+      "filename": "34936-sensor-250304-00002396_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784851_34936-sensor-250304-00002396_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_20a91a7f44df",
+      "filename": "34936-sensor-250304-00002397_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784851_34936-sensor-250304-00002397_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_671eebdb5b0c",
+      "filename": "34936-sensor-250304-00002398_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784851_34936-sensor-250304-00002398_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_fed95da0e46d",
+      "filename": "34936-sensor-250304-00002399_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784851_34936-sensor-250304-00002399_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_36e3b289cfe9",
+      "filename": "34936-sensor-250304-00002400_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784851_34936-sensor-250304-00002400_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_80000d54f872",
+      "filename": "34936-sensor-250304-00002401_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784851_34936-sensor-250304-00002401_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_6787213916ee",
+      "filename": "34936-sensor-250304-00002402_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784851_34936-sensor-250304-00002402_redacted.pcap"
+    },
+    {
+      "analysis_job_id": "analysis_ca9f1a345203",
+      "filename": "34936-sensor-250304-00002403_redacted.pcap",
+      "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775784852_34936-sensor-250304-00002403_redacted.pcap"
+    }
+  ]
+}

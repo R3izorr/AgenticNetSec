@@ -1,0 +1,223 @@
+{
+  "header": {
+    "case_id": "CASE-19B201CD",
+    "timestamp": "2026-04-10T05:17:59.032382+00:00",
+    "analyst_mode": "Autonomous Agent",
+    "data_sources": [
+      "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796410_34936-sensor-250306-00002440_redacted.pcap"
+    ],
+    "metadata": null
+  },
+  "evidence": {
+    "key_packets_flows": [
+      "External RDP session 179.60.146.37 -> 10.128.239.57 reached the strongest patient-zero confidence.",
+      "External source 45.130.145.40 probed 1 ports across 1 internal targets.",
+      "External source 179.60.146.37 probed 1 ports across 1 internal targets.",
+      "Internal host 10.128.239.57 scanned 21 SMB/RPC targets.",
+      "Internal host 10.128.239.21 scanned 3 SMB/RPC targets.",
+      "temp.sh indicator observed from 10.128.239.57 to 51.91.79.17:443.",
+      "temp.sh indicator observed from 10.128.239.57 to 51.91.79.17:443.",
+      "Outbound exfiltration candidate 10.128.239.57 -> 51.91.79.17:443 transferred 216753753 bytes."
+    ],
+    "ioc_list": [
+      "ip:10.128.239.57",
+      "ip:154.16.192.171",
+      "ip:179.60.146.37",
+      "ip:45.130.145.40",
+      "ip:45.227.254.155",
+      "ip:98.159.33.100"
+    ],
+    "suspicious_sessions": [
+      "External scan src=45.130.145.40 ports=1 targets=1",
+      "External scan src=179.60.146.37 ports=1 targets=1",
+      "External scan src=154.16.192.171 ports=1 targets=1",
+      "External scan src=98.159.33.100 ports=1 targets=1",
+      "External scan src=45.227.254.155 ports=1 targets=1",
+      "SMB/RPC scan src=10.128.239.57 targets=21",
+      "SMB/RPC scan src=10.128.239.21 targets=3",
+      "SMB/RPC scan src=10.128.239.123 targets=2",
+      "SMB/RPC scan src=10.128.239.121 targets=2",
+      "SMB/RPC scan src=10.128.239.79 targets=2",
+      "Outbound flow 10.128.239.57 -> 51.91.79.17:443 bytes=216753753"
+    ],
+    "correlated_events_timeline": [
+      "2026-01-26T05:46:01.481925+00:00 - potential initial access",
+      "2026-01-26T05:45:36.004549+00:00 - lateral/discovery signals",
+      "2026-01-27T02:31:15.016036+00:00 - exfiltration indicator",
+      "1769406336.004549 - 10.128.239.57 scanned 21 targets over SMB/RPC",
+      "1769406462.309253 - External 45.130.145.40 probed 1 ports against 10.128.239.57",
+      "1769406483.619699 - External 179.60.146.37 probed 1 ports against 10.128.239.57",
+      "1769406483.619699 - External 179.60.146.37 -> 10.128.239.57 confidence=80 post_login_targets=22",
+      "1769407105.014682 - External 154.16.192.171 probed 1 ports against 10.128.239.57",
+      "1769407540.523971 - External 98.159.33.100 probed 1 ports against 10.128.239.57",
+      "1769407743.826831 - External 45.227.254.155 probed 1 ports against 10.128.239.57",
+      "1769408268.548844 - External 147.135.222.78 probed 1 ports against 10.128.239.57",
+      "1769408570.692971 - External 103.17.193.188 probed 1 ports against 10.128.239.57",
+      "1769409091.623465 - External 91.238.181.8 probed 1 ports against 10.128.239.57"
+    ],
+    "evidence_refs": [
+      {
+        "ref_id": "EV-001",
+        "detector": "external_rdp",
+        "claim": "patient_zero",
+        "source_file": "upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
+        "summary": "External RDP session 179.60.146.37 -> 10.128.239.57 reached the strongest patient-zero confidence.",
+        "frame_numbers": [],
+        "flow": "179.60.146.37 -> 10.128.239.57:3389",
+        "wireshark_filter": "ip.addr == 179.60.146.37 and ip.addr == 10.128.239.57 and tcp.port == 3389"
+      },
+      {
+        "ref_id": "EV-002",
+        "detector": "external_port_scans",
+        "claim": "reconnaissance",
+        "source_file": "upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
+        "summary": "External source 45.130.145.40 probed 1 ports across 1 internal targets.",
+        "frame_numbers": [],
+        "flow": "45.130.145.40 -> 10.128.239.57:3389",
+        "wireshark_filter": "ip.src == 45.130.145.40 and ip.dst == 10.128.239.57 and tcp.flags.syn == 1 and tcp.flags.ack == 0"
+      },
+      {
+        "ref_id": "EV-003",
+        "detector": "external_port_scans",
+        "claim": "reconnaissance",
+        "source_file": "upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
+        "summary": "External source 179.60.146.37 probed 1 ports across 1 internal targets.",
+        "frame_numbers": [],
+        "flow": "179.60.146.37 -> 10.128.239.57:3389",
+        "wireshark_filter": "ip.src == 179.60.146.37 and ip.dst == 10.128.239.57 and tcp.flags.syn == 1 and tcp.flags.ack == 0"
+      },
+      {
+        "ref_id": "EV-004",
+        "detector": "smb_rpc_scans",
+        "claim": "lateral_movement",
+        "source_file": "upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
+        "summary": "Internal host 10.128.239.57 scanned 21 SMB/RPC targets.",
+        "frame_numbers": [],
+        "flow": "10.128.239.57 -> internal hosts on 135/445",
+        "wireshark_filter": "ip.src == 10.128.239.57 and (tcp.dstport == 135 or tcp.dstport == 445)"
+      },
+      {
+        "ref_id": "EV-005",
+        "detector": "smb_rpc_scans",
+        "claim": "lateral_movement",
+        "source_file": "upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
+        "summary": "Internal host 10.128.239.21 scanned 3 SMB/RPC targets.",
+        "frame_numbers": [],
+        "flow": "10.128.239.21 -> internal hosts on 135/445",
+        "wireshark_filter": "ip.src == 10.128.239.21 and (tcp.dstport == 135 or tcp.dstport == 445)"
+      },
+      {
+        "ref_id": "EV-006",
+        "detector": "temp_sh_traffic",
+        "claim": "exfiltration",
+        "source_file": "upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
+        "summary": "temp.sh indicator observed from 10.128.239.57 to 51.91.79.17:443.",
+        "frame_numbers": [],
+        "flow": "10.128.239.57 -> 51.91.79.17:443",
+        "wireshark_filter": "(ip.src == 10.128.239.57 and ip.dst == 51.91.79.17) and frame contains \"temp.sh\""
+      },
+      {
+        "ref_id": "EV-007",
+        "detector": "temp_sh_traffic",
+        "claim": "exfiltration",
+        "source_file": "upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
+        "summary": "temp.sh indicator observed from 10.128.239.57 to 51.91.79.17:443.",
+        "frame_numbers": [],
+        "flow": "10.128.239.57 -> 51.91.79.17:443",
+        "wireshark_filter": "(ip.src == 10.128.239.57 and ip.dst == 51.91.79.17) and frame contains \"temp.sh\""
+      },
+      {
+        "ref_id": "EV-008",
+        "detector": "outbound_exfiltration_candidates",
+        "claim": "exfiltration",
+        "source_file": "upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
+        "summary": "Outbound exfiltration candidate 10.128.239.57 -> 51.91.79.17:443 transferred 216753753 bytes.",
+        "frame_numbers": [],
+        "flow": "10.128.239.57 -> 51.91.79.17:443",
+        "wireshark_filter": "ip.src == 10.128.239.57 and ip.dst == 51.91.79.17 and tcp.dstport == 443"
+      }
+    ]
+  },
+  "findings": {
+    "primary_finding": "Evidence is inconclusive for autonomous high-confidence conclusion.",
+    "supporting_evidence": [
+      "External RDP session 179.60.146.37 -> 10.128.239.57 reached the strongest patient-zero confidence.",
+      "External source 45.130.145.40 probed 1 ports across 1 internal targets.",
+      "External source 179.60.146.37 probed 1 ports across 1 internal targets.",
+      "Internal host 10.128.239.57 scanned 21 SMB/RPC targets.",
+      "Internal host 10.128.239.21 scanned 3 SMB/RPC targets.",
+      "temp.sh indicator observed from 10.128.239.57 to 51.91.79.17:443.",
+      "temp.sh indicator observed from 10.128.239.57 to 51.91.79.17:443.",
+      "Outbound exfiltration candidate 10.128.239.57 -> 51.91.79.17:443 transferred 216753753 bytes."
+    ],
+    "confidence_score": 1.0,
+    "alternative_hypotheses": [
+      "Benign but unusual traffic spike",
+      "Partial capture causing missing context"
+    ],
+    "mitre_techniques": [
+      "T1018 - Remote System Discovery",
+      "T1021.001 - Remote Desktop Protocol",
+      "T1021.002 - SMB/Windows Admin Shares",
+      "T1041 - Exfiltration Over C2 Channel",
+      "T1133 - External Remote Services",
+      "T1567 - Exfiltration Over Web Service",
+      "T1595 - Active Scanning"
+    ],
+    "evidence_ref_ids": [
+      "EV-001",
+      "EV-002",
+      "EV-003",
+      "EV-004",
+      "EV-005",
+      "EV-006",
+      "EV-007",
+      "EV-008"
+    ],
+    "direct_evidence": [
+      "External RDP session 179.60.146.37 -> 10.128.239.57 reached the strongest patient-zero confidence.",
+      "External source 45.130.145.40 probed 1 ports across 1 internal targets.",
+      "External source 179.60.146.37 probed 1 ports across 1 internal targets.",
+      "Internal host 10.128.239.57 scanned 21 SMB/RPC targets.",
+      "Internal host 10.128.239.21 scanned 3 SMB/RPC targets.",
+      "temp.sh indicator observed from 10.128.239.57 to 51.91.79.17:443."
+    ],
+    "uncertainties": [
+      "Consistency checks found mismatches between structured claims and supporting evidence.",
+      "Frame references are sampled from matching flows and should be manually validated in Wireshark for final reporting.",
+      "Payload deployment remains inferred unless RDP plus admin-share or remote-exec markers are present.",
+      "Results are derived from packet evidence only; host telemetry and endpoint logs were not available.",
+      "The generated report itself marks parts of the conclusion as heuristic or incomplete."
+    ],
+    "observation": "Observed 805311 packets in the supplied capture.",
+    "inference": "Likely attack class: exfiltration with risk level high. Human analyst review is required due to consistency_check_failed.",
+    "recommendation": "Prioritize containment of the suspected source host, review outbound destinations, and validate possible data-loss paths in packet and host telemetry."
+  },
+  "impact": {
+    "affected_assets": [
+      "10.128.239.57"
+    ],
+    "attack_type": "exfiltration",
+    "risk_level": "high"
+  },
+  "recommended_actions": {
+    "immediate_containment": [
+      "Isolate top suspicious internal host(s)",
+      "Block high-risk external IPs tied to suspicious sessions"
+    ],
+    "validation_steps": [
+      "Validate suspicious sessions in Wireshark using generated filters",
+      "Cross-check findings with host/event telemetry if available"
+    ],
+    "longer_term_hardening": [
+      "Enforce network segmentation for critical assets",
+      "Harden remote administration access and monitor lateral movement"
+    ]
+  },
+  "guardrail_verification": {
+    "data_validity_check": "pass",
+    "tool_output_validation": "pass",
+    "human_review_required": "Yes"
+  },
+  "analyst_summary_markdown": "# Incident Report\n\n## Initial Access\nMost likely patient zero is 10.128.239.57 after ingress from 179.60.146.37 over RDP.\n\n## Lateral Movement & Discovery\nRapid SMB/RPC scanning was observed from 10.128.239.57 (21 targets)\n\n## Exfiltration\nEvidence supports outbound exfiltration to temp.sh from 10.128.239.57 -> 51.91.79.17, 10.128.239.57 -> 51.91.79.17, 10.128.239.57 -> 51.91.79.17, 10.128.239.57 -> 51.91.79.17, 10.128.239.57 -> 51.91.79.17 Additional outbound transfer spikes were observed from 10.128.239.57 -> 51.91.79.17:443 (216753753 bytes).\n\n## Payload Deployment\nThe current packet evidence does not strongly prove RDP-based internal deployment or transferred payload recovery.\n\n## Confidence / Gaps\nTotal packets analyzed: 805311. Findings are heuristic and packet-based.\nLikely path for this file: Initial Access -> Discovery -> Administrative Activity -> Exfiltration\n\n## Deep Dive\n\nFocus host: `10.128.239.57`\n\n### Structured Flow Hypothesis\nLikely path for this file: Initial Access -> Discovery -> Administrative Activity -> Exfiltration\n- reconnaissance: supported=False weakly_supported=False confidence=0.0 first_seen=None evidence=No strong external reconnaissance signal was isolated in this file.\n- initial_access: supported=True weakly_supported=False confidence=0.9 first_seen=2026-01-26T05:46:01.481925+00:00 evidence=External RDP from 179.60.146.37 into 10.128.239.57 shows handshake/application evidence and post-login behavior change.\n- discovery: supported=True weakly_supported=False confidence=0.9 first_seen=2026-01-26T05:45:36.004549+00:00 evidence=10.128.239.57 generated SMB/RPC scanning toward 21 internal targets.\n- administrative_activity: supported=True weakly_supported=False confidence=0.9 first_seen=None evidence=DCERPC/account-administration markers were observed near the focus host.\n- exfiltration: supported=True weakly_supported=False confidence=0.9 first_seen=2026-01-27T02:31:15.016036+00:00 evidence=Outbound upload or transfer evidence exists and should be treated as potential exfiltration.\n- payload_deployment: supported=False weakly_supported=False confidence=0.0 first_seen=None evidence=No strong internal RDP payload-deployment pattern was isolated in this file.\nBest ingress candidate: external `179.60.146.37` -> internal `10.128.239.57` with confidence `80`.\n\n### Reconnaissance Pivot\nNo strong external reconnaissance pattern was isolated in this file.\n\n### Initial Access Pivot\nExternal RDP into 10.128.239.57 is the strongest initial-access hypothesis.\n- 179.60.146.37 -> 10.128.239.57 packets=1925 app_packets=1170 post_login_targets=22 suspicious=True\n- 45.130.145.40 -> 10.128.239.57 packets=1731 app_packets=1010 post_login_targets=22 suspicious=True\n- 91.238.181.95 -> 10.128.239.57 packets=1429 app_packets=823 post_login_targets=22 suspicious=True\n- 45.227.254.155 -> 10.128.239.57 packets=1145 app_packets=693 post_login_targets=22 suspicious=True\n- 88.214.25.121 -> 10.128.239.57 packets=867 app_packets=498 post_login_targets=22 suspicious=True\n\n### Lateral Movement & Discovery Pivot\nThe focus host shows rapid internal discovery and lateral movement patterns aligned with the challenge scenario.\n- SMB/RPC scan source 10.128.239.57 unique_targets=21 attempts=21 duration=41178.8\n\n### Administrative Activity Pivot\nPossible account or group administration markers were observed over SMB/DCERPC.\n- DCERPC markers 10.128.239.37 -> 10.128.239.57 markers={'c$': 742, 'samr': 25}\n\n### Exfiltration Pivot\nOutbound HTTP upload or temp.sh evidence exists and should be reviewed for archive staging and data loss.\n- temp.sh candidate 10.128.239.57 -> 51.91.79.17 host=None method=None\n- temp.sh candidate 10.128.239.57 -> 51.91.79.17 host=None method=None\n- temp.sh candidate 10.128.239.57 -> 51.91.79.17 host=None method=None\n- Outbound exfil candidate 10.128.239.57 -> 51.91.79.17:443 total_bytes=216753753 payload_bytes=208992219 archive_hits={'gzip': 3077, 'zip': 1}\n\n### Payload Deployment Pivot\nNo strong internal RDP fan-out suggesting payload deployment was observed in this file.\n\n\n### Recommended Filters\n- `ip.addr == 10.128.239.57 and tcp.port == 3389`\n- `ip.src == 10.128.239.57 and tcp.dstport in {135,445,3389,5985,5986}`\n- `ip.addr == 10.128.239.57 and tcp.port == 445`\n- `ip.addr == 10.128.239.57 and dcerpc`\n- `ip.addr == 179.60.146.37 and ip.addr == 10.128.239.57 and tcp.port == 3389`\n- `http.request.method == \"POST\"`\n- `http.host contains \"temp.sh\" or tls.handshake.extensions_server_name contains \"temp.sh\"`\n\n### Notes\n- The challenge hypothesis fits an external-to-internal RDP compromise focused on 10.128.239.57.\n- The same host that received external RDP also generated broad SMB/RPC discovery, which supports rapid post-login network mapping.\n- PCAP alone cannot prove whether RDP access came from bought credentials, brute force, or a vulnerable exposed service."
+}

@@ -1,0 +1,33 @@
+{
+  "status": "completed",
+  "runtime_seconds_total": 3156.397,
+  "phase_timings_seconds": {
+    "ingest": 0.001,
+    "analysis": 3156.386,
+    "reason": 0.001,
+    "report": 0.004
+  },
+  "cpu_percent_peak": 33.3,
+  "ram_mb_peak": 458.914,
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "fallback_used": true,
+  "llm_tokens_in": 0,
+  "llm_tokens_out": 0,
+  "artifact_bytes": {
+    "report_json": 13753,
+    "report_markdown": 4309,
+    "guardrail_audit": 1376
+  },
+  "cost_assumptions": {
+    "price_in_per_million": 0.5,
+    "price_out_per_million": 1.5,
+    "compute_price_per_runtime_second": 0.0002,
+    "storage_price_per_gb_month": 0.023,
+    "artifact_bytes_total": 19438
+  },
+  "cost_compute": 0.631279,
+  "cost_llm": 0.0,
+  "cost_storage": 0.0,
+  "estimated_cost_total": 0.631279
+}
