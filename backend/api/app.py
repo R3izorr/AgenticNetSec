@@ -28,6 +28,7 @@ from analysis_engine import AnalysisEngine, AnalysisRequest
 from enrich_results_with_sandbox import run_campaign_summary_route
 from forensic_schema import JobStatusResponse, TotalJobStatusResponse
 from planner import ANALYSIS_PROFILES
+from report_ai import generate_results_report_result
 from summarize_results import build_aggregate
 from .job_store import JobRecord, JobStore
 from .total_job_store import TotalJobChildRef, TotalJobRecord, TotalJobStore
@@ -38,6 +39,7 @@ JOBS_DIR = OUTPUTS_DIR / "analysis_jobs"
 TOTAL_JOBS_DIR = OUTPUTS_DIR / "total_jobs"
 ALL_TOTAL_JOBS_SUMMARY_DIR = TOTAL_JOBS_DIR / "__all_jobs_summary"
 ALL_TOTAL_JOBS_SUMMARY_STATUS_PATH = ALL_TOTAL_JOBS_SUMMARY_DIR / "status.json"
+ALL_TOTAL_JOBS_SUMMARY_STALE_SECONDS = int(os.getenv("ALL_TOTAL_JOBS_SUMMARY_STALE_SECONDS", "7200"))
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 ALL_TOTAL_JOBS_SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -342,6 +344,68 @@ def _dedupe_analysis_records(records: list[dict[str, Any]]) -> tuple[list[dict[s
     return unique_records, dedupe_metadata
 
 
+def _path_leaf(path_value: Any) -> str:
+    if not path_value:
+        return ""
+    path_text = str(path_value)
+    posix_name = Path(path_text).name
+    windows_name = PureWindowsPath(path_text).name
+    if windows_name and windows_name != path_text and len(windows_name) <= len(posix_name or path_text):
+        return windows_name
+    return posix_name
+
+
+def _summary_record_dedupe_key(record: dict[str, Any]) -> str:
+    fingerprint = record.get("pcap_sha256")
+    if isinstance(fingerprint, str) and fingerprint.strip():
+        return f"sha256:{fingerprint.strip().lower()}"
+
+    source_name = (
+        record.get("source_name")
+        or record.get("file")
+        or record.get("filename")
+        or _path_leaf(record.get("path"))
+    )
+    normalized_name = str(source_name or "").strip().lower()
+    path_leaf = _path_leaf(record.get("path")).lower()
+    size_bytes = record.get("size_bytes") or record.get("bytes") or ""
+    return f"metadata:{normalized_name}::{path_leaf}::{size_bytes}"
+
+
+def _dedupe_summary_records(records: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    unique_records: list[dict[str, Any]] = []
+    duplicates_removed: list[dict[str, Any]] = []
+    seen_keys: set[str] = set()
+
+    for record in records:
+        record_copy = dict(record)
+        dedupe_key = _summary_record_dedupe_key(record_copy)
+        if dedupe_key in seen_keys:
+            duplicates_removed.append(
+                {
+                    "file": record_copy.get("file") or record_copy.get("filename"),
+                    "path": record_copy.get("path"),
+                    "dedupe_key": dedupe_key,
+                    "source_total_job_id": record_copy.get("source_total_job_id"),
+                }
+            )
+            continue
+
+        seen_keys.add(dedupe_key)
+        unique_records.append(record_copy)
+
+    return (
+        unique_records,
+        {
+            "strategy": "existing_sha256_then_filename_path_size_metadata",
+            "input_record_count": len(records),
+            "unique_record_count": len(unique_records),
+            "duplicate_record_count": len(duplicates_removed),
+            "duplicates_removed": duplicates_removed,
+        },
+    )
+
+
 def _save_total_job_jsonl_artifact(
     total_job_id: str,
     name: str,
@@ -422,6 +486,41 @@ def _write_all_total_jobs_summary_status(payload: dict[str, Any]) -> dict[str, A
     return status_payload
 
 
+def _parse_status_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _recover_stale_all_total_jobs_summary_status(stored_status: dict[str, Any]) -> dict[str, Any]:
+    if stored_status.get("status") not in {"queued", "running"}:
+        return stored_status
+
+    updated_at = _parse_status_timestamp(stored_status.get("updated_at"))
+    stale = updated_at is None
+    if updated_at is not None:
+        age_seconds = (datetime.now(timezone.utc) - updated_at).total_seconds()
+        stale = age_seconds >= ALL_TOTAL_JOBS_SUMMARY_STALE_SECONDS
+    if not stale:
+        return stored_status
+
+    return _write_all_total_jobs_summary_status(
+        {
+            **stored_status,
+            "status": "failed",
+            "progress": stored_status.get("progress", 0.0),
+            "route_stage": stored_status.get("route_stage") or "interrupted",
+            "error": "Interrupted by backend shutdown during all-scans summary.",
+        }
+    )
+
+
 def _list_completed_total_job_children() -> tuple[list[str], list[TotalJobChildRef]]:
     total_job_ids: list[str] = []
     completed_children: list[TotalJobChildRef] = []
@@ -439,9 +538,81 @@ def _list_completed_total_job_children() -> tuple[list[str], list[TotalJobChildR
     return total_job_ids, completed_children
 
 
+def _load_total_job_enriched_records(total_job: TotalJobRecord) -> list[dict[str, Any]]:
+    if total_job.enrichment_status != "completed" or not total_job.artifacts_dir:
+        return []
+
+    artifact_path = Path(total_job.artifacts_dir) / "scan_results.json"
+    if not artifact_path.exists():
+        return []
+
+    try:
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(payload, list):
+        return []
+
+    records: list[dict[str, Any]] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        record = dict(item)
+        record.setdefault("source_total_job_id", total_job.total_job_id)
+        record.setdefault("summary_record_source", "parent_enrichment")
+        records.append(record)
+    return records
+
+
+def _load_total_job_child_analysis_records(total_job: TotalJobRecord) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for child in total_job.children:
+        child_job = job_store.get(child.analysis_job_id)
+        if not child_job or child_job.status != "completed":
+            continue
+        try:
+            record = _load_analysis_record(child.analysis_job_id)
+        except FileNotFoundError:
+            continue
+        record.setdefault("file", child.filename)
+        record.setdefault("path", child.source_path)
+        record.setdefault("source_total_job_id", total_job.total_job_id)
+        record.setdefault("summary_record_source", "child_analysis")
+        records.append(record)
+    return records
+
+
+def _load_all_total_jobs_summary_records() -> tuple[list[str], list[dict[str, Any]], list[dict[str, Any]]]:
+    source_total_job_ids: list[str] = []
+    records: list[dict[str, Any]] = []
+    source_manifest: list[dict[str, Any]] = []
+
+    for total_job in total_job_store.list_jobs():
+        job_records = _load_total_job_enriched_records(total_job)
+        record_source = "parent_enrichment"
+        if not job_records:
+            job_records = _load_total_job_child_analysis_records(total_job)
+            record_source = "child_analysis"
+        if not job_records:
+            continue
+
+        source_total_job_ids.append(total_job.total_job_id)
+        records.extend(job_records)
+        source_manifest.append(
+            {
+                "total_job_id": total_job.total_job_id,
+                "record_source": record_source,
+                "record_count": len(job_records),
+                "enrichment_status": total_job.enrichment_status,
+            }
+        )
+
+    return source_total_job_ids, records, source_manifest
+
+
 def _serialize_all_total_jobs_summary_status() -> dict[str, Any]:
     source_total_job_ids, completed_children = _list_completed_total_job_children()
-    stored_status = _read_all_total_jobs_summary_status()
+    stored_status = _recover_stale_all_total_jobs_summary_status(_read_all_total_jobs_summary_status())
     return {
         "status": stored_status.get("status", "not_started"),
         "progress": stored_status.get("progress", 0.0),
@@ -741,14 +912,14 @@ def _run_total_job_enrichment_sync(
     )
 
 
-def _run_all_total_jobs_summary_sync(
+def _run_all_total_jobs_summary_sync_legacy_campaign_route(
     provider: str,
     model: str | None,
     require_ai: bool,
 ) -> None:
-    source_total_job_ids, completed_children = _list_completed_total_job_children()
-    if not completed_children:
-        raise RuntimeError("No completed child analysis jobs are available across total jobs.")
+    source_total_job_ids, records, source_manifest = _load_all_total_jobs_summary_records()
+    if not records:
+        raise RuntimeError("No completed analysis or enrichment records are available across total jobs.")
 
     _write_all_total_jobs_summary_status(
         {
@@ -760,27 +931,13 @@ def _run_all_total_jobs_summary_sync(
             "require_ai": require_ai,
             "source_total_job_count": len(source_total_job_ids),
             "source_total_job_ids": source_total_job_ids,
-            "source_file_count": len(completed_children),
-        }
-    )
-
-    records = [_load_analysis_record(child.analysis_job_id) for child in completed_children]
-    _write_all_total_jobs_summary_status(
-        {
-            "status": "running",
-            "progress": 0.2,
-            "error": None,
-            "provider": provider,
-            "model": model,
-            "require_ai": require_ai,
-            "source_total_job_count": len(source_total_job_ids),
-            "source_total_job_ids": source_total_job_ids,
-            "source_file_count": len(completed_children),
+            "source_file_count": len(records),
             "record_count": len(records),
+            "route_stage": "loading_json_records",
         }
     )
 
-    unique_records, dedupe_metadata = _dedupe_analysis_records(records)
+    unique_records, dedupe_metadata = _dedupe_summary_records(records)
     _write_all_total_jobs_summary_status(
         {
             "status": "running",
@@ -964,6 +1121,192 @@ def _run_all_total_jobs_summary_sync(
             "duplicate_record_count": len(dedupe_metadata["duplicates_removed"]),
             "route_stage": "completed",
             "selected_follow_up_record_count": len(selected_follow_up_records),
+        }
+    )
+
+
+def _run_all_total_jobs_summary_sync(
+    provider: str,
+    model: str | None,
+    require_ai: bool,
+) -> None:
+    source_total_job_ids, records, source_manifest = _load_all_total_jobs_summary_records()
+    if not records:
+        raise RuntimeError("No completed analysis or enrichment records are available across total jobs.")
+
+    unique_records, dedupe_metadata = _dedupe_summary_records(records)
+    _write_all_total_jobs_summary_status(
+        {
+            "status": "running",
+            "progress": 0.25,
+            "error": None,
+            "provider": provider,
+            "model": model,
+            "require_ai": require_ai,
+            "route_stage": "metadata_dedupe",
+            "source_total_job_count": len(source_total_job_ids),
+            "source_total_job_ids": source_total_job_ids,
+            "source_file_count": len(records),
+            "record_count": len(records),
+            "unique_record_count": len(unique_records),
+            "duplicate_record_count": len(dedupe_metadata["duplicates_removed"]),
+        }
+    )
+
+    aggregate = build_aggregate(unique_records)
+    _write_all_total_jobs_summary_status(
+        {
+            "status": "running",
+            "progress": 0.5,
+            "error": None,
+            "provider": provider,
+            "model": model,
+            "require_ai": require_ai,
+            "route_stage": "final_summary",
+            "source_total_job_count": len(source_total_job_ids),
+            "source_total_job_ids": source_total_job_ids,
+            "source_file_count": len(records),
+            "record_count": len(records),
+            "unique_record_count": len(unique_records),
+            "duplicate_record_count": len(dedupe_metadata["duplicates_removed"]),
+        }
+    )
+
+    final_report_result = generate_results_report_result(
+        aggregate,
+        unique_records,
+        provider=provider,
+        model=model,
+        use_ai=True,
+        require_ai=require_ai,
+    )
+    final_report = {
+        "provider": final_report_result.provider,
+        "model": final_report_result.model,
+        "report_text": final_report_result.text,
+        "fallback_used": final_report_result.fallback_used,
+        "api_attempted": final_report_result.api_attempted,
+        "llm_tokens_in": final_report_result.llm_tokens_in,
+        "llm_tokens_out": final_report_result.llm_tokens_out,
+        "failure_reason": final_report_result.failure_reason,
+        "status": "fallback_report" if final_report_result.fallback_used else "ai_generated",
+        "ai_callable": not final_report_result.fallback_used,
+    }
+    summary_markdown = final_report_result.text
+    record_source = {
+        "strategy": "prefer_parent_enrichment_scan_results_json",
+        "sources": source_manifest,
+    }
+
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "aggregate_summary.json").write_text(
+        json.dumps(aggregate, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "scan_results.json").write_text(
+        json.dumps(unique_records, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    _save_all_total_jobs_jsonl_artifact("scan_results.jsonl", unique_records)
+    _save_all_total_jobs_jsonl_artifact("scan_results.ai-tshark.jsonl", unique_records)
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.json").write_text(
+        json.dumps(
+            {
+                "scope": "all_total_jobs",
+                "route": "combined_enriched_json_final_report",
+                "source_total_job_ids": source_total_job_ids,
+                "source_total_job_count": len(source_total_job_ids),
+                "source_file_count": len(records),
+                "record_source": record_source,
+                "dedupe": dedupe_metadata,
+                "ai_execution": {
+                    "initial_summary": None,
+                    "campaign_plan": None,
+                    "final_report": {
+                        "provider": final_report.get("provider"),
+                        "model": final_report.get("model"),
+                        "fallback_used": bool(final_report.get("fallback_used", False)),
+                        "api_attempted": final_report.get("api_attempted"),
+                        "ai_callable": bool(final_report.get("ai_callable", False)),
+                        "status": final_report.get("status"),
+                        "failure_reason": final_report.get("failure_reason"),
+                    },
+                },
+                "initial_summary": None,
+                "campaign_plan": None,
+                "selected_follow_up_records": [],
+                "aggregate_summary": aggregate,
+                "records": unique_records,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "initial_summary.md").write_text(
+        "> Initial Campaign Summary AI Status\n"
+        "> Not run for all-scans summary because parent total-job enrichment artifacts already exist.\n",
+        encoding="utf-8",
+    )
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "campaign_plan.json").write_text(
+        json.dumps(
+            {
+                "initial_summary": None,
+                "campaign_plan": None,
+                "selected_follow_up_records": [],
+                "record_source": record_source,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.md").write_text(
+        _build_ai_markdown_notice(
+            stage_label="Final Campaign Report AI Status",
+            provider=final_report.get("provider"),
+            model=final_report.get("model"),
+            fallback_used=final_report.get("fallback_used"),
+            api_attempted=final_report.get("api_attempted"),
+            status=final_report.get("status"),
+        )
+        + summary_markdown
+        + ("" if summary_markdown.endswith("\n") else "\n"),
+        encoding="utf-8",
+    )
+    (ALL_TOTAL_JOBS_SUMMARY_DIR / "sandbox.json").write_text(
+        json.dumps(
+            {
+                "scope": "all_total_jobs",
+                "source_total_job_ids": source_total_job_ids,
+                "source_total_job_count": len(source_total_job_ids),
+                "source_file_count": len(records),
+                "record_source": record_source,
+                "dedupe": dedupe_metadata,
+                "record_count": len(unique_records),
+                "records": unique_records,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _write_all_total_jobs_summary_status(
+        {
+            "status": "completed",
+            "progress": 1.0,
+            "error": None,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "provider": provider,
+            "model": model,
+            "require_ai": require_ai,
+            "source_total_job_count": len(source_total_job_ids),
+            "source_total_job_ids": source_total_job_ids,
+            "source_file_count": len(records),
+            "record_count": len(records),
+            "unique_record_count": len(unique_records),
+            "duplicate_record_count": len(dedupe_metadata["duplicates_removed"]),
+            "route_stage": "completed",
+            "selected_follow_up_record_count": 0,
         }
     )
 

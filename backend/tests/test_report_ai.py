@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import sys
+import types
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -15,7 +17,9 @@ from report_ai import (  # noqa: E402
     ReportGenerationResult,
     _build_aggregate,
     _coerce_secret_list,
+    _generate_with_gemini,
     _generate_with_openrouter,
+    _get_gemini_api_key_candidates,
     build_prompt,
     build_results_prompt,
     generate_report,
@@ -415,6 +419,59 @@ class ReportAiTests(unittest.TestCase):
     def test_openrouter_secret_list_accepts_json_and_comma_values(self) -> None:
         self.assertEqual(_coerce_secret_list('["key-a", "key-b"]'), ["key-a", "key-b"])
         self.assertEqual(_coerce_secret_list("key-a,key-b\nkey-c"), ["key-a", "key-b", "key-c"])
+
+    def test_gemini_key_candidates_accept_env_list_values(self) -> None:
+        env = {
+            "GEMINI_API_KEYS": "gemini-a,gemini-b",
+            "GOOGLE_API_KEY": "google-a",
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(
+                _get_gemini_api_key_candidates(),
+                ["gemini-a", "gemini-b", "google-a"],
+            )
+
+    @mock.patch("report_ai._get_gemini_model_candidates")
+    @mock.patch("report_ai._get_gemini_api_key_candidates")
+    @mock.patch("report_ai._get_gemini_api_key_source")
+    @mock.patch("report_ai.time.sleep")
+    def test_gemini_rotates_to_next_key_after_retry_budget(
+        self,
+        mock_sleep: mock.Mock,
+        mock_key_source: mock.Mock,
+        mock_key_candidates: mock.Mock,
+        mock_model_candidates: mock.Mock,
+    ) -> None:
+        mock_key_source.return_value = "GEMINI_API_KEYS"
+        mock_key_candidates.return_value = ["bad-key", "good-key"]
+        mock_model_candidates.return_value = ["gemini-test"]
+
+        bad_response = mock.Mock()
+        bad_response.text = ""
+        bad_client = mock.Mock()
+        bad_client.models.generate_content.return_value = bad_response
+
+        good_response = mock.Mock()
+        good_response.text = "Recovered Gemini summary"
+        good_client = mock.Mock()
+        good_client.models.generate_content.return_value = good_response
+
+        google_module = types.ModuleType("google")
+        genai_module = types.ModuleType("google.genai")
+        genai_module.Client = mock.Mock(side_effect=[bad_client, good_client])
+        google_module.genai = genai_module
+
+        with mock.patch.dict(sys.modules, {"google": google_module, "google.genai": genai_module}):
+            result = _generate_with_gemini("Summarize this.", model="gemini-test")
+
+        self.assertIsNotNone(result)
+        self.assertFalse(result.fallback_used)
+        self.assertEqual(result.text, "Recovered Gemini summary")
+        self.assertEqual(bad_client.models.generate_content.call_count, 3)
+        good_client.models.generate_content.assert_called_once()
+        self.assertEqual(genai_module.Client.call_args_list[0].kwargs["api_key"], "bad-key")
+        self.assertEqual(genai_module.Client.call_args_list[1].kwargs["api_key"], "good-key")
+        mock_sleep.assert_not_called()
 
     @mock.patch("report_ai._get_secret_candidates")
     @mock.patch("openai.OpenAI")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import sys
@@ -39,6 +40,119 @@ from backend.api.total_job_store import TotalJobStore
 
 
 class TotalJobEnrichmentCampaignRouteTests(unittest.TestCase):
+    def test_all_jobs_summary_status_recovers_stale_running_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            summary_dir = temp_root / "total_jobs" / "__all_jobs_summary"
+            summary_dir.mkdir(parents=True)
+            status_path = summary_dir / "status.json"
+            status_path.write_text(
+                json.dumps(
+                    {
+                        "status": "running",
+                        "progress": 0.2,
+                        "error": None,
+                        "updated_at": (
+                            datetime.now(timezone.utc)
+                            - timedelta(seconds=api_app.ALL_TOTAL_JOBS_SUMMARY_STALE_SECONDS + 1)
+                        ).isoformat(),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with (
+                patch.object(api_app, "ALL_TOTAL_JOBS_SUMMARY_DIR", summary_dir),
+                patch.object(api_app, "ALL_TOTAL_JOBS_SUMMARY_STATUS_PATH", status_path),
+                patch.object(api_app, "job_store", JobStore(temp_root / "analysis_jobs")),
+                patch.object(api_app, "total_job_store", TotalJobStore(temp_root / "total_jobs")),
+            ):
+                status = api_app._serialize_all_total_jobs_summary_status()
+
+            persisted_status = json.loads(status_path.read_text(encoding="utf-8"))
+            self.assertEqual(status["status"], "failed")
+            self.assertEqual(persisted_status["status"], "failed")
+            self.assertEqual(persisted_status["route_stage"], "interrupted")
+            self.assertIn("backend shutdown", persisted_status["error"])
+
+    def test_all_jobs_summary_uses_enriched_json_without_campaign_rerun(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            job_store = JobStore(temp_root / "analysis_jobs")
+            total_job_store = TotalJobStore(temp_root / "total_jobs")
+            summary_dir = temp_root / "total_jobs" / "__all_jobs_summary"
+            summary_dir.mkdir(parents=True)
+
+            total_job = total_job_store.create_job(
+                worker_count=2,
+                files=[
+                    {
+                        "analysis_job_id": "analysis_1",
+                        "filename": "campaign-a.pcap",
+                        "source_path": "/tmp/campaign-a.pcap",
+                    }
+                ],
+            )
+            total_job_store.update(
+                total_job.total_job_id,
+                status="completed",
+                current_stage="enrichment_completed",
+                deterministic_complete=True,
+                enrichment_status="completed",
+                enrichment_progress=1.0,
+            )
+            total_job_store.save_json_artifact(
+                total_job.total_job_id,
+                "scan_results.json",
+                [
+                    {
+                        "file": "campaign-a.pcap",
+                        "path": "/tmp/campaign-a.pcap",
+                        "size_bytes": 1234,
+                        "sandbox_verification": {"status": "completed"},
+                    }
+                ],
+            )
+
+            final_report_result = type(
+                "Result",
+                (),
+                {
+                    "text": "# Final\n\nCombined report.",
+                    "provider": "gemini",
+                    "model": "gemini-2.5-flash",
+                    "fallback_used": False,
+                    "api_attempted": True,
+                    "failure_reason": None,
+                    "llm_tokens_in": 10,
+                    "llm_tokens_out": 20,
+                },
+            )()
+
+            with (
+                patch.object(api_app, "ALL_TOTAL_JOBS_SUMMARY_DIR", summary_dir),
+                patch.object(api_app, "ALL_TOTAL_JOBS_SUMMARY_STATUS_PATH", summary_dir / "status.json"),
+                patch.object(api_app, "job_store", job_store),
+                patch.object(api_app, "total_job_store", total_job_store),
+                patch("backend.api.app.build_aggregate", return_value={"file_count": 1}) as build_aggregate,
+                patch("backend.api.app.generate_results_report_result", return_value=final_report_result) as generate_report,
+                patch("backend.api.app.run_campaign_summary_route") as run_campaign_summary_route,
+            ):
+                api_app._run_all_total_jobs_summary_sync(
+                    provider="gemini",
+                    model="gemini-2.5-flash",
+                    require_ai=False,
+                )
+
+            run_campaign_summary_route.assert_not_called()
+            build_aggregate.assert_called_once()
+            generate_report.assert_called_once()
+            summary = json.loads((summary_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["route"], "combined_enriched_json_final_report")
+            self.assertEqual(summary["record_source"]["sources"][0]["record_source"], "parent_enrichment")
+            self.assertEqual(summary["records"][0]["sandbox_verification"]["status"], "completed")
+
     def test_total_job_enrichment_uses_campaign_route_and_persists_richer_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir)

@@ -1304,26 +1304,66 @@ def _is_transient_api_error(exc: Exception) -> bool:
 
 
 def _get_gemini_api_key() -> str | None:
-    return _get_secret("GEMINI_API_KEY") or _get_secret("GOOGLE_API_KEY")
+    candidates = _get_gemini_api_key_candidates()
+    return candidates[0] if candidates else None
+
+
+def _get_gemini_api_key_candidates() -> list[str]:
+    env_sources = [
+        os.getenv("GEMINI_API_KEYS"),
+        os.getenv("GEMINI_API_KEY"),
+        os.getenv("GOOGLE_API_KEYS"),
+        os.getenv("GOOGLE_API_KEY"),
+    ]
+    if any(env_sources):
+        sources = env_sources
+    elif _local_settings is not None:
+        sources = [
+            getattr(_local_settings, "GEMINI_API_KEYS", None),
+            getattr(_local_settings, "GEMINI_API_KEY", None),
+            getattr(_local_settings, "GOOGLE_API_KEYS", None),
+            getattr(_local_settings, "GOOGLE_API_KEY", None),
+        ]
+    else:
+        sources = []
+
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for source in sources:
+        for candidate in _coerce_secret_list(source):
+            if candidate not in seen:
+                candidates.append(candidate)
+                seen.add(candidate)
+    return candidates
 
 
 def _get_gemini_api_key_source() -> str | None:
-    source = _get_secret_source("GEMINI_API_KEY")
-    if source:
-        return source
-    source = _get_secret_source("GOOGLE_API_KEY")
-    if source:
-        return source
+    if os.getenv("GEMINI_API_KEYS"):
+        return "GEMINI_API_KEYS"
+    if os.getenv("GEMINI_API_KEY"):
+        return "GEMINI_API_KEY"
+    if os.getenv("GOOGLE_API_KEYS"):
+        return "GOOGLE_API_KEYS"
+    if os.getenv("GOOGLE_API_KEY"):
+        return "GOOGLE_API_KEY"
+    if _local_settings is not None and getattr(_local_settings, "GEMINI_API_KEYS", None):
+        return "local_settings.py:GEMINI_API_KEYS"
+    if _local_settings is not None and getattr(_local_settings, "GEMINI_API_KEY", None):
+        return "local_settings.py:GEMINI_API_KEY"
+    if _local_settings is not None and getattr(_local_settings, "GOOGLE_API_KEYS", None):
+        return "local_settings.py:GOOGLE_API_KEYS"
+    if _local_settings is not None and getattr(_local_settings, "GOOGLE_API_KEY", None):
+        return "local_settings.py:GOOGLE_API_KEY"
     return None
 
 
 def _generate_with_gemini(prompt: str, model: str | None) -> ReportGenerationResult | None:
-    api_key = _get_gemini_api_key()
+    api_keys = _get_gemini_api_key_candidates()
     key_source = _get_gemini_api_key_source()
     requested_model = str(model or _get_setting("GEMINI_MODEL", "gemini-2.5-flash"))
-    if not api_key:
+    if not api_keys:
         print(
-            "Gemini unavailable: neither GEMINI_API_KEY nor GOOGLE_API_KEY is set in the environment or local_settings.py. Using fallback report.",
+            "Gemini unavailable: neither GEMINI_API_KEY/GEMINI_API_KEYS nor GOOGLE_API_KEY/GOOGLE_API_KEYS is set in the environment or local_settings.py. Using fallback report.",
             file=sys.stderr,
         )
         return _failure_result(
@@ -1335,64 +1375,81 @@ def _generate_with_gemini(prompt: str, model: str | None) -> ReportGenerationRes
     try:
         from google import genai
 
-        client = genai.Client(api_key=api_key)
         retry_attempts = max(1, _get_setting_int("GEMINI_RETRY_ATTEMPTS", 3))
         retry_delay = max(0.5, _get_setting_float("GEMINI_RETRY_DELAY_SECONDS", 2.0))
         model_candidates = _get_gemini_model_candidates(model)
         api_attempted = False
+        last_failure_reason = "no_api_call"
 
-        for model_index, candidate_model in enumerate(model_candidates, start=1):
-            print(
-                f"Trying Gemini model {candidate_model} ({model_index}/{len(model_candidates)})",
-                file=sys.stderr,
-            )
-            for attempt in range(1, retry_attempts + 1):
-                try:
-                    api_attempted = True
-                    response = client.models.generate_content(
-                        model=candidate_model,
-                        contents=f"{SYSTEM_PROMPT}\n\n{prompt}",
-                    )
-                    text = getattr(response, "text", None)
-                    if text:
-                        if key_source:
-                            print(
-                                f"Gemini request succeeded using {key_source} and model {candidate_model}.",
-                                file=sys.stderr,
-                            )
-                        return _result_from_text(
-                            text=text,
-                            provider="gemini",
+        for key_index, api_key in enumerate(api_keys, start=1):
+            try:
+                client = genai.Client(api_key=api_key)
+            except Exception as exc:
+                last_failure_reason = "client_setup_failed"
+                print(
+                    f"Gemini client setup failed for key {key_index}/{len(api_keys)}: {exc}.",
+                    file=sys.stderr,
+                )
+                continue
+
+            for model_index, candidate_model in enumerate(model_candidates, start=1):
+                print(
+                    f"Trying Gemini model {candidate_model} ({model_index}/{len(model_candidates)}) using key {key_index}/{len(api_keys)}",
+                    file=sys.stderr,
+                )
+                for attempt in range(1, retry_attempts + 1):
+                    try:
+                        api_attempted = True
+                        response = client.models.generate_content(
                             model=candidate_model,
-                            usage_payload=response,
-                            api_attempted=True,
+                            contents=f"{SYSTEM_PROMPT}\n\n{prompt}",
                         )
-                    print(
-                        f"Gemini model {candidate_model} returned no text. Trying next option if available.",
-                        file=sys.stderr,
-                    )
-                    break
-                except Exception as exc:
-                    is_last_attempt = attempt >= retry_attempts
-                    if _is_transient_gemini_error(exc) and not is_last_attempt:
-                        sleep_seconds = retry_delay * attempt
+                        text = getattr(response, "text", None)
+                        if text:
+                            if key_source:
+                                print(
+                                    f"Gemini request succeeded using {key_source} key {key_index}/{len(api_keys)} and model {candidate_model}.",
+                                    file=sys.stderr,
+                                )
+                            return _result_from_text(
+                                text=text,
+                                provider="gemini",
+                                model=candidate_model,
+                                usage_payload=response,
+                                api_attempted=True,
+                            )
+                        last_failure_reason = "empty_response"
                         print(
-                            f"Gemini transient failure on {candidate_model} attempt {attempt}/{retry_attempts}: {exc}. Retrying in {sleep_seconds:.1f}s.",
+                            f"Gemini model {candidate_model} returned no text using key {key_index}/{len(api_keys)} attempt {attempt}/{retry_attempts}.",
                             file=sys.stderr,
                         )
-                        time.sleep(sleep_seconds)
-                        continue
-                    print(
-                        f"Gemini request failed on model {candidate_model} attempt {attempt}/{retry_attempts}: {exc}.",
-                        file=sys.stderr,
-                    )
-                    break
+                    except Exception as exc:
+                        last_failure_reason = "request_failed"
+                        is_last_attempt = attempt >= retry_attempts
+                        if _is_transient_gemini_error(exc) and not is_last_attempt:
+                            sleep_seconds = retry_delay * attempt
+                            print(
+                                f"Gemini transient failure on {candidate_model} using key {key_index}/{len(api_keys)} attempt {attempt}/{retry_attempts}: {exc}. Retrying in {sleep_seconds:.1f}s.",
+                                file=sys.stderr,
+                            )
+                            time.sleep(sleep_seconds)
+                            continue
+                        print(
+                            f"Gemini request failed on model {candidate_model} using key {key_index}/{len(api_keys)} attempt {attempt}/{retry_attempts}: {exc}.",
+                            file=sys.stderr,
+                        )
+                        break
+            if key_index < len(api_keys):
+                print(
+                    f"Gemini key {key_index}/{len(api_keys)} failed after configured model/retry attempts. Trying next key.",
+                    file=sys.stderr,
+                )
         print("Gemini unavailable after retries and model fallbacks. Using fallback report.", file=sys.stderr)
         return _failure_result(
             provider="gemini",
             model=model_candidates[0] if model_candidates else requested_model,
             api_attempted=api_attempted,
-            failure_reason="empty_response_or_request_failed",
+            failure_reason="all_api_keys_failed" if len(api_keys) > 1 else last_failure_reason,
         )
     except Exception as exc:
         print(f"Gemini client setup failed: {exc}. Using fallback report.", file=sys.stderr)
