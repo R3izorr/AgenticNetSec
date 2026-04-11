@@ -154,6 +154,32 @@ def _resolve_payload_manifest_path(
     return str(Path(artifacts_dir).expanduser().resolve() / resolved_manifest_path)
 
 
+def _load_cached_payload_carving(
+    artifacts_dir: str | Path | None,
+    *,
+    pcap_path: str,
+) -> dict[str, Any] | None:
+    if not artifacts_dir:
+        return None
+    manifest_path = Path(artifacts_dir).expanduser().resolve() / "carved_manifest.json"
+    if not manifest_path.exists():
+        return None
+    try:
+        cached = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    cached_pcap_path = cached.get("pcap_path")
+    if cached_pcap_path and Path(str(cached_pcap_path)).expanduser().resolve() != Path(pcap_path).expanduser().resolve():
+        return None
+
+    cached["manifest_path"] = str(manifest_path)
+    notes = list(cached.get("notes") or [])
+    notes.append("Reused existing stage-2 payload carving manifest.")
+    cached["notes"] = notes
+    return cached
+
+
 def _merge_payload_carving_record(
     record: dict[str, Any],
     payload_carving: dict[str, Any],
@@ -255,11 +281,16 @@ def run_campaign_summary_route(
             ai_plan=ai_plan,
         ):
             payload_artifacts_dir = _record_payload_artifacts_dir(artifacts_dir, enriched_record, index)
-            payload_carving = run_payload_carving(
-                enriched_record["path"],
-                _payload_carving_findings_from_record(enriched_record),
-                artifacts_dir=payload_artifacts_dir,
+            payload_carving = _load_cached_payload_carving(
+                payload_artifacts_dir,
+                pcap_path=enriched_record["path"],
             )
+            if payload_carving is None:
+                payload_carving = run_payload_carving(
+                    enriched_record["path"],
+                    _payload_carving_findings_from_record(enriched_record),
+                    artifacts_dir=payload_artifacts_dir,
+                )
             enriched_record = _merge_payload_carving_record(
                 enriched_record,
                 payload_carving,

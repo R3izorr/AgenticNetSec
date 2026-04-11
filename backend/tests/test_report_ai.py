@@ -14,6 +14,8 @@ if str(SRC_DIR) not in sys.path:
 from report_ai import (  # noqa: E402
     ReportGenerationResult,
     _build_aggregate,
+    _coerce_secret_list,
+    _generate_with_openrouter,
     build_prompt,
     build_results_prompt,
     generate_report,
@@ -409,6 +411,41 @@ class ReportAiTests(unittest.TestCase):
         self.assertTrue(result.fallback_used)
         self.assertFalse(result.api_attempted)
         self.assertEqual(result.failure_reason, "missing_api_key")
+
+    def test_openrouter_secret_list_accepts_json_and_comma_values(self) -> None:
+        self.assertEqual(_coerce_secret_list('["key-a", "key-b"]'), ["key-a", "key-b"])
+        self.assertEqual(_coerce_secret_list("key-a,key-b\nkey-c"), ["key-a", "key-b", "key-c"])
+
+    @mock.patch("report_ai._get_secret_candidates")
+    @mock.patch("openai.OpenAI")
+    def test_openrouter_rotates_to_next_key_after_retry_budget(
+        self,
+        mock_openai: mock.Mock,
+        mock_key_candidates: mock.Mock,
+    ) -> None:
+        mock_key_candidates.return_value = ["bad-key", "good-key"]
+        bad_client = mock.Mock()
+        bad_client.chat.completions.create.side_effect = [
+            RuntimeError("402 insufficient credits"),
+            RuntimeError("402 insufficient credits"),
+            RuntimeError("402 insufficient credits"),
+        ]
+        good_response = mock.Mock()
+        good_response.output_text = None
+        good_response.choices = [mock.Mock(message=mock.Mock(content="Recovered summary"))]
+        good_client = mock.Mock()
+        good_client.chat.completions.create.return_value = good_response
+        mock_openai.side_effect = [bad_client, good_client]
+
+        result = _generate_with_openrouter("Summarize this.", model="openai/gpt-5-mini")
+
+        self.assertIsNotNone(result)
+        self.assertFalse(result.fallback_used)
+        self.assertEqual(result.text, "Recovered summary")
+        self.assertEqual(bad_client.chat.completions.create.call_count, 3)
+        good_client.chat.completions.create.assert_called_once()
+        self.assertEqual(mock_openai.call_args_list[0].kwargs["api_key"], "bad-key")
+        self.assertEqual(mock_openai.call_args_list[1].kwargs["api_key"], "good-key")
 
 
 if __name__ == "__main__":

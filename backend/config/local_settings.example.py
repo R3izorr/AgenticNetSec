@@ -1,4 +1,11 @@
 OPENROUTER_API_KEY = "paste_your_openrouter_key_here"
+# Optional: add multiple OpenRouter keys for rotation. The app tries each key
+# OPENROUTER_RETRY_ATTEMPTS times before moving to the next one.
+OPENROUTER_API_KEYS = [
+    OPENROUTER_API_KEY,
+    # "paste_your_second_openrouter_key_here",
+    # "paste_your_third_openrouter_key_here",
+]
 OPENROUTER_MODEL = "openai/gpt-5-mini"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_HTTP_REFERER = "http://localhost"

@@ -989,11 +989,11 @@ def _generate_with_openai(prompt: str, model: str | None) -> ReportGenerationRes
 
 
 def _generate_with_openrouter(prompt: str, model: str | None) -> ReportGenerationResult | None:
-    api_key = _get_secret("OPENROUTER_API_KEY")
+    api_keys = _get_secret_candidates("OPENROUTER_API_KEY")
     selected_model = str(model or _get_setting("OPENROUTER_MODEL", "openai/gpt-5-mini"))
-    if not api_key:
+    if not api_keys:
         print(
-            "OpenRouter unavailable: OPENROUTER_API_KEY is not set in the environment or local_settings.py. Trying next report option.",
+            "OpenRouter unavailable: OPENROUTER_API_KEY/OPENROUTER_API_KEYS is not set in the environment or local_settings.py. Trying next report option.",
             file=sys.stderr,
         )
         return _failure_result(
@@ -1007,66 +1007,71 @@ def _generate_with_openrouter(prompt: str, model: str | None) -> ReportGeneratio
     try:
         from openai import OpenAI
 
-        client = OpenAI(
-            api_key=api_key,
-            base_url=base_url,
-        )
         retry_attempts = max(1, _get_setting_int("OPENROUTER_RETRY_ATTEMPTS", 3))
         retry_delay = max(0.5, _get_setting_float("OPENROUTER_RETRY_DELAY_SECONDS", 2.0))
-        for attempt in range(1, retry_attempts + 1):
-            try:
-                response = client.chat.completions.create(
-                    model=selected_model,
-                    max_tokens=max_output_tokens,
-                    temperature=0,
-                    messages=[
-                        {"role": "user", "content": prompt},
-                    ],
-                    extra_headers={
-                        "HTTP-Referer": str(_get_setting("OPENROUTER_HTTP_REFERER", "http://localhost")),
-                        "X-Title": str(_get_setting("OPENROUTER_APP_NAME", "AgenticNetSec")),
-                    },
-                )
-                text = _extract_text_from_response_payload(response)
-                if text:
-                    print(f"OpenRouter request succeeded using model {selected_model}.", file=sys.stderr)
-                    return _result_from_text(
-                        text=text,
-                        provider="openrouter",
+        last_failure_reason = "no_api_call"
+        for key_index, api_key in enumerate(api_keys, start=1):
+            client = OpenAI(
+                api_key=api_key,
+                base_url=base_url,
+            )
+            for attempt in range(1, retry_attempts + 1):
+                try:
+                    response = client.chat.completions.create(
                         model=selected_model,
-                        usage_payload=response,
-                        api_attempted=True,
+                        max_tokens=max_output_tokens,
+                        temperature=0,
+                        messages=[
+                            {"role": "user", "content": prompt},
+                        ],
+                        extra_headers={
+                            "HTTP-Referer": str(_get_setting("OPENROUTER_HTTP_REFERER", "http://localhost")),
+                            "X-Title": str(_get_setting("OPENROUTER_APP_NAME", "AgenticNetSec")),
+                        },
                     )
-                print(
-                    f"OpenRouter model {selected_model} returned no text on attempt {attempt}/{retry_attempts}.",
-                    file=sys.stderr,
-                )
-                return _failure_result(
-                    provider="openrouter",
-                    model=selected_model,
-                    api_attempted=True,
-                    failure_reason="empty_response",
-                )
-            except Exception as exc:
-                is_last_attempt = attempt >= retry_attempts
-                if _is_transient_api_error(exc) and not is_last_attempt:
-                    sleep_seconds = retry_delay * attempt
+                    text = _extract_text_from_response_payload(response)
+                    if text:
+                        print(f"OpenRouter request succeeded using model {selected_model}.", file=sys.stderr)
+                        return _result_from_text(
+                            text=text,
+                            provider="openrouter",
+                            model=selected_model,
+                            usage_payload=response,
+                            api_attempted=True,
+                        )
+                    last_failure_reason = "empty_response"
                     print(
-                        f"OpenRouter transient failure on {selected_model} attempt {attempt}/{retry_attempts}: {exc}. Retrying in {sleep_seconds:.1f}s.",
+                        f"OpenRouter model {selected_model} returned no text using key {key_index}/{len(api_keys)} attempt {attempt}/{retry_attempts}.",
                         file=sys.stderr,
                     )
-                    time.sleep(sleep_seconds)
-                    continue
+                except Exception as exc:
+                    last_failure_reason = "request_failed"
+                    print(
+                        f"OpenRouter request failed on model {selected_model} using key {key_index}/{len(api_keys)} attempt {attempt}/{retry_attempts}: {exc}.",
+                        file=sys.stderr,
+                    )
+                    if _is_transient_api_error(exc) and attempt < retry_attempts:
+                        sleep_seconds = retry_delay * attempt
+                        print(
+                            f"OpenRouter transient failure on {selected_model} using key {key_index}/{len(api_keys)} attempt {attempt}/{retry_attempts}. Retrying in {sleep_seconds:.1f}s.",
+                            file=sys.stderr,
+                        )
+                        time.sleep(sleep_seconds)
+            if key_index < len(api_keys):
                 print(
-                    f"OpenRouter request failed on model {selected_model} attempt {attempt}/{retry_attempts}: {exc}. Trying next report option.",
+                    f"OpenRouter key {key_index}/{len(api_keys)} failed after {retry_attempts} attempt(s). Trying next key.",
                     file=sys.stderr,
                 )
-                return _failure_result(
-                    provider="openrouter",
-                    model=selected_model,
-                    api_attempted=True,
-                    failure_reason="request_failed",
-                )
+        print(
+            f"OpenRouter unavailable after {len(api_keys)} key(s) and {retry_attempts} attempt(s) per key. Trying next report option.",
+            file=sys.stderr,
+        )
+        return _failure_result(
+            provider="openrouter",
+            model=selected_model,
+            api_attempted=True,
+            failure_reason="all_api_keys_failed" if len(api_keys) > 1 else last_failure_reason,
+        )
     except Exception as exc:
         print(f"OpenRouter client setup failed: {exc}. Trying next report option.", file=sys.stderr)
         return _failure_result(
@@ -1177,6 +1182,46 @@ def _get_secret(name: str) -> str | None:
     if _local_settings is not None:
         return getattr(_local_settings, name, None)
     return None
+
+
+def _coerce_secret_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return []
+        if stripped.startswith("["):
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        return [item.strip() for item in stripped.replace("\n", ",").split(",") if item.strip()]
+    if isinstance(value, (list, tuple)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [str(value).strip()] if str(value).strip() else []
+
+
+def _get_secret_candidates(name: str) -> list[str]:
+    plural_name = f"{name}S"
+    sources: list[Any]
+    if os.getenv(plural_name) or os.getenv(name):
+        sources = [os.getenv(plural_name), os.getenv(name)]
+    elif _local_settings is not None:
+        sources = [getattr(_local_settings, plural_name, None), getattr(_local_settings, name, None)]
+    else:
+        sources = []
+
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for source in sources:
+        for candidate in _coerce_secret_list(source):
+            if candidate not in seen:
+                candidates.append(candidate)
+                seen.add(candidate)
+    return candidates
 
 
 def _get_secret_source(name: str) -> str | None:
