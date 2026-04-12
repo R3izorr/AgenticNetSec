@@ -1,10 +1,10 @@
 {
   "total_job_id": "total_7b4c69593e52",
   "status": "completed",
-  "current_stage": "ready_for_enrichment",
+  "current_stage": "enrichment_completed",
   "progress": 1.0,
   "created_at": "2026-04-10T04:24:55.036565+00:00",
-  "updated_at": "2026-04-10T04:41:55.416889+00:00",
+  "updated_at": "2026-04-10T12:22:07.579751+00:00",
   "error": null,
   "artifacts_dir": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_7b4c69593e52",
   "worker_count": 4,
@@ -12,8 +12,8 @@
   "completed_children": 20,
   "failed_children": 0,
   "deterministic_complete": true,
-  "enrichment_status": "not_started",
-  "enrichment_progress": 0.0,
+  "enrichment_status": "completed",
+  "enrichment_progress": 1.0,
   "enrichment_error": null,
   "analysis_profile": "standard",
   "children": [

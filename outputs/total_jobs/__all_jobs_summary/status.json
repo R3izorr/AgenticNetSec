@@ -1,7 +1,7 @@
 {
-  "status": "running",
+  "status": "failed",
   "progress": 0.2,
-  "error": null,
+  "error": "Interrupted by backend shutdown during all-scans summary.",
   "provider": "gemini",
   "model": null,
   "require_ai": false,
@@ -16,5 +16,6 @@
   ],
   "source_file_count": 129,
   "record_count": 129,
-  "updated_at": "2026-04-10T11:56:31.926707+00:00"
+  "updated_at": "2026-04-12T17:23:34.055223+00:00",
+  "route_stage": "interrupted"
 }

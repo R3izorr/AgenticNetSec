@@ -1,0 +1,18 @@
+{
+  "initial_summary": {
+    "provider": "gemini",
+    "model": "gemini-2.5-flash",
+    "report_text": "# Incident Report\n\nAttack Flow:\nInitial Access -> Discovery -> Payload Deployment -> Exfiltration\n\n## Initial Access\nStrongest patient-zero candidate is 10.128.239.57 from external 179.60.146.33 in file upload_1775809333_34936-sensor-250309-00002477_redacted.pcap.\n\n## Lateral Movement & Discovery\nNo external reconnaissance evidence is currently present in the results file. Possible SMB/RPC scanning appears in upload_1775809333_34936-sensor-250309-00002477_redacted.pcap, upload_1775809338_34936-sensor-250309-00002481_redacted.pcap, upload_1775809343_34936-sensor-250309-00002487_redacted.pcap, upload_1775809346_34936-sensor-250309-00002490_redacted.pcap.\n\n## Exfiltration\nNo temp.sh indicator is currently present in the results file. Outbound transfer spike candidates appear in upload_1775809333_34936-sensor-250309-00002477_redacted.pcap, upload_1775809339_34936-sensor-250309-00002482_redacted.pcap.\n\n## Payload Deployment\nManual RDP/SMB deployment candidates appear in upload_1775809333_34936-sensor-250309-00002477_redacted.pcap, upload_1775809338_34936-sensor-250309-00002481_redacted.pcap.\n\n## Confidence / Gaps\nFiles analyzed in results file: 29. Targeted AI-authored tshark follow-up ran on 0 file(s). This report is based on aggregated per-file scan results and remains heuristic.",
+    "fallback_used": true,
+    "llm_tokens_in": 0,
+    "llm_tokens_out": 0,
+    "ai_callable": false,
+    "status": "fallback_report"
+  },
+  "campaign_plan": {
+    "planner_source": "none",
+    "weak_sections": [],
+    "section_reasons": {}
+  },
+  "selected_follow_up_records": []
+}

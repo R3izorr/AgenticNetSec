@@ -1,0 +1,602 @@
+{
+  "status": "heuristic_only",
+  "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796406_34936-sensor-250306-00002436_redacted.pcap",
+  "carved_artifacts_dir": "carved-artifacts",
+  "limits": {
+    "max_candidates_per_file": 12,
+    "max_reconstructed_bytes_per_file": 67108864,
+    "min_http_body_bytes": 4096
+  },
+  "candidate_count": 10,
+  "selected_candidates": [
+    {
+      "candidate_id": "smb-0-0",
+      "protocol": "smb",
+      "priority": 94,
+      "basis": [
+        "manual_payload_deployment",
+        "remote_exec_markers",
+        "smb_rpc_ports"
+      ],
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.31",
+      "dst_port": 445,
+      "metadata": {
+        "manual_drop_score": 100,
+        "admin_share_markers": [],
+        "remote_exec_markers": [
+          "svcctl"
+        ],
+        "smb_rpc_ports": [
+          135,
+          445
+        ],
+        "rdp_total_bytes": 348,
+        "sample_events": [
+          {
+            "timestamp": 1768180996.387924,
+            "dst_ip": "10.128.239.31",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768180996.500022,
+            "dst_ip": "10.128.239.31",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768180996.561174,
+            "dst_ip": "10.128.239.31",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768187344.884358,
+            "dst_ip": "10.128.239.31",
+            "dst_port": 445,
+            "matches": [
+              "svcctl"
+            ],
+            "basis": "correlated admin-share or remote-exec marker after internal RDP access"
+          }
+        ]
+      }
+    },
+    {
+      "candidate_id": "smb-0-2",
+      "protocol": "smb",
+      "priority": 84,
+      "basis": [
+        "manual_payload_deployment",
+        "admin_share_markers",
+        "smb_rpc_ports"
+      ],
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.68",
+      "dst_port": 445,
+      "metadata": {
+        "manual_drop_score": 100,
+        "admin_share_markers": [
+          "c$"
+        ],
+        "remote_exec_markers": [],
+        "smb_rpc_ports": [
+          135,
+          445
+        ],
+        "rdp_total_bytes": 348,
+        "sample_events": [
+          {
+            "timestamp": 1768181964.925984,
+            "dst_ip": "10.128.239.68",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181981.364877,
+            "dst_ip": "10.128.239.68",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768182146.939316,
+            "dst_ip": "10.128.239.68",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768188145.382337,
+            "dst_ip": "10.128.239.68",
+            "dst_port": 445,
+            "matches": [
+              "c$"
+            ],
+            "basis": "correlated admin-share or remote-exec marker after internal RDP access"
+          }
+        ]
+      }
+    },
+    {
+      "candidate_id": "smb-0-1",
+      "protocol": "smb",
+      "priority": 84,
+      "basis": [
+        "manual_payload_deployment",
+        "admin_share_markers",
+        "smb_rpc_ports"
+      ],
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.32",
+      "dst_port": 445,
+      "metadata": {
+        "manual_drop_score": 100,
+        "admin_share_markers": [
+          "c$"
+        ],
+        "remote_exec_markers": [],
+        "smb_rpc_ports": [
+          135,
+          445
+        ],
+        "rdp_total_bytes": 348,
+        "sample_events": [
+          {
+            "timestamp": 1768181096.259766,
+            "dst_ip": "10.128.239.32",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181098.919767,
+            "dst_ip": "10.128.239.32",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181102.794008,
+            "dst_ip": "10.128.239.32",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768187632.765179,
+            "dst_ip": "10.128.239.32",
+            "dst_port": 445,
+            "matches": [
+              "c$"
+            ],
+            "basis": "correlated admin-share or remote-exec marker after internal RDP access"
+          }
+        ]
+      }
+    },
+    {
+      "candidate_id": "smb-0-9",
+      "protocol": "smb",
+      "priority": 64,
+      "basis": [
+        "manual_payload_deployment",
+        "smb_rpc_ports"
+      ],
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.148",
+      "dst_port": 445,
+      "metadata": {
+        "manual_drop_score": 100,
+        "admin_share_markers": [],
+        "remote_exec_markers": [],
+        "smb_rpc_ports": [
+          135,
+          445
+        ],
+        "rdp_total_bytes": 348,
+        "sample_events": [
+          {
+            "timestamp": 1768181117.922513,
+            "dst_ip": "10.128.239.148",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181118.236008,
+            "dst_ip": "10.128.239.148",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181126.792645,
+            "dst_ip": "10.128.239.148",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          }
+        ]
+      }
+    },
+    {
+      "candidate_id": "smb-0-8",
+      "protocol": "smb",
+      "priority": 64,
+      "basis": [
+        "manual_payload_deployment",
+        "smb_rpc_ports"
+      ],
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.91",
+      "dst_port": 445,
+      "metadata": {
+        "manual_drop_score": 100,
+        "admin_share_markers": [],
+        "remote_exec_markers": [],
+        "smb_rpc_ports": [
+          135,
+          445
+        ],
+        "rdp_total_bytes": 348,
+        "sample_events": [
+          {
+            "timestamp": 1768181236.911508,
+            "dst_ip": "10.128.239.91",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181238.198037,
+            "dst_ip": "10.128.239.91",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181251.953942,
+            "dst_ip": "10.128.239.91",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          }
+        ]
+      }
+    },
+    {
+      "candidate_id": "smb-0-7",
+      "protocol": "smb",
+      "priority": 64,
+      "basis": [
+        "manual_payload_deployment",
+        "smb_rpc_ports"
+      ],
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.64",
+      "dst_port": 445,
+      "metadata": {
+        "manual_drop_score": 100,
+        "admin_share_markers": [],
+        "remote_exec_markers": [],
+        "smb_rpc_ports": [
+          135,
+          445
+        ],
+        "rdp_total_bytes": 348,
+        "sample_events": [
+          {
+            "timestamp": 1768181007.828847,
+            "dst_ip": "10.128.239.64",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181007.944468,
+            "dst_ip": "10.128.239.64",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181008.006425,
+            "dst_ip": "10.128.239.64",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          }
+        ]
+      }
+    },
+    {
+      "candidate_id": "smb-0-6",
+      "protocol": "smb",
+      "priority": 64,
+      "basis": [
+        "manual_payload_deployment",
+        "smb_rpc_ports"
+      ],
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.133",
+      "dst_port": 445,
+      "metadata": {
+        "manual_drop_score": 100,
+        "admin_share_markers": [],
+        "remote_exec_markers": [],
+        "smb_rpc_ports": [
+          135,
+          445
+        ],
+        "rdp_total_bytes": 348,
+        "sample_events": [
+          {
+            "timestamp": 1768181417.496927,
+            "dst_ip": "10.128.239.133",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181417.553911,
+            "dst_ip": "10.128.239.133",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181688.367178,
+            "dst_ip": "10.128.239.133",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          }
+        ]
+      }
+    },
+    {
+      "candidate_id": "smb-0-5",
+      "protocol": "smb",
+      "priority": 64,
+      "basis": [
+        "manual_payload_deployment",
+        "smb_rpc_ports"
+      ],
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.50",
+      "dst_port": 445,
+      "metadata": {
+        "manual_drop_score": 100,
+        "admin_share_markers": [],
+        "remote_exec_markers": [],
+        "smb_rpc_ports": [
+          135,
+          445
+        ],
+        "rdp_total_bytes": 348,
+        "sample_events": [
+          {
+            "timestamp": 1768181291.919287,
+            "dst_ip": "10.128.239.50",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181292.188544,
+            "dst_ip": "10.128.239.50",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181577.150318,
+            "dst_ip": "10.128.239.50",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          }
+        ]
+      }
+    },
+    {
+      "candidate_id": "smb-0-4",
+      "protocol": "smb",
+      "priority": 64,
+      "basis": [
+        "manual_payload_deployment",
+        "smb_rpc_ports"
+      ],
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.110",
+      "dst_port": 445,
+      "metadata": {
+        "manual_drop_score": 100,
+        "admin_share_markers": [],
+        "remote_exec_markers": [],
+        "smb_rpc_ports": [
+          135,
+          445
+        ],
+        "rdp_total_bytes": 348,
+        "sample_events": [
+          {
+            "timestamp": 1768181004.031594,
+            "dst_ip": "10.128.239.110",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181004.145176,
+            "dst_ip": "10.128.239.110",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768181004.64501,
+            "dst_ip": "10.128.239.110",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          }
+        ]
+      }
+    },
+    {
+      "candidate_id": "smb-0-3",
+      "protocol": "smb",
+      "priority": 64,
+      "basis": [
+        "manual_payload_deployment",
+        "smb_rpc_ports"
+      ],
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.104",
+      "dst_port": 445,
+      "metadata": {
+        "manual_drop_score": 100,
+        "admin_share_markers": [],
+        "remote_exec_markers": [],
+        "smb_rpc_ports": [
+          135,
+          445
+        ],
+        "rdp_total_bytes": 348,
+        "sample_events": [
+          {
+            "timestamp": 1768180988.514816,
+            "dst_ip": "10.128.239.104",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768180989.149475,
+            "dst_ip": "10.128.239.104",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          },
+          {
+            "timestamp": 1768180990.587973,
+            "dst_ip": "10.128.239.104",
+            "dst_port": 445,
+            "basis": "correlated SMB/RPC lateral activity after internal RDP access"
+          }
+        ]
+      }
+    }
+  ],
+  "carved_payload_count": 0,
+  "carved_payloads": [],
+  "payload_iocs": [
+    "admin_share_marker:c$",
+    "remote_exec_marker:svcctl",
+    "smb_port:445",
+    "smb_rpc_port:135",
+    "smb_rpc_port:445",
+    "smb_source:10.128.239.57",
+    "smb_target:10.128.239.104",
+    "smb_target:10.128.239.110",
+    "smb_target:10.128.239.133",
+    "smb_target:10.128.239.148",
+    "smb_target:10.128.239.31",
+    "smb_target:10.128.239.32",
+    "smb_target:10.128.239.50",
+    "smb_target:10.128.239.64",
+    "smb_target:10.128.239.68",
+    "smb_target:10.128.239.91"
+  ],
+  "payload_deployment_confidence": 0.35,
+  "bytes_reconstructed": 0,
+  "skipped_candidates": [
+    {
+      "candidate_id": "smb-0-0",
+      "protocol": "smb",
+      "reason": "no_smb_write_payloads",
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.31",
+      "dst_port": 445,
+      "admin_share_markers": [],
+      "remote_exec_markers": [
+        "svcctl"
+      ]
+    },
+    {
+      "candidate_id": "smb-0-2",
+      "protocol": "smb",
+      "reason": "no_smb_write_payloads",
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.68",
+      "dst_port": 445,
+      "admin_share_markers": [
+        "c$"
+      ],
+      "remote_exec_markers": []
+    },
+    {
+      "candidate_id": "smb-0-1",
+      "protocol": "smb",
+      "reason": "no_smb_write_payloads",
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.32",
+      "dst_port": 445,
+      "admin_share_markers": [
+        "c$"
+      ],
+      "remote_exec_markers": []
+    },
+    {
+      "candidate_id": "smb-0-9",
+      "protocol": "smb",
+      "reason": "no_smb_write_payloads",
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.148",
+      "dst_port": 445,
+      "admin_share_markers": [],
+      "remote_exec_markers": []
+    },
+    {
+      "candidate_id": "smb-0-8",
+      "protocol": "smb",
+      "reason": "no_smb_write_payloads",
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.91",
+      "dst_port": 445,
+      "admin_share_markers": [],
+      "remote_exec_markers": []
+    },
+    {
+      "candidate_id": "smb-0-7",
+      "protocol": "smb",
+      "reason": "no_smb_write_payloads",
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.64",
+      "dst_port": 445,
+      "admin_share_markers": [],
+      "remote_exec_markers": []
+    },
+    {
+      "candidate_id": "smb-0-6",
+      "protocol": "smb",
+      "reason": "no_smb_write_payloads",
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.133",
+      "dst_port": 445,
+      "admin_share_markers": [],
+      "remote_exec_markers": []
+    },
+    {
+      "candidate_id": "smb-0-5",
+      "protocol": "smb",
+      "reason": "no_smb_write_payloads",
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.50",
+      "dst_port": 445,
+      "admin_share_markers": [],
+      "remote_exec_markers": []
+    },
+    {
+      "candidate_id": "smb-0-4",
+      "protocol": "smb",
+      "reason": "no_smb_write_payloads",
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.110",
+      "dst_port": 445,
+      "admin_share_markers": [],
+      "remote_exec_markers": []
+    },
+    {
+      "candidate_id": "smb-0-3",
+      "protocol": "smb",
+      "reason": "no_smb_write_payloads",
+      "src_ip": "10.128.239.57",
+      "dst_ip": "10.128.239.104",
+      "dst_port": 445,
+      "admin_share_markers": [],
+      "remote_exec_markers": []
+    }
+  ],
+  "notes": [
+    "SMB carving inspected suspicious SMB candidate flows but did not recover an artifact."
+  ]
+}
