@@ -1,7 +1,7 @@
 [
   {
     "file": "upload_1775796402_34936-sensor-250305-00002424_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796402_34936-sensor-250305-00002424_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002424_redacted.pcap",
     "size_bytes": 336316926,
     "total_packets": 1211026,
     "top_ips": [
@@ -1040,7 +1040,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796402_34936-sensor-250305-00002424_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002424_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -1062,7 +1062,7 @@
   },
   {
     "file": "upload_1775796403_34936-sensor-250305-00002425_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796403_34936-sensor-250305-00002425_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002425_redacted.pcap",
     "size_bytes": 109447777,
     "total_packets": 424401,
     "top_ips": [
@@ -2072,7 +2072,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796403_34936-sensor-250305-00002425_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002425_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -2093,8 +2093,8 @@
     "ai_tshark_query_count": 0
   },
   {
-    "file": "upload_1775796403_34936-sensor-250305-00002426_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796403_34936-sensor-250305-00002426_redacted.pcap",
+    "file": "upload_1775150504_34936-sensor-250305-00002426_redacted.pcap",
+    "path": "/home/kuri/AgenticNetSec/outputs/uploads/upload_1775150504_34936-sensor-250305-00002426_redacted.pcap",
     "size_bytes": 49489549,
     "total_packets": 178277,
     "top_ips": [
@@ -3082,7 +3082,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796403_34936-sensor-250305-00002426_redacted.pcap",
+      "pcap_path": "/home/kuri/AgenticNetSec/outputs/uploads/upload_1775150504_34936-sensor-250305-00002426_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -3104,7 +3104,7 @@
   },
   {
     "file": "upload_1775796403_34936-sensor-250305-00002428_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796403_34936-sensor-250305-00002428_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002428_redacted.pcap",
     "size_bytes": 334288406,
     "total_packets": 1307944,
     "top_ips": [
@@ -4130,7 +4130,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796403_34936-sensor-250305-00002428_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002428_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -4152,7 +4152,7 @@
   },
   {
     "file": "upload_1775796404_34936-sensor-250305-00002429_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796404_34936-sensor-250305-00002429_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002429_redacted.pcap",
     "size_bytes": 298720042,
     "total_packets": 1174379,
     "top_ips": [
@@ -4287,7 +4287,7 @@
     "payload_deployment_confidence": 0.0,
     "payload_carving_candidate_count": 0,
     "payload_carving_status": "no_candidates",
-    "payload_carving_manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/005-upload_1775796404_34936-sensor-250305-00002429_redacted.pcap/carved_manifest.json",
+    "payload_carving_manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/005-upload_1775796404_34936-sensor-250305-00002429_redacted.pcap/carved_manifest.json",
     "payload_carving_selected_candidates": [],
     "analysis_profile": "standard",
     "analysis_version": "2026-04-03-api-batch-v1",
@@ -5255,7 +5255,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796404_34936-sensor-250305-00002429_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002429_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -5276,8 +5276,8 @@
     "ai_tshark_query_count": 0,
     "payload_carving": {
       "status": "no_candidates",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796404_34936-sensor-250305-00002429_redacted.pcap",
-      "artifacts_dir": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/005-upload_1775796404_34936-sensor-250305-00002429_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002429_redacted.pcap",
+      "artifacts_dir": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/005-upload_1775796404_34936-sensor-250305-00002429_redacted.pcap",
       "limits": {
         "max_candidates_per_file": 12,
         "max_reconstructed_bytes_per_file": 67108864,
@@ -5289,7 +5289,7 @@
       "payload_iocs": [],
       "payload_deployment_confidence": 0.0,
       "bytes_reconstructed": 0,
-      "manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/005-upload_1775796404_34936-sensor-250305-00002429_redacted.pcap/carved_manifest.json",
+      "manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/005-upload_1775796404_34936-sensor-250305-00002429_redacted.pcap/carved_manifest.json",
       "skipped_candidates": [],
       "notes": [
         "No suspicious payload-deployment candidates met the carving gate."
@@ -5299,7 +5299,7 @@
   },
   {
     "file": "upload_1775796404_34936-sensor-250305-00002430_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796404_34936-sensor-250305-00002430_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002430_redacted.pcap",
     "size_bytes": 458525632,
     "total_packets": 1578725,
     "top_ips": [
@@ -6353,7 +6353,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796404_34936-sensor-250305-00002430_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002430_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -6375,7 +6375,7 @@
   },
   {
     "file": "upload_1775796404_34936-sensor-250305-00002431_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796404_34936-sensor-250305-00002431_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002431_redacted.pcap",
     "size_bytes": 360867788,
     "total_packets": 1310771,
     "top_ips": [
@@ -6510,7 +6510,7 @@
     "payload_deployment_confidence": 0.0,
     "payload_carving_candidate_count": 0,
     "payload_carving_status": "no_candidates",
-    "payload_carving_manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/007-upload_1775796404_34936-sensor-250305-00002431_redacted.pcap/carved_manifest.json",
+    "payload_carving_manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/007-upload_1775796404_34936-sensor-250305-00002431_redacted.pcap/carved_manifest.json",
     "payload_carving_selected_candidates": [],
     "analysis_profile": "standard",
     "analysis_version": "2026-04-03-api-batch-v1",
@@ -7489,7 +7489,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796404_34936-sensor-250305-00002431_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002431_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -7510,8 +7510,8 @@
     "ai_tshark_query_count": 0,
     "payload_carving": {
       "status": "no_candidates",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796404_34936-sensor-250305-00002431_redacted.pcap",
-      "artifacts_dir": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/007-upload_1775796404_34936-sensor-250305-00002431_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250305-00002431_redacted.pcap",
+      "artifacts_dir": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/007-upload_1775796404_34936-sensor-250305-00002431_redacted.pcap",
       "limits": {
         "max_candidates_per_file": 12,
         "max_reconstructed_bytes_per_file": 67108864,
@@ -7523,7 +7523,7 @@
       "payload_iocs": [],
       "payload_deployment_confidence": 0.0,
       "bytes_reconstructed": 0,
-      "manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/007-upload_1775796404_34936-sensor-250305-00002431_redacted.pcap/carved_manifest.json",
+      "manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/007-upload_1775796404_34936-sensor-250305-00002431_redacted.pcap/carved_manifest.json",
       "skipped_candidates": [],
       "notes": [
         "No suspicious payload-deployment candidates met the carving gate."
@@ -7533,7 +7533,7 @@
   },
   {
     "file": "upload_1775796405_34936-sensor-250306-00002432_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796405_34936-sensor-250306-00002432_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002432_redacted.pcap",
     "size_bytes": 418416651,
     "total_packets": 1497464,
     "top_ips": [
@@ -7668,7 +7668,7 @@
     "payload_deployment_confidence": 0.0,
     "payload_carving_candidate_count": 0,
     "payload_carving_status": "no_candidates",
-    "payload_carving_manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/008-upload_1775796405_34936-sensor-250306-00002432_redacted.pcap/carved_manifest.json",
+    "payload_carving_manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/008-upload_1775796405_34936-sensor-250306-00002432_redacted.pcap/carved_manifest.json",
     "payload_carving_selected_candidates": [],
     "analysis_profile": "standard",
     "analysis_version": "2026-04-03-api-batch-v1",
@@ -8680,7 +8680,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796405_34936-sensor-250306-00002432_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002432_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -8701,8 +8701,8 @@
     "ai_tshark_query_count": 0,
     "payload_carving": {
       "status": "no_candidates",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796405_34936-sensor-250306-00002432_redacted.pcap",
-      "artifacts_dir": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/008-upload_1775796405_34936-sensor-250306-00002432_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002432_redacted.pcap",
+      "artifacts_dir": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/008-upload_1775796405_34936-sensor-250306-00002432_redacted.pcap",
       "limits": {
         "max_candidates_per_file": 12,
         "max_reconstructed_bytes_per_file": 67108864,
@@ -8714,7 +8714,7 @@
       "payload_iocs": [],
       "payload_deployment_confidence": 0.0,
       "bytes_reconstructed": 0,
-      "manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/008-upload_1775796405_34936-sensor-250306-00002432_redacted.pcap/carved_manifest.json",
+      "manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/008-upload_1775796405_34936-sensor-250306-00002432_redacted.pcap/carved_manifest.json",
       "skipped_candidates": [],
       "notes": [
         "No suspicious payload-deployment candidates met the carving gate."
@@ -8724,7 +8724,7 @@
   },
   {
     "file": "upload_1775796405_34936-sensor-250306-00002433_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796405_34936-sensor-250306-00002433_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002433_redacted.pcap",
     "size_bytes": 389725510,
     "total_packets": 1457237,
     "top_ips": [
@@ -9763,7 +9763,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796405_34936-sensor-250306-00002433_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002433_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -9785,7 +9785,7 @@
   },
   {
     "file": "upload_1775796406_34936-sensor-250306-00002434_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796406_34936-sensor-250306-00002434_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002434_redacted.pcap",
     "size_bytes": 191083569,
     "total_packets": 674243,
     "top_ips": [
@@ -10799,7 +10799,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796406_34936-sensor-250306-00002434_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002434_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -10821,7 +10821,7 @@
   },
   {
     "file": "upload_1775796406_34936-sensor-250306-00002435_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796406_34936-sensor-250306-00002435_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002435_redacted.pcap",
     "size_bytes": 250889795,
     "total_packets": 852262,
     "top_ips": [
@@ -11835,7 +11835,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796406_34936-sensor-250306-00002435_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002435_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -11857,7 +11857,7 @@
   },
   {
     "file": "upload_1775796406_34936-sensor-250306-00002436_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796406_34936-sensor-250306-00002436_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002436_redacted.pcap",
     "size_bytes": 371764214,
     "total_packets": 1117712,
     "top_ips": [
@@ -12640,7 +12640,7 @@
     "payload_deployment_confidence": 0.35,
     "payload_carving_candidate_count": 10,
     "payload_carving_status": "heuristic_only",
-    "payload_carving_manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/012-upload_1775796406_34936-sensor-250306-00002436_redacted.pcap/carved_manifest.json",
+    "payload_carving_manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/012-upload_1775796406_34936-sensor-250306-00002436_redacted.pcap/carved_manifest.json",
     "payload_carving_selected_candidates": [
       {
         "candidate_id": "smb-0-0",
@@ -15204,7 +15204,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796406_34936-sensor-250306-00002436_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002436_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -15225,8 +15225,8 @@
     "ai_tshark_query_count": 0,
     "payload_carving": {
       "status": "heuristic_only",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796406_34936-sensor-250306-00002436_redacted.pcap",
-      "artifacts_dir": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/012-upload_1775796406_34936-sensor-250306-00002436_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002436_redacted.pcap",
+      "artifacts_dir": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/012-upload_1775796406_34936-sensor-250306-00002436_redacted.pcap",
       "limits": {
         "max_candidates_per_file": 12,
         "max_reconstructed_bytes_per_file": 67108864,
@@ -15712,7 +15712,7 @@
       ],
       "payload_deployment_confidence": 0.35,
       "bytes_reconstructed": 0,
-      "manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/012-upload_1775796406_34936-sensor-250306-00002436_redacted.pcap/carved_manifest.json",
+      "manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/012-upload_1775796406_34936-sensor-250306-00002436_redacted.pcap/carved_manifest.json",
       "skipped_candidates": [
         {
           "candidate_id": "smb-0-0",
@@ -15829,7 +15829,7 @@
   },
   {
     "file": "upload_1775796407_34936-sensor-250306-00002437_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796407_34936-sensor-250306-00002437_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002437_redacted.pcap",
     "size_bytes": 642951936,
     "total_packets": 1162696,
     "top_ips": [
@@ -16655,7 +16655,7 @@
     "payload_deployment_confidence": 0.35,
     "payload_carving_candidate_count": 10,
     "payload_carving_status": "heuristic_only",
-    "payload_carving_manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/013-upload_1775796407_34936-sensor-250306-00002437_redacted.pcap/carved_manifest.json",
+    "payload_carving_manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/013-upload_1775796407_34936-sensor-250306-00002437_redacted.pcap/carved_manifest.json",
     "payload_carving_selected_candidates": [
       {
         "candidate_id": "smb-0-1",
@@ -19052,7 +19052,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796407_34936-sensor-250306-00002437_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002437_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -19073,8 +19073,8 @@
     "ai_tshark_query_count": 0,
     "payload_carving": {
       "status": "heuristic_only",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796407_34936-sensor-250306-00002437_redacted.pcap",
-      "artifacts_dir": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/013-upload_1775796407_34936-sensor-250306-00002437_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002437_redacted.pcap",
+      "artifacts_dir": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/013-upload_1775796407_34936-sensor-250306-00002437_redacted.pcap",
       "limits": {
         "max_candidates_per_file": 12,
         "max_reconstructed_bytes_per_file": 67108864,
@@ -19545,7 +19545,7 @@
       ],
       "payload_deployment_confidence": 0.35,
       "bytes_reconstructed": 0,
-      "manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/013-upload_1775796407_34936-sensor-250306-00002437_redacted.pcap/carved_manifest.json",
+      "manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/013-upload_1775796407_34936-sensor-250306-00002437_redacted.pcap/carved_manifest.json",
       "skipped_candidates": [
         {
           "candidate_id": "smb-0-1",
@@ -19660,7 +19660,7 @@
   },
   {
     "file": "upload_1775796407_34936-sensor-250306-00002438_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796407_34936-sensor-250306-00002438_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002438_redacted.pcap",
     "size_bytes": 1044993926,
     "total_packets": 819948,
     "top_ips": [
@@ -21196,7 +21196,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796407_34936-sensor-250306-00002438_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002438_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -21218,7 +21218,7 @@
   },
   {
     "file": "upload_1775796409_34936-sensor-250306-00002439_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796409_34936-sensor-250306-00002439_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002439_redacted.pcap",
     "size_bytes": 776847373,
     "total_packets": 989808,
     "top_ips": [
@@ -22381,7 +22381,7 @@
     "payload_deployment_confidence": 0.0,
     "payload_carving_candidate_count": 0,
     "payload_carving_status": "no_candidates",
-    "payload_carving_manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/015-upload_1775796409_34936-sensor-250306-00002439_redacted.pcap/carved_manifest.json",
+    "payload_carving_manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/015-upload_1775796409_34936-sensor-250306-00002439_redacted.pcap/carved_manifest.json",
     "payload_carving_selected_candidates": [],
     "analysis_profile": "standard",
     "analysis_version": "2026-04-03-api-batch-v1",
@@ -23623,7 +23623,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796409_34936-sensor-250306-00002439_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002439_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -23644,8 +23644,8 @@
     "ai_tshark_query_count": 0,
     "payload_carving": {
       "status": "no_candidates",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796409_34936-sensor-250306-00002439_redacted.pcap",
-      "artifacts_dir": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/015-upload_1775796409_34936-sensor-250306-00002439_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002439_redacted.pcap",
+      "artifacts_dir": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/015-upload_1775796409_34936-sensor-250306-00002439_redacted.pcap",
       "limits": {
         "max_candidates_per_file": 12,
         "max_reconstructed_bytes_per_file": 67108864,
@@ -23657,7 +23657,7 @@
       "payload_iocs": [],
       "payload_deployment_confidence": 0.0,
       "bytes_reconstructed": 0,
-      "manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/015-upload_1775796409_34936-sensor-250306-00002439_redacted.pcap/carved_manifest.json",
+      "manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/015-upload_1775796409_34936-sensor-250306-00002439_redacted.pcap/carved_manifest.json",
       "skipped_candidates": [],
       "notes": [
         "No suspicious payload-deployment candidates met the carving gate."
@@ -23667,7 +23667,7 @@
   },
   {
     "file": "upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002440_redacted.pcap",
     "size_bytes": 1060518806,
     "total_packets": 805311,
     "top_ips": [
@@ -24591,7 +24591,7 @@
     "payload_deployment_confidence": 0.0,
     "payload_carving_candidate_count": 0,
     "payload_carving_status": "no_candidates",
-    "payload_carving_manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/016-upload_1775796410_34936-sensor-250306-00002440_redacted.pcap/carved_manifest.json",
+    "payload_carving_manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/016-upload_1775796410_34936-sensor-250306-00002440_redacted.pcap/carved_manifest.json",
     "payload_carving_selected_candidates": [],
     "analysis_profile": "standard",
     "analysis_version": "2026-04-03-api-batch-v1",
@@ -25797,7 +25797,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002440_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -25818,8 +25818,8 @@
     "ai_tshark_query_count": 0,
     "payload_carving": {
       "status": "no_candidates",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
-      "artifacts_dir": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/016-upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002440_redacted.pcap",
+      "artifacts_dir": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/016-upload_1775796410_34936-sensor-250306-00002440_redacted.pcap",
       "limits": {
         "max_candidates_per_file": 12,
         "max_reconstructed_bytes_per_file": 67108864,
@@ -25831,7 +25831,7 @@
       "payload_iocs": [],
       "payload_deployment_confidence": 0.0,
       "bytes_reconstructed": 0,
-      "manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/016-upload_1775796410_34936-sensor-250306-00002440_redacted.pcap/carved_manifest.json",
+      "manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/016-upload_1775796410_34936-sensor-250306-00002440_redacted.pcap/carved_manifest.json",
       "skipped_candidates": [],
       "notes": [
         "No suspicious payload-deployment candidates met the carving gate."
@@ -25841,7 +25841,7 @@
   },
   {
     "file": "upload_1775796411_34936-sensor-250306-00002441_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796411_34936-sensor-250306-00002441_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002441_redacted.pcap",
     "size_bytes": 766336395,
     "total_packets": 1189946,
     "top_ips": [
@@ -27128,7 +27128,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796411_34936-sensor-250306-00002441_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002441_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -27150,7 +27150,7 @@
   },
   {
     "file": "upload_1775796410_34936-sensor-250307-00002442_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796410_34936-sensor-250307-00002442_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250307-00002442_redacted.pcap",
     "size_bytes": 415651464,
     "total_packets": 1686379,
     "top_ips": [
@@ -28257,7 +28257,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796410_34936-sensor-250307-00002442_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250307-00002442_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -28279,7 +28279,7 @@
   },
   {
     "file": "upload_1775796410_34936-sensor-250307-00002443_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796410_34936-sensor-250307-00002443_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250307-00002443_redacted.pcap",
     "size_bytes": 462184105,
     "total_packets": 1812345,
     "top_ips": [
@@ -29447,7 +29447,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796410_34936-sensor-250307-00002443_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250307-00002443_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -29469,7 +29469,7 @@
   },
   {
     "file": "upload_1775796411_34936-sensor-250307-00002444_redacted.pcap",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796411_34936-sensor-250307-00002444_redacted.pcap",
+    "path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250307-00002444_redacted.pcap",
     "size_bytes": 292993821,
     "total_packets": 1137660,
     "top_ips": [
@@ -29816,7 +29816,7 @@
     "payload_deployment_confidence": 0.35,
     "payload_carving_candidate_count": 3,
     "payload_carving_status": "heuristic_only",
-    "payload_carving_manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/020-upload_1775796411_34936-sensor-250307-00002444_redacted.pcap/carved_manifest.json",
+    "payload_carving_manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/020-upload_1775796411_34936-sensor-250307-00002444_redacted.pcap/carved_manifest.json",
     "payload_carving_selected_candidates": [
       {
         "candidate_id": "smb-0-2",
@@ -31050,7 +31050,7 @@
       "status": "disabled",
       "mode": "auto",
       "image": "agenticnetsec-forensics-sandbox",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796411_34936-sensor-250307-00002444_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250307-00002444_redacted.pcap",
       "remote_management": {},
       "internal_scanning": {},
       "exfiltration": {},
@@ -31071,8 +31071,8 @@
     "ai_tshark_query_count": 0,
     "payload_carving": {
       "status": "heuristic_only",
-      "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796411_34936-sensor-250307-00002444_redacted.pcap",
-      "artifacts_dir": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/020-upload_1775796411_34936-sensor-250307-00002444_redacted.pcap",
+      "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250307-00002444_redacted.pcap",
+      "artifacts_dir": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/020-upload_1775796411_34936-sensor-250307-00002444_redacted.pcap",
       "limits": {
         "max_candidates_per_file": 12,
         "max_reconstructed_bytes_per_file": 67108864,
@@ -31215,7 +31215,7 @@
       ],
       "payload_deployment_confidence": 0.35,
       "bytes_reconstructed": 0,
-      "manifest_path": "/home/asus/project/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/020-upload_1775796411_34936-sensor-250307-00002444_redacted.pcap/carved_manifest.json",
+      "manifest_path": "/home/kuri/AgenticNetSec/outputs/total_jobs/total_fd0b2928220b/sandbox-payload-carving/020-upload_1775796411_34936-sensor-250307-00002444_redacted.pcap/carved_manifest.json",
       "skipped_candidates": [
         {
           "candidate_id": "smb-0-2",

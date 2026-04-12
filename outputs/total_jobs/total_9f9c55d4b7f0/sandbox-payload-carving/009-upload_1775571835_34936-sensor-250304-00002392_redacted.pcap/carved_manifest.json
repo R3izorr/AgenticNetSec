@@ -1,0 +1,21 @@
+{
+  "status": "no_candidates",
+  "pcap_path": "/home/kuri/AgenticNetSec/outputs/uploads/upload_1775571835_34936-sensor-250304-00002392_redacted.pcap",
+  "carved_artifacts_dir": "carved-artifacts",
+  "limits": {
+    "max_candidates_per_file": 12,
+    "max_reconstructed_bytes_per_file": 67108864,
+    "min_http_body_bytes": 4096
+  },
+  "candidate_count": 0,
+  "selected_candidates": [],
+  "carved_payload_count": 0,
+  "carved_payloads": [],
+  "payload_iocs": [],
+  "payload_deployment_confidence": 0.0,
+  "bytes_reconstructed": 0,
+  "skipped_candidates": [],
+  "notes": [
+    "No suspicious payload-deployment candidates met the carving gate."
+  ]
+}

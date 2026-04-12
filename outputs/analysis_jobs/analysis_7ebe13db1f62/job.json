@@ -7,10 +7,10 @@
   "created_at": "2026-04-10T04:46:51.659418+00:00",
   "updated_at": "2026-04-10T05:15:40.894994+00:00",
   "error": null,
-  "artifacts_dir": "/home/asus/project/AgenticNetSec/outputs/analysis_jobs/analysis_7ebe13db1f62",
+  "artifacts_dir": "/home/kuri/AgenticNetSec/outputs/analysis_jobs/analysis_7ebe13db1f62",
   "source_type": "upload",
   "source_name": "34936-sensor-250306-00002439_redacted.pcap",
-  "source_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796409_34936-sensor-250306-00002439_redacted.pcap",
+  "source_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002439_redacted.pcap",
   "metadata": {
     "filename": "upload_1775796409_34936-sensor-250306-00002439_redacted.pcap",
     "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796409_34936-sensor-250306-00002439_redacted.pcap",

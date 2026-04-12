@@ -1,7 +1,7 @@
 {
   "input_validity": {
     "status": "pass",
-    "path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
+    "path": "/home/kuri/AgenticNetSec/outputs/uploads/upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
     "suffix": ".pcap",
     "allowed_suffixes": [
       ".cap",

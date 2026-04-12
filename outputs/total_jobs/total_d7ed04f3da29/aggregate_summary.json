@@ -1,6 +1,6 @@
 {
-  "file_count": 20,
-  "files_with_external_rdp": 20,
+  "file_count": 14,
+  "files_with_external_rdp": 14,
   "files_with_external_port_scans": 0,
   "files_with_vpn_like_ingress": 0,
   "files_with_smb_rpc_scanning": 6,
@@ -8,102 +8,88 @@
   "files_with_temp_sh_hits": 0,
   "files_with_outbound_exfil_candidates": 1,
   "files_with_large_http_uploads": 0,
-  "files_with_internal_rdp_spread": 8,
+  "files_with_internal_rdp_spread": 6,
   "files_with_manual_payload_deployment": 2,
   "files_with_payload_carving_candidates": 2,
   "files_with_recovered_payload_artifacts": 0,
   "files_with_partial_payload_evidence": 0,
   "files_with_heuristic_payload_only": 2,
-  "files_with_deep_dive": 20,
+  "files_with_deep_dive": 14,
   "interesting_files": {
     "external_rdp": [
-      "upload_1775748861_34936-sensor-250301-00002364_redacted.pcap",
-      "upload_1775748862_34936-sensor-250301-00002365_redacted.pcap",
-      "upload_1775748862_34936-sensor-250301-00002366_redacted.pcap",
-      "upload_1775748863_34936-sensor-250301-00002367_redacted.pcap",
-      "upload_1775748863_34936-sensor-250301-00002368_redacted.pcap",
-      "upload_1775748863_34936-sensor-250301-00002369_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002372_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002373_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002374_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002375_redacted.pcap",
-      "upload_1775748866_34936-sensor-250302-00002376_redacted.pcap",
-      "upload_1775748866_34936-sensor-250302-00002377_redacted.pcap",
-      "upload_1775748866_34936-sensor-250302-00002378_redacted.pcap",
-      "upload_1775748867_34936-sensor-250302-00002379_redacted.pcap",
-      "upload_1775748867_34936-sensor-250303-00002380_redacted.pcap",
-      "upload_1775748867_34936-sensor-250303-00002381_redacted.pcap",
-      "upload_1775748867_34936-sensor-250303-00002382_redacted.pcap",
-      "upload_1775748868_34936-sensor-250303-00002383_redacted.pcap"
+      "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
+      "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap",
+      "upload_1775571710_34936-sensor-250302-00002372_redacted.pcap",
+      "upload_1775571711_34936-sensor-250302-00002373_redacted.pcap",
+      "upload_1775571711_34936-sensor-250302-00002374_redacted.pcap",
+      "upload_1775571712_34936-sensor-250302-00002375_redacted.pcap",
+      "upload_1775571712_34936-sensor-250302-00002376_redacted.pcap",
+      "upload_1775571713_34936-sensor-250302-00002377_redacted.pcap",
+      "upload_1775571713_34936-sensor-250302-00002378_redacted.pcap",
+      "upload_1775571714_34936-sensor-250302-00002379_redacted.pcap",
+      "upload_1775571714_34936-sensor-250303-00002380_redacted.pcap",
+      "upload_1775571714_34936-sensor-250303-00002381_redacted.pcap",
+      "upload_1775571715_34936-sensor-250303-00002382_redacted.pcap",
+      "upload_1775571715_34936-sensor-250303-00002383_redacted.pcap"
     ],
     "external_port_scans": [],
     "vpn_like_ingress": [],
     "smb_rpc_scanning": [
-      "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap",
-      "upload_1775748866_34936-sensor-250302-00002376_redacted.pcap",
-      "upload_1775748866_34936-sensor-250302-00002377_redacted.pcap",
-      "upload_1775748866_34936-sensor-250302-00002378_redacted.pcap",
-      "upload_1775748867_34936-sensor-250302-00002379_redacted.pcap"
+      "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
+      "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap",
+      "upload_1775571712_34936-sensor-250302-00002376_redacted.pcap",
+      "upload_1775571713_34936-sensor-250302-00002377_redacted.pcap",
+      "upload_1775571713_34936-sensor-250302-00002378_redacted.pcap",
+      "upload_1775571714_34936-sensor-250302-00002379_redacted.pcap"
     ],
     "dcerpc_account_markers": [],
     "temp_sh_hits": [],
     "outbound_exfil_candidates": [
-      "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap"
+      "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap"
     ],
     "large_http_uploads": [],
     "internal_rdp_spread": [
-      "upload_1775748861_34936-sensor-250301-00002364_redacted.pcap",
-      "upload_1775748862_34936-sensor-250301-00002365_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002372_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002373_redacted.pcap",
-      "upload_1775748867_34936-sensor-250303-00002380_redacted.pcap",
-      "upload_1775748867_34936-sensor-250303-00002381_redacted.pcap"
+      "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
+      "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap",
+      "upload_1775571710_34936-sensor-250302-00002372_redacted.pcap",
+      "upload_1775571711_34936-sensor-250302-00002373_redacted.pcap",
+      "upload_1775571714_34936-sensor-250303-00002380_redacted.pcap",
+      "upload_1775571714_34936-sensor-250303-00002381_redacted.pcap"
     ],
     "manual_payload_deployment": [
-      "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap"
+      "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
+      "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap"
     ],
     "payload_carving_candidates": [
-      "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap"
+      "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
+      "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap"
     ],
     "recovered_payload_artifacts": [],
     "partial_payload_evidence": [],
     "heuristic_payload_only": [
-      "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap"
+      "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
+      "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap"
     ],
     "deep_dive": [
-      "upload_1775748861_34936-sensor-250301-00002364_redacted.pcap",
-      "upload_1775748862_34936-sensor-250301-00002365_redacted.pcap",
-      "upload_1775748862_34936-sensor-250301-00002366_redacted.pcap",
-      "upload_1775748863_34936-sensor-250301-00002367_redacted.pcap",
-      "upload_1775748863_34936-sensor-250301-00002368_redacted.pcap",
-      "upload_1775748863_34936-sensor-250301-00002369_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002372_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002373_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002374_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002375_redacted.pcap",
-      "upload_1775748866_34936-sensor-250302-00002376_redacted.pcap",
-      "upload_1775748866_34936-sensor-250302-00002377_redacted.pcap",
-      "upload_1775748866_34936-sensor-250302-00002378_redacted.pcap",
-      "upload_1775748867_34936-sensor-250302-00002379_redacted.pcap",
-      "upload_1775748867_34936-sensor-250303-00002380_redacted.pcap",
-      "upload_1775748867_34936-sensor-250303-00002381_redacted.pcap",
-      "upload_1775748867_34936-sensor-250303-00002382_redacted.pcap",
-      "upload_1775748868_34936-sensor-250303-00002383_redacted.pcap"
+      "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
+      "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap",
+      "upload_1775571710_34936-sensor-250302-00002372_redacted.pcap",
+      "upload_1775571711_34936-sensor-250302-00002373_redacted.pcap",
+      "upload_1775571711_34936-sensor-250302-00002374_redacted.pcap",
+      "upload_1775571712_34936-sensor-250302-00002375_redacted.pcap",
+      "upload_1775571712_34936-sensor-250302-00002376_redacted.pcap",
+      "upload_1775571713_34936-sensor-250302-00002377_redacted.pcap",
+      "upload_1775571713_34936-sensor-250302-00002378_redacted.pcap",
+      "upload_1775571714_34936-sensor-250302-00002379_redacted.pcap",
+      "upload_1775571714_34936-sensor-250303-00002380_redacted.pcap",
+      "upload_1775571714_34936-sensor-250303-00002381_redacted.pcap",
+      "upload_1775571715_34936-sensor-250303-00002382_redacted.pcap",
+      "upload_1775571715_34936-sensor-250303-00002383_redacted.pcap"
     ]
   },
   "top_patient_zero_candidates": [
     {
-      "file": "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap",
+      "file": "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap",
       "external_ip": "195.211.190.189",
       "internal_ip": "10.128.239.57",
       "first_seen": 1767684878.052679,
@@ -166,7 +152,7 @@
       "confidence_score": 80
     },
     {
-      "file": "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
+      "file": "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
       "external_ip": "141.98.11.170",
       "internal_ip": "10.128.239.57",
       "first_seen": 1765976132.620737,
@@ -229,7 +215,7 @@
       "confidence_score": 80
     },
     {
-      "file": "upload_1775748867_34936-sensor-250303-00002380_redacted.pcap",
+      "file": "upload_1775571714_34936-sensor-250303-00002380_redacted.pcap",
       "external_ip": "141.98.11.190",
       "internal_ip": "10.128.239.57",
       "first_seen": 1765037609.974365,
@@ -292,7 +278,7 @@
       "confidence_score": 80
     },
     {
-      "file": "upload_1775748867_34936-sensor-250303-00002381_redacted.pcap",
+      "file": "upload_1775571714_34936-sensor-250303-00002381_redacted.pcap",
       "external_ip": "141.98.11.190",
       "internal_ip": "10.128.239.57",
       "first_seen": 1767158353.610845,
@@ -355,70 +341,7 @@
       "confidence_score": 80
     },
     {
-      "file": "upload_1775748861_34936-sensor-250301-00002364_redacted.pcap",
-      "external_ip": "141.98.11.81",
-      "internal_ip": "10.128.239.57",
-      "first_seen": 1765478616.578709,
-      "last_seen": 1765661359.766062,
-      "duration_seconds": 182743.19,
-      "packet_count": 82923,
-      "total_bytes": 12743381,
-      "handshake_complete": true,
-      "application_packets": 50207,
-      "post_login_unique_internal_targets": 22,
-      "sample_events": [
-        {
-          "timestamp": 1765478616.578709,
-          "src_ip": "141.98.11.81",
-          "dst_ip": "10.128.239.57",
-          "src_port": 4291,
-          "dst_port": 3389,
-          "has_payload": false,
-          "basis": "external SYN toward RDP service"
-        },
-        {
-          "timestamp": 1765478616.634295,
-          "src_ip": "10.128.239.57",
-          "dst_ip": "141.98.11.81",
-          "src_port": 3389,
-          "dst_port": 4291,
-          "has_payload": false,
-          "basis": "internal SYN-ACK from RDP service"
-        },
-        {
-          "timestamp": 1765478617.050945,
-          "src_ip": "141.98.11.81",
-          "dst_ip": "10.128.239.57",
-          "src_port": 4291,
-          "dst_port": 3389,
-          "has_payload": false,
-          "basis": "external ACK completing RDP handshake"
-        },
-        {
-          "timestamp": 1765478617.108932,
-          "src_ip": "141.98.11.81",
-          "dst_ip": "10.128.239.57",
-          "src_port": 4291,
-          "dst_port": 3389,
-          "has_payload": true,
-          "basis": "external RDP application packet"
-        },
-        {
-          "timestamp": 1765478617.167675,
-          "src_ip": "10.128.239.57",
-          "dst_ip": "141.98.11.81",
-          "src_port": 3389,
-          "dst_port": 4291,
-          "has_payload": true,
-          "basis": "internal RDP application response"
-        }
-      ],
-      "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
-      "suspicious": true,
-      "confidence_score": 80
-    },
-    {
-      "file": "upload_1775748865_34936-sensor-250302-00002372_redacted.pcap",
+      "file": "upload_1775571710_34936-sensor-250302-00002372_redacted.pcap",
       "external_ip": "185.147.125.13",
       "internal_ip": "10.128.239.57",
       "first_seen": 1767586047.101571,
@@ -481,7 +404,7 @@
       "confidence_score": 80
     },
     {
-      "file": "upload_1775748865_34936-sensor-250302-00002373_redacted.pcap",
+      "file": "upload_1775571711_34936-sensor-250302-00002373_redacted.pcap",
       "external_ip": "185.147.125.13",
       "internal_ip": "10.128.239.57",
       "first_seen": 1768407488.627997,
@@ -544,70 +467,7 @@
       "confidence_score": 80
     },
     {
-      "file": "upload_1775748862_34936-sensor-250301-00002365_redacted.pcap",
-      "external_ip": "141.98.11.81",
-      "internal_ip": "10.128.239.57",
-      "first_seen": 1768324911.842176,
-      "last_seen": 1768505881.23835,
-      "duration_seconds": 180969.4,
-      "packet_count": 63754,
-      "total_bytes": 9794889,
-      "handshake_complete": true,
-      "application_packets": 38640,
-      "post_login_unique_internal_targets": 23,
-      "sample_events": [
-        {
-          "timestamp": 1768324911.842176,
-          "src_ip": "141.98.11.81",
-          "dst_ip": "10.128.239.57",
-          "src_port": 45105,
-          "dst_port": 3389,
-          "has_payload": false,
-          "basis": "external SYN toward RDP service"
-        },
-        {
-          "timestamp": 1768324911.900136,
-          "src_ip": "10.128.239.57",
-          "dst_ip": "141.98.11.81",
-          "src_port": 3389,
-          "dst_port": 45105,
-          "has_payload": false,
-          "basis": "internal SYN-ACK from RDP service"
-        },
-        {
-          "timestamp": 1768324912.07336,
-          "src_ip": "141.98.11.81",
-          "dst_ip": "10.128.239.57",
-          "src_port": 45105,
-          "dst_port": 3389,
-          "has_payload": false,
-          "basis": "external ACK completing RDP handshake"
-        },
-        {
-          "timestamp": 1768324912.134222,
-          "src_ip": "141.98.11.81",
-          "dst_ip": "10.128.239.57",
-          "src_port": 45105,
-          "dst_port": 3389,
-          "has_payload": true,
-          "basis": "external RDP application packet"
-        },
-        {
-          "timestamp": 1768324912.194012,
-          "src_ip": "10.128.239.57",
-          "dst_ip": "141.98.11.81",
-          "src_port": 3389,
-          "dst_port": 45105,
-          "has_payload": true,
-          "basis": "internal RDP application response"
-        }
-      ],
-      "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
-      "suspicious": true,
-      "confidence_score": 80
-    },
-    {
-      "file": "upload_1775748866_34936-sensor-250302-00002376_redacted.pcap",
+      "file": "upload_1775571712_34936-sensor-250302-00002376_redacted.pcap",
       "external_ip": "179.60.146.36",
       "internal_ip": "10.128.239.57",
       "first_seen": 1769541464.672887,
@@ -670,7 +530,7 @@
       "confidence_score": 68
     },
     {
-      "file": "upload_1775748868_34936-sensor-250303-00002383_redacted.pcap",
+      "file": "upload_1775571715_34936-sensor-250303-00002383_redacted.pcap",
       "external_ip": "141.98.83.70",
       "internal_ip": "10.128.239.57",
       "first_seen": 1765240517.939209,
@@ -733,7 +593,7 @@
       "confidence_score": 68
     },
     {
-      "file": "upload_1775748866_34936-sensor-250302-00002377_redacted.pcap",
+      "file": "upload_1775571713_34936-sensor-250302-00002377_redacted.pcap",
       "external_ip": "179.60.146.36",
       "internal_ip": "10.128.239.57",
       "first_seen": 1768110601.998227,
@@ -796,7 +656,7 @@
       "confidence_score": 68
     },
     {
-      "file": "upload_1775748867_34936-sensor-250303-00002382_redacted.pcap",
+      "file": "upload_1775571715_34936-sensor-250303-00002382_redacted.pcap",
       "external_ip": "141.98.83.70",
       "internal_ip": "10.128.239.57",
       "first_seen": 1764716551.651343,
@@ -859,7 +719,7 @@
       "confidence_score": 68
     },
     {
-      "file": "upload_1775748866_34936-sensor-250302-00002378_redacted.pcap",
+      "file": "upload_1775571713_34936-sensor-250302-00002378_redacted.pcap",
       "external_ip": "91.224.92.23",
       "internal_ip": "10.128.239.57",
       "first_seen": 1768505954.158125,
@@ -922,7 +782,7 @@
       "confidence_score": 68
     },
     {
-      "file": "upload_1775748867_34936-sensor-250302-00002379_redacted.pcap",
+      "file": "upload_1775571714_34936-sensor-250302-00002379_redacted.pcap",
       "external_ip": "91.224.92.23",
       "internal_ip": "10.128.239.57",
       "first_seen": 1768837859.911902,
@@ -985,7 +845,7 @@
       "confidence_score": 68
     },
     {
-      "file": "upload_1775748865_34936-sensor-250302-00002374_redacted.pcap",
+      "file": "upload_1775571711_34936-sensor-250302-00002374_redacted.pcap",
       "external_ip": "45.130.145.40",
       "internal_ip": "10.128.239.57",
       "first_seen": 1767738611.906496,
@@ -1048,7 +908,7 @@
       "confidence_score": 68
     },
     {
-      "file": "upload_1775748865_34936-sensor-250302-00002375_redacted.pcap",
+      "file": "upload_1775571712_34936-sensor-250302-00002375_redacted.pcap",
       "external_ip": "45.92.229.189",
       "internal_ip": "10.128.239.57",
       "first_seen": 1769289944.146193,
@@ -1109,277 +969,17 @@
       "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
       "suspicious": true,
       "confidence_score": 68
-    },
-    {
-      "file": "upload_1775748863_34936-sensor-250301-00002369_redacted.pcap",
-      "external_ip": "141.98.11.170",
-      "internal_ip": "10.128.239.57",
-      "first_seen": 1765898533.66489,
-      "last_seen": 1766068300.79641,
-      "duration_seconds": 169767.13,
-      "packet_count": 91780,
-      "total_bytes": 14999364,
-      "handshake_complete": true,
-      "application_packets": 55055,
-      "post_login_unique_internal_targets": 4,
-      "sample_events": [
-        {
-          "timestamp": 1765898533.66489,
-          "src_ip": "141.98.11.170",
-          "dst_ip": "10.128.239.57",
-          "src_port": 59126,
-          "dst_port": 3389,
-          "has_payload": false,
-          "basis": "external SYN toward RDP service"
-        },
-        {
-          "timestamp": 1765898533.723801,
-          "src_ip": "10.128.239.57",
-          "dst_ip": "141.98.11.170",
-          "src_port": 3389,
-          "dst_port": 59126,
-          "has_payload": false,
-          "basis": "internal SYN-ACK from RDP service"
-        },
-        {
-          "timestamp": 1765898534.109805,
-          "src_ip": "141.98.11.170",
-          "dst_ip": "10.128.239.57",
-          "src_port": 59126,
-          "dst_port": 3389,
-          "has_payload": false,
-          "basis": "external ACK completing RDP handshake"
-        },
-        {
-          "timestamp": 1765898534.22408,
-          "src_ip": "141.98.11.170",
-          "dst_ip": "10.128.239.57",
-          "src_port": 59126,
-          "dst_port": 3389,
-          "has_payload": true,
-          "basis": "external RDP application packet"
-        },
-        {
-          "timestamp": 1765898534.279875,
-          "src_ip": "10.128.239.57",
-          "dst_ip": "141.98.11.170",
-          "src_port": 3389,
-          "dst_port": 59126,
-          "has_payload": true,
-          "basis": "internal RDP application response"
-        }
-      ],
-      "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
-      "suspicious": true,
-      "confidence_score": 62
-    },
-    {
-      "file": "upload_1775748863_34936-sensor-250301-00002368_redacted.pcap",
-      "external_ip": "141.98.11.170",
-      "internal_ip": "10.128.239.57",
-      "first_seen": 1766068369.225262,
-      "last_seen": 1766251822.504885,
-      "duration_seconds": 183453.28,
-      "packet_count": 92355,
-      "total_bytes": 14976013,
-      "handshake_complete": true,
-      "application_packets": 55437,
-      "post_login_unique_internal_targets": 4,
-      "sample_events": [
-        {
-          "timestamp": 1766068369.225262,
-          "src_ip": "141.98.11.170",
-          "dst_ip": "10.128.239.57",
-          "src_port": 1790,
-          "dst_port": 3389,
-          "has_payload": false,
-          "basis": "external SYN toward RDP service"
-        },
-        {
-          "timestamp": 1766068369.280366,
-          "src_ip": "10.128.239.57",
-          "dst_ip": "141.98.11.170",
-          "src_port": 3389,
-          "dst_port": 1790,
-          "has_payload": false,
-          "basis": "internal SYN-ACK from RDP service"
-        },
-        {
-          "timestamp": 1766068369.63643,
-          "src_ip": "141.98.11.170",
-          "dst_ip": "10.128.239.57",
-          "src_port": 1790,
-          "dst_port": 3389,
-          "has_payload": false,
-          "basis": "external ACK completing RDP handshake"
-        },
-        {
-          "timestamp": 1766068369.693945,
-          "src_ip": "141.98.11.170",
-          "dst_ip": "10.128.239.57",
-          "src_port": 1790,
-          "dst_port": 3389,
-          "has_payload": true,
-          "basis": "external RDP application packet"
-        },
-        {
-          "timestamp": 1766068369.917336,
-          "src_ip": "10.128.239.57",
-          "dst_ip": "141.98.11.170",
-          "src_port": 3389,
-          "dst_port": 1790,
-          "has_payload": true,
-          "basis": "internal RDP application response"
-        }
-      ],
-      "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
-      "suspicious": true,
-      "confidence_score": 62
-    },
-    {
-      "file": "upload_1775748863_34936-sensor-250301-00002367_redacted.pcap",
-      "external_ip": "194.0.234.31",
-      "internal_ip": "10.128.239.57",
-      "first_seen": 1763835301.116394,
-      "last_seen": 1763979074.525584,
-      "duration_seconds": 143773.41,
-      "packet_count": 85412,
-      "total_bytes": 13121623,
-      "handshake_complete": true,
-      "application_packets": 51829,
-      "post_login_unique_internal_targets": 4,
-      "sample_events": [
-        {
-          "timestamp": 1763835301.116394,
-          "src_ip": "194.0.234.31",
-          "dst_ip": "10.128.239.57",
-          "src_port": 5992,
-          "dst_port": 3389,
-          "has_payload": false,
-          "basis": "external SYN toward RDP service"
-        },
-        {
-          "timestamp": 1763835301.171271,
-          "src_ip": "10.128.239.57",
-          "dst_ip": "194.0.234.31",
-          "src_port": 3389,
-          "dst_port": 5992,
-          "has_payload": false,
-          "basis": "internal SYN-ACK from RDP service"
-        },
-        {
-          "timestamp": 1763835302.264489,
-          "src_ip": "194.0.234.31",
-          "dst_ip": "10.128.239.57",
-          "src_port": 5992,
-          "dst_port": 3389,
-          "has_payload": false,
-          "basis": "external ACK completing RDP handshake"
-        },
-        {
-          "timestamp": 1763835303.212473,
-          "src_ip": "194.0.234.31",
-          "dst_ip": "10.128.239.57",
-          "src_port": 5992,
-          "dst_port": 3389,
-          "has_payload": true,
-          "basis": "external RDP application packet"
-        },
-        {
-          "timestamp": 1763835303.272903,
-          "src_ip": "10.128.239.57",
-          "dst_ip": "194.0.234.31",
-          "src_port": 3389,
-          "dst_port": 5992,
-          "has_payload": true,
-          "basis": "internal RDP application response"
-        }
-      ],
-      "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
-      "suspicious": true,
-      "confidence_score": 62
-    },
-    {
-      "file": "upload_1775748862_34936-sensor-250301-00002366_redacted.pcap",
-      "external_ip": "194.0.234.31",
-      "internal_ip": "10.128.239.57",
-      "first_seen": 1765393318.958322,
-      "last_seen": 1765598396.10248,
-      "duration_seconds": 205077.14,
-      "packet_count": 101615,
-      "total_bytes": 15616253,
-      "handshake_complete": true,
-      "application_packets": 61715,
-      "post_login_unique_internal_targets": 3,
-      "sample_events": [
-        {
-          "timestamp": 1765393318.958322,
-          "src_ip": "10.128.239.57",
-          "dst_ip": "194.0.234.31",
-          "src_port": 3389,
-          "dst_port": 3174,
-          "has_payload": true,
-          "basis": "internal RDP application response"
-        },
-        {
-          "timestamp": 1765393319.590966,
-          "src_ip": "194.0.234.31",
-          "dst_ip": "10.128.239.57",
-          "src_port": 3174,
-          "dst_port": 3389,
-          "has_payload": true,
-          "basis": "external RDP application packet"
-        },
-        {
-          "timestamp": 1765393319.653572,
-          "src_ip": "194.0.234.31",
-          "dst_ip": "10.128.239.57",
-          "src_port": 3174,
-          "dst_port": 3389,
-          "has_payload": true,
-          "basis": "external RDP application packet"
-        },
-        {
-          "timestamp": 1765393319.710189,
-          "src_ip": "194.0.234.31",
-          "dst_ip": "10.128.239.57",
-          "src_port": 3174,
-          "dst_port": 3389,
-          "has_payload": false,
-          "basis": "external ACK completing RDP handshake"
-        },
-        {
-          "timestamp": 1765393319.766297,
-          "src_ip": "10.128.239.57",
-          "dst_ip": "194.0.234.31",
-          "src_port": 3389,
-          "dst_port": 3174,
-          "has_payload": false,
-          "basis": "internal RDP server response"
-        }
-      ],
-      "basis": "External-to-internal RDP session with handshake/application evidence and optional post-login lateral activity.",
-      "suspicious": true,
-      "confidence_score": 59
     }
   ],
   "top_deep_dive_focus_hosts": [
     {
       "host": "10.128.239.57",
-      "file_count": 20
+      "file_count": 14
     }
   ],
   "attack_flow": {
     "focus_host": "10.128.239.57",
     "primary_external_ips": [
-      {
-        "external_ip": "141.98.11.170",
-        "score": 204
-      },
-      {
-        "external_ip": "141.98.11.81",
-        "score": 160
-      },
       {
         "external_ip": "185.147.125.13",
         "score": 160
@@ -1401,8 +1001,8 @@
         "score": 136
       },
       {
-        "external_ip": "194.0.234.31",
-        "score": 121
+        "external_ip": "141.98.11.170",
+        "score": 80
       },
       {
         "external_ip": "195.211.190.189",
@@ -1411,245 +1011,193 @@
       {
         "external_ip": "45.130.145.40",
         "score": 68
+      },
+      {
+        "external_ip": "45.92.229.189",
+        "score": 68
       }
     ],
     "stage_counts": {
-      "initial_access": 20,
+      "initial_access": 14,
       "reconnaissance": 0,
       "discovery": 2,
       "administrative_activity": 0,
       "exfiltration": 1,
-      "payload_deployment": 8
+      "payload_deployment": 6
     },
     "likely_path": "Initial Access -> Payload Deployment -> Discovery -> Exfiltration",
     "timeline": [
       {
         "stage": "initial_access",
-        "file": "upload_1775748863_34936-sensor-250301-00002367_redacted.pcap",
-        "timestamp": 1763835301.116394,
-        "detail": "External 194.0.234.31 -> 10.128.239.57 confidence=62 post_login_targets=4"
-      },
-      {
-        "stage": "initial_access",
-        "file": "upload_1775748867_34936-sensor-250303-00002382_redacted.pcap",
+        "file": "upload_1775571715_34936-sensor-250303-00002382_redacted.pcap",
         "timestamp": 1764716551.651343,
         "detail": "External 141.98.83.70 -> 10.128.239.57 confidence=68 post_login_targets=6"
       },
       {
         "stage": "initial_access",
-        "file": "upload_1775748867_34936-sensor-250303-00002380_redacted.pcap",
+        "file": "upload_1775571714_34936-sensor-250303-00002380_redacted.pcap",
         "timestamp": 1765037609.974365,
         "detail": "External 141.98.11.190 -> 10.128.239.57 confidence=80 post_login_targets=22"
       },
       {
         "stage": "payload_deployment",
-        "file": "upload_1775748867_34936-sensor-250303-00002380_redacted.pcap",
+        "file": "upload_1775571714_34936-sensor-250303-00002380_redacted.pcap",
         "timestamp": 1765084011.317416,
         "detail": "10.128.239.57 spread internal RDP to 12 targets"
       },
       {
         "stage": "initial_access",
-        "file": "upload_1775748868_34936-sensor-250303-00002383_redacted.pcap",
+        "file": "upload_1775571715_34936-sensor-250303-00002383_redacted.pcap",
         "timestamp": 1765240517.939209,
         "detail": "External 141.98.83.70 -> 10.128.239.57 confidence=68 post_login_targets=6"
       },
       {
         "stage": "initial_access",
-        "file": "upload_1775748862_34936-sensor-250301-00002366_redacted.pcap",
-        "timestamp": 1765393318.958322,
-        "detail": "External 194.0.234.31 -> 10.128.239.57 confidence=59 post_login_targets=3"
-      },
-      {
-        "stage": "initial_access",
-        "file": "upload_1775748861_34936-sensor-250301-00002364_redacted.pcap",
-        "timestamp": 1765478616.578709,
-        "detail": "External 141.98.11.81 -> 10.128.239.57 confidence=80 post_login_targets=22"
-      },
-      {
-        "stage": "payload_deployment",
-        "file": "upload_1775748861_34936-sensor-250301-00002364_redacted.pcap",
-        "timestamp": 1765641715.529698,
-        "detail": "10.128.239.57 spread internal RDP to 16 targets"
-      },
-      {
-        "stage": "initial_access",
-        "file": "upload_1775748863_34936-sensor-250301-00002369_redacted.pcap",
-        "timestamp": 1765898533.66489,
-        "detail": "External 141.98.11.170 -> 10.128.239.57 confidence=62 post_login_targets=4"
-      },
-      {
-        "stage": "initial_access",
-        "file": "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
+        "file": "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
         "timestamp": 1765976132.620737,
         "detail": "External 141.98.11.170 -> 10.128.239.57 confidence=80 post_login_targets=151"
       },
       {
         "stage": "discovery",
-        "file": "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
+        "file": "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
         "timestamp": 1765976187.812818,
         "detail": "10.128.239.57 scanned 149 targets over SMB/RPC"
       },
       {
-        "stage": "initial_access",
-        "file": "upload_1775748863_34936-sensor-250301-00002368_redacted.pcap",
-        "timestamp": 1766068369.225262,
-        "detail": "External 141.98.11.170 -> 10.128.239.57 confidence=62 post_login_targets=4"
-      },
-      {
         "stage": "payload_deployment",
-        "file": "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
+        "file": "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
         "timestamp": 1766109308.227476,
         "detail": "10.128.239.57 showed manual-drop traits across 61 targets (admin_share_targets=1, remote_exec_targets=0)"
       },
       {
         "stage": "initial_access",
-        "file": "upload_1775748867_34936-sensor-250303-00002381_redacted.pcap",
+        "file": "upload_1775571714_34936-sensor-250303-00002381_redacted.pcap",
         "timestamp": 1767158353.610845,
         "detail": "External 141.98.11.190 -> 10.128.239.57 confidence=80 post_login_targets=31"
       },
       {
         "stage": "payload_deployment",
-        "file": "upload_1775748867_34936-sensor-250303-00002381_redacted.pcap",
+        "file": "upload_1775571714_34936-sensor-250303-00002381_redacted.pcap",
         "timestamp": 1767202220.262511,
         "detail": "10.128.239.57 spread internal RDP to 21 targets"
       },
       {
         "stage": "discovery",
-        "file": "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap",
+        "file": "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap",
         "timestamp": 1767584375.541778,
         "detail": "10.128.239.57 scanned 147 targets over SMB/RPC"
       },
       {
         "stage": "initial_access",
-        "file": "upload_1775748865_34936-sensor-250302-00002372_redacted.pcap",
+        "file": "upload_1775571710_34936-sensor-250302-00002372_redacted.pcap",
         "timestamp": 1767586047.101571,
         "detail": "External 185.147.125.13 -> 10.128.239.57 confidence=80 post_login_targets=30"
       },
       {
         "stage": "payload_deployment",
-        "file": "upload_1775748865_34936-sensor-250302-00002372_redacted.pcap",
+        "file": "upload_1775571710_34936-sensor-250302-00002372_redacted.pcap",
         "timestamp": 1767680306.621411,
         "detail": "10.128.239.57 spread internal RDP to 21 targets"
       },
       {
         "stage": "initial_access",
-        "file": "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap",
+        "file": "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap",
         "timestamp": 1767684878.052679,
         "detail": "External 195.211.190.189 -> 10.128.239.57 confidence=80 post_login_targets=147"
       },
       {
         "stage": "exfiltration",
-        "file": "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap",
+        "file": "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap",
         "timestamp": 1767684878.112303,
         "detail": "10.128.239.57 -> 195.211.190.189:52946 severity=medium total_bytes=14582215"
       },
       {
         "stage": "payload_deployment",
-        "file": "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap",
+        "file": "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap",
         "timestamp": 1767692659.64572,
         "detail": "10.128.239.57 showed manual-drop traits across 74 targets (admin_share_targets=0, remote_exec_targets=0)"
       },
       {
         "stage": "initial_access",
-        "file": "upload_1775748865_34936-sensor-250302-00002374_redacted.pcap",
+        "file": "upload_1775571711_34936-sensor-250302-00002374_redacted.pcap",
         "timestamp": 1767738611.906496,
         "detail": "External 45.130.145.40 -> 10.128.239.57 confidence=68 post_login_targets=6"
       },
       {
         "stage": "initial_access",
-        "file": "upload_1775748866_34936-sensor-250302-00002377_redacted.pcap",
+        "file": "upload_1775571713_34936-sensor-250302-00002377_redacted.pcap",
         "timestamp": 1768110601.998227,
         "detail": "External 179.60.146.36 -> 10.128.239.57 confidence=68 post_login_targets=6"
       },
       {
         "stage": "initial_access",
-        "file": "upload_1775748862_34936-sensor-250301-00002365_redacted.pcap",
-        "timestamp": 1768324911.842176,
-        "detail": "External 141.98.11.81 -> 10.128.239.57 confidence=80 post_login_targets=23"
-      },
-      {
-        "stage": "initial_access",
-        "file": "upload_1775748865_34936-sensor-250302-00002373_redacted.pcap",
+        "file": "upload_1775571711_34936-sensor-250302-00002373_redacted.pcap",
         "timestamp": 1768407488.627997,
         "detail": "External 185.147.125.13 -> 10.128.239.57 confidence=80 post_login_targets=21"
       },
       {
-        "stage": "payload_deployment",
-        "file": "upload_1775748862_34936-sensor-250301-00002365_redacted.pcap",
-        "timestamp": 1768490750.896554,
-        "detail": "10.128.239.57 spread internal RDP to 17 targets"
-      },
-      {
         "stage": "initial_access",
-        "file": "upload_1775748866_34936-sensor-250302-00002378_redacted.pcap",
+        "file": "upload_1775571713_34936-sensor-250302-00002378_redacted.pcap",
         "timestamp": 1768505954.158125,
         "detail": "External 91.224.92.23 -> 10.128.239.57 confidence=68 post_login_targets=6"
       },
       {
         "stage": "payload_deployment",
-        "file": "upload_1775748865_34936-sensor-250302-00002373_redacted.pcap",
+        "file": "upload_1775571711_34936-sensor-250302-00002373_redacted.pcap",
         "timestamp": 1768507165.018021,
         "detail": "10.128.239.57 spread internal RDP to 12 targets"
       },
       {
         "stage": "initial_access",
-        "file": "upload_1775748867_34936-sensor-250302-00002379_redacted.pcap",
+        "file": "upload_1775571714_34936-sensor-250302-00002379_redacted.pcap",
         "timestamp": 1768837859.911902,
         "detail": "External 91.224.92.23 -> 10.128.239.57 confidence=68 post_login_targets=6"
       },
       {
         "stage": "initial_access",
-        "file": "upload_1775748865_34936-sensor-250302-00002375_redacted.pcap",
+        "file": "upload_1775571712_34936-sensor-250302-00002375_redacted.pcap",
         "timestamp": 1769289944.146193,
         "detail": "External 45.92.229.189 -> 10.128.239.57 confidence=68 post_login_targets=6"
       },
       {
         "stage": "initial_access",
-        "file": "upload_1775748866_34936-sensor-250302-00002376_redacted.pcap",
+        "file": "upload_1775571712_34936-sensor-250302-00002376_redacted.pcap",
         "timestamp": 1769541464.672887,
         "detail": "External 179.60.146.36 -> 10.128.239.57 confidence=68 post_login_targets=6"
       }
     ],
     "initial_access_files": [
-      "upload_1775748863_34936-sensor-250301-00002367_redacted.pcap",
-      "upload_1775748867_34936-sensor-250303-00002382_redacted.pcap",
-      "upload_1775748867_34936-sensor-250303-00002380_redacted.pcap",
-      "upload_1775748868_34936-sensor-250303-00002383_redacted.pcap",
-      "upload_1775748862_34936-sensor-250301-00002366_redacted.pcap",
-      "upload_1775748861_34936-sensor-250301-00002364_redacted.pcap",
-      "upload_1775748863_34936-sensor-250301-00002369_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
-      "upload_1775748863_34936-sensor-250301-00002368_redacted.pcap",
-      "upload_1775748867_34936-sensor-250303-00002381_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002372_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002374_redacted.pcap",
-      "upload_1775748866_34936-sensor-250302-00002377_redacted.pcap",
-      "upload_1775748862_34936-sensor-250301-00002365_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002373_redacted.pcap",
-      "upload_1775748866_34936-sensor-250302-00002378_redacted.pcap",
-      "upload_1775748867_34936-sensor-250302-00002379_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002375_redacted.pcap",
-      "upload_1775748866_34936-sensor-250302-00002376_redacted.pcap"
+      "upload_1775571715_34936-sensor-250303-00002382_redacted.pcap",
+      "upload_1775571714_34936-sensor-250303-00002380_redacted.pcap",
+      "upload_1775571715_34936-sensor-250303-00002383_redacted.pcap",
+      "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
+      "upload_1775571714_34936-sensor-250303-00002381_redacted.pcap",
+      "upload_1775571710_34936-sensor-250302-00002372_redacted.pcap",
+      "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap",
+      "upload_1775571711_34936-sensor-250302-00002374_redacted.pcap",
+      "upload_1775571713_34936-sensor-250302-00002377_redacted.pcap",
+      "upload_1775571711_34936-sensor-250302-00002373_redacted.pcap",
+      "upload_1775571713_34936-sensor-250302-00002378_redacted.pcap",
+      "upload_1775571714_34936-sensor-250302-00002379_redacted.pcap",
+      "upload_1775571712_34936-sensor-250302-00002375_redacted.pcap",
+      "upload_1775571712_34936-sensor-250302-00002376_redacted.pcap"
     ],
     "reconnaissance_files": [],
     "discovery_files": [
-      "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap"
+      "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
+      "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap"
     ],
     "administrative_activity_files": [],
     "exfiltration_files": [
-      "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap"
+      "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap"
     ],
     "payload_deployment_files": [
-      "upload_1775748867_34936-sensor-250303-00002380_redacted.pcap",
-      "upload_1775748861_34936-sensor-250301-00002364_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002370_redacted.pcap",
-      "upload_1775748867_34936-sensor-250303-00002381_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002372_redacted.pcap",
-      "upload_1775748864_34936-sensor-250301-00002371_redacted.pcap",
-      "upload_1775748862_34936-sensor-250301-00002365_redacted.pcap",
-      "upload_1775748865_34936-sensor-250302-00002373_redacted.pcap"
+      "upload_1775571714_34936-sensor-250303-00002380_redacted.pcap",
+      "upload_1775571709_34936-sensor-250301-00002370_redacted.pcap",
+      "upload_1775571714_34936-sensor-250303-00002381_redacted.pcap",
+      "upload_1775571710_34936-sensor-250302-00002372_redacted.pcap",
+      "upload_1775571710_34936-sensor-250301-00002371_redacted.pcap",
+      "upload_1775571711_34936-sensor-250302-00002373_redacted.pcap"
     ]
   }
 }

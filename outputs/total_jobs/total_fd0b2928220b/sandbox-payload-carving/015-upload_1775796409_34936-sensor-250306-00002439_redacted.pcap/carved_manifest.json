@@ -1,6 +1,6 @@
 {
   "status": "no_candidates",
-  "pcap_path": "/home/asus/project/AgenticNetSec/outputs/uploads/upload_1775796409_34936-sensor-250306-00002439_redacted.pcap",
+  "pcap_path": "/mnt/c/Users/az100/1-PROJECT/network/network/pcap/34936-sensor-250306-00002439_redacted.pcap",
   "carved_artifacts_dir": "carved-artifacts",
   "limits": {
     "max_candidates_per_file": 12,
