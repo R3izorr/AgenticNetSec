@@ -1,0 +1,117 @@
+Demo Script: AgenticNetSec PCAP Investigation
+
+Opening
+
+Today I am going to demo our network forensic analyser using a ransomware investigation dataset.
+
+The dataset has 129 PCAP files. Instead of opening every packet capture manually, we use AgenticNetSec to process the full set and turn it into evidence, reports, and a campaign-level attack summary.
+
+The goal of the investigation is to answer four questions:
+
+1. A: How did the attacker get initial access?
+2. B: How did they move laterally and discover the network?
+3. C: Did they exfiltrate data?
+4. D: How was the ransomware payload deployed?
+
+System Overview
+
+Our PCAP analyser has two stages.
+
+Stage 1 is the deterministic per-file analysis stage.
+
+In Stage 1, every PCAP is analysed individually. The system extracts network indicators, suspicious protocols, traffic volumes, RDP activity, SMB/RPC activity, exfiltration candidates, and per-file evidence. This stage is designed to be fast and repeatable, so we can process many files without waiting for AI.
+
+Stage 2 is the enrichment and campaign analysis stage.
+
+In Stage 2, the system combines the completed Stage 1 records. It performs deduplication, sandbox-style verification, targeted follow-up checks, delayed payload-carving logic, and then creates a final AI campaign summary. This is where the tool tries to connect separate PCAP findings into one attack flow.
+
+Running A Small Test
+
+Now I am going to run a test on a few files first, instead of the full 129 PCAPs.
+
+The reason is simple: I want to show the workflow quickly and prove what one run looks like.
+
+I will upload/select a small batch of PCAPs, choose the standard analysis profile, and start the scan.
+
+While it runs, the system creates child analysis jobs for each PCAP. Each child job produces its own deterministic output files:
+
+- analysis_record.json
+- report.json
+- report.md
+- metrics.json
+- guardrail_audit.json
+
+Opening Per-File Results
+
+After the test files finish, I open the result for each file.
+
+Here we can see that each PCAP gets its own report. The report shows what the analyser found in that file: suspicious connections, protocol activity, traffic volumes, possible RDP access, SMB/RPC scanning, exfiltration candidates, and other evidence.
+
+This is useful because one PCAP may only show one part of the attack.
+
+For example, one file may show external RDP access. Another file may show SMB scanning. Another file may show a large outbound transfer. Alone, each report is only one piece. Together, they help build the full incident timeline.
+
+Scaling To All 129 PCAPs
+
+After proving the small test works, we run the same workflow on all 129 PCAP files.
+
+The Total Jobs page lets us track the full batch. It shows how many files were analysed, how many child jobs completed, and whether enrichment is finished.
+
+In our completed run, all 129 records were collected into the combined all-scans summary.
+
+Running The AI Total Summary
+
+Next, we run the AI total summary.
+
+This step does not just summarize one file. It takes all completed analysis records from Stage 1 and Stage 2, combines them, and asks the AI to reconstruct the campaign flow.
+
+The AI summary is scored and explained against the four investigation criteria:
+
+- A: Initial Access
+- B: Lateral Movement and Discovery
+- C: Exfiltration
+- D: Payload Deployment
+
+The important part is that the AI is not starting from raw packets. It is using structured evidence created by the deterministic analyser and enrichment pipeline.
+
+Checking The Final Report
+
+Now we open the final report.
+
+The current summary covers 129 unique records with no duplicates.
+
+For Initial Access, the report points to external RDP access into 10.128.239.57. This supports the idea that the attacker entered through public-facing remote access rather than phishing.
+
+For Lateral Movement and Discovery, the report shows that 10.128.239.57 became the pivot host. It performed SMB/RPC scanning and internal RDP activity across the network.
+
+For Exfiltration, the report shows large outbound transfer candidates. The biggest observed transfer is over 576 MB to an external IP over port 443. The dataset also contains temp.sh-related indicators.
+
+For Payload Deployment, the report is more cautious. It found manual deployment behavior and internal RDP spread, but it did not recover the ransomware binary from the PCAPs. So the report marks this as heuristic-only instead of inventing a fake hash or payload name.
+
+Key Demo Message
+
+The main value of this system is not that it magically solves every PCAP.
+
+The value is that it reduces 129 packet captures into:
+
+- per-file reports
+- structured evidence
+- enrichment results
+- campaign-level attack flow
+- confidence and gaps
+- final answers for A, B, C, and D
+
+Closing
+
+So the workflow is:
+
+1. Upload or select PCAPs.
+2. Run Stage 1 deterministic analysis.
+3. Open individual file reports to inspect local evidence.
+4. Run Stage 2 enrichment.
+5. Generate the AI total summary.
+6. Review the final campaign report against the four investigation questions.
+
+The best way to describe the tool is:
+
+AgenticNetSec does not just summarize packets. It helps us understand what we know, what we suspect, and what we still cannot prove.
