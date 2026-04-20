@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.pyc
+.pytest_cache/
 .venv/
 venv/
 backend/venv/
@@ -18,9 +19,7 @@ Thumbs.db
 /.codex
 
 # Runtime artifacts
-outputs/uploads/
-outputs/analysis_jobs/
-outputs/total_jobs/
+outputs/
 
 # Local repo noise
 /package-lock.json
