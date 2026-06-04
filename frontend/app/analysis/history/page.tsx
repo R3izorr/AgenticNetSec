@@ -6,6 +6,7 @@ import type { Column, ColumnDef } from "@tanstack/react-table"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/page-state"
+import { useAuth } from "@/components/providers/auth-provider"
 import { InlineNotice } from "@/components/common/inline-notice"
 import { SectionCard } from "@/components/common/section-card"
 import { StatusBadge } from "@/components/common/status-badge"
@@ -19,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { formatDateTime, formatNumber, formatPhaseLabel } from "@/lib/format"
+import { canCreateAnalysis } from "@/lib/permissions"
 import type { JobStatus } from "@/lib/types/analysis"
 import { useJobHistory } from "@/hooks/use-job-history"
 import { DataTable } from "./data-table"
@@ -144,6 +146,8 @@ export const columns: ColumnDef<JobStatus>[] = [
 ]
 
 export default function HistoryPage() {
+  const { session } = useAuth()
+  const mayCreateAnalysis = canCreateAnalysis(session?.organization.role)
   const { jobs, loading, error, refresh } = useJobHistory()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -197,9 +201,11 @@ export default function HistoryPage() {
           title="PCAP Ingestion History"
           description="No jobs have been submitted yet."
           action={
-            <Button asChild>
-              <Link href="/analysis/new">Create Your First Analysis</Link>
-            </Button>
+            mayCreateAnalysis ? (
+              <Button asChild>
+                <Link href="/analysis/new">Create Your First Analysis</Link>
+              </Button>
+            ) : undefined
           }
         />
       </div>

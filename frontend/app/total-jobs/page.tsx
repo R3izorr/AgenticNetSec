@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { ArtifactPanel } from "@/components/common/artifact-panel"
+import { useAuth } from "@/components/providers/auth-provider"
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/page-state"
 import { InlineNotice } from "@/components/common/inline-notice"
 import { SectionCard } from "@/components/common/section-card"
@@ -19,6 +20,7 @@ import {
 import { isApiError } from "@/lib/api/client"
 import { useTotalJobs } from "@/hooks/use-total-jobs"
 import { formatDateTime, formatNumber, formatPercent, formatPhaseLabel } from "@/lib/format"
+import { canCreateAnalysis } from "@/lib/permissions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -81,6 +83,8 @@ const EMPTY_ALL_JOBS_ARTIFACTS: AllJobsSummaryArtifacts = {
 }
 
 export default function TotalJobsPage() {
+  const { session } = useAuth()
+  const mayCreateAnalysis = canCreateAnalysis(session?.organization.role)
   const { jobs, loading, error, refresh } = useTotalJobs()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -296,9 +300,11 @@ export default function TotalJobsPage() {
           title="No total jobs yet"
           description="Submit one or more PCAP files to create a batch run and track the files under a parent job."
           action={
-            <Button asChild>
-              <Link href="/analysis/new">Start Batch Analysis</Link>
-            </Button>
+            mayCreateAnalysis ? (
+              <Button asChild>
+                <Link href="/analysis/new">Start Batch Analysis</Link>
+              </Button>
+            ) : undefined
           }
         />
       </div>
@@ -324,7 +330,7 @@ export default function TotalJobsPage() {
             <Button
               type="button"
               onClick={() => void handleAllJobsSummary()}
-              disabled={!canRunAllJobsSummary || allJobsSummaryActionLoading}
+              disabled={!mayCreateAnalysis || !canRunAllJobsSummary || allJobsSummaryActionLoading}
             >
               {getAllJobsSummaryButtonLabel(allJobsSummaryStatus?.status, allJobsSummaryActionLoading)}
             </Button>
@@ -494,6 +500,7 @@ export default function TotalJobsPage() {
                             size="sm"
                             variant="outline"
                             disabled={
+                              !mayCreateAnalysis ||
                               !canRunEnrichment(job.enrichmentStatus, job.deterministicComplete) ||
                               actionLoadingId === job.totalJobId
                             }

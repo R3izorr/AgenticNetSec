@@ -2,6 +2,7 @@ import { getConfiguredApiBaseUrl, getDefaultApiBaseUrl } from "@/lib/settings"
 
 export type ApiErrorCode =
   | "unauthorized"
+  | "forbidden"
   | "bad_request"
   | "not_found"
   | "not_ready"
@@ -43,6 +44,9 @@ function toApiError(status: number, detail: string): ApiError {
   }
   if (status === 401) {
     return new ApiError("Not authenticated.", status, "unauthorized", detail)
+  }
+  if (status === 403) {
+    return new ApiError("Insufficient permissions.", status, "forbidden", detail)
   }
   if (status === 404) {
     return new ApiError("Resource not found.", status, "not_found", detail)

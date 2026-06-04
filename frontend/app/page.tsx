@@ -3,7 +3,9 @@
 import Link from "next/link"
 
 import { SectionCard } from "@/components/common/section-card"
+import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
+import { canCreateAnalysis } from "@/lib/permissions"
 
 const highlights = [
   {
@@ -33,6 +35,9 @@ const highlights = [
 ]
 
 export default function HomePage() {
+  const { session } = useAuth()
+  const mayCreateAnalysis = canCreateAnalysis(session?.organization.role)
+
   return (
     <div className="flex flex-col gap-6">
       <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-8">
@@ -49,9 +54,11 @@ export default function HomePage() {
             <Button asChild>
               <Link href="/dashboard">Open Dashboard</Link>
             </Button>
-            <Button variant="outline" asChild>
-              <Link href="/analysis/new">Start Batch</Link>
-            </Button>
+            {mayCreateAnalysis ? (
+              <Button variant="outline" asChild>
+                <Link href="/analysis/new">Start Batch</Link>
+              </Button>
+            ) : null}
             <Button variant="ghost" asChild>
               <Link href="/total-jobs">View Total Jobs</Link>
             </Button>

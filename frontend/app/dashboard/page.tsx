@@ -4,6 +4,7 @@ import Link from "next/link"
 import type { ReactNode } from "react"
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/page-state"
+import { useAuth } from "@/components/providers/auth-provider"
 import { SectionCard } from "@/components/common/section-card"
 import { StatusBadge } from "@/components/common/status-badge"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/table"
 import { useJobHistory } from "@/hooks/use-job-history"
 import { formatDateTime, formatNumber, formatPhaseLabel } from "@/lib/format"
+import { canCreateAnalysis } from "@/lib/permissions"
 
 function SummaryCard({
   title,
@@ -40,6 +42,8 @@ function SummaryCard({
 }
 
 export default function DashboardPage() {
+  const { session } = useAuth()
+  const mayCreateAnalysis = canCreateAnalysis(session?.organization.role)
   const { jobs, loading, error, refresh, summary } = useJobHistory()
   const latestCompletedJob = summary.recentJobs.find((job) => job.status === "completed")
 
@@ -70,9 +74,11 @@ export default function DashboardPage() {
           description="Start with a PCAP submission to populate the dashboard with status, risk, and runtime data."
           action={
             <div className="flex items-center gap-2">
-              <Button asChild>
-                <Link href="/analysis/new">Start Analysis</Link>
-              </Button>
+              {mayCreateAnalysis ? (
+                <Button asChild>
+                  <Link href="/analysis/new">Start Analysis</Link>
+                </Button>
+              ) : null}
               <Button variant="outline" asChild>
                 <Link href="/analysis/history">Open History</Link>
               </Button>
@@ -96,9 +102,11 @@ export default function DashboardPage() {
             Use the dashboard to show recent runs, runtime trends, guardrail outcomes, and the fastest path into a completed report.
           </p>
           <div className="flex flex-wrap items-center gap-2 pt-2">
-            <Button asChild>
-              <Link href="/analysis/new">Start Analysis</Link>
-            </Button>
+            {mayCreateAnalysis ? (
+              <Button asChild>
+                <Link href="/analysis/new">Start Analysis</Link>
+              </Button>
+            ) : null}
             <Button variant="outline" asChild>
               <Link href="/analysis/history">Open History</Link>
             </Button>

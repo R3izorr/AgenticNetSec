@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 
 import { ArtifactPanel } from "@/components/common/artifact-panel"
+import { useAuth } from "@/components/providers/auth-provider"
 import { InlineNotice } from "@/components/common/inline-notice"
 import { KeyValueGrid } from "@/components/common/key-value-grid"
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/page-state"
@@ -30,6 +31,7 @@ import {
 import { isApiError } from "@/lib/api/client"
 import { useTotalJobStatus } from "@/hooks/use-total-job-status"
 import { formatDateTime, formatNumber, formatPercent, formatPhaseLabel } from "@/lib/format"
+import { canCreateAnalysis } from "@/lib/permissions"
 
 type EnrichmentArtifacts = {
   summaryJson: unknown | null
@@ -194,6 +196,8 @@ function parseCampaignArtifacts(value: unknown): CampaignArtifacts | null {
 }
 
 export default function TotalJobDetailPage() {
+  const { session } = useAuth()
+  const mayCreateAnalysis = canCreateAnalysis(session?.organization.role)
   const params = useParams<{ totalJobId: string }>()
   const totalJobId = decodeURIComponent(params.totalJobId)
   const { job, loading, error, refresh, isPolling } = useTotalJobStatus(totalJobId)
@@ -365,7 +369,11 @@ export default function TotalJobDetailPage() {
                 Batch Summary Pending
               </Button>
             )}
-            <Button type="button" onClick={() => void handleEnrichment()} disabled={!canRunEnrichment || actionLoading}>
+            <Button
+              type="button"
+              onClick={() => void handleEnrichment()}
+              disabled={!mayCreateAnalysis || !canRunEnrichment || actionLoading}
+            >
               {enrichmentButtonLabel}
             </Button>
           </div>

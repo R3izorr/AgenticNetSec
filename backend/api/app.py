@@ -31,7 +31,7 @@ from planner import ANALYSIS_PROFILES
 from report_ai import generate_results_report_result
 from summarize_results import build_aggregate
 from backend.db.session import check_database_connection
-from .auth import CurrentPrincipal, get_current_principal, router as auth_router
+from .auth import CurrentPrincipal, organization_router, require_permission, router as auth_router
 from .job_store import JobRecord, JobStore
 from .total_job_store import TotalJobChildRef, TotalJobRecord, TotalJobStore
 
@@ -40,8 +40,14 @@ UPLOADS_DIR = OUTPUTS_DIR / "uploads"
 JOBS_DIR = OUTPUTS_DIR / "analysis_jobs"
 TOTAL_JOBS_DIR = OUTPUTS_DIR / "total_jobs"
 ALL_TOTAL_JOBS_SUMMARY_DIR = TOTAL_JOBS_DIR / "__all_jobs_summary"
-ALL_TOTAL_JOBS_SUMMARY_STATUS_PATH = ALL_TOTAL_JOBS_SUMMARY_DIR / "status.json"
 ALL_TOTAL_JOBS_SUMMARY_STALE_SECONDS = int(os.getenv("ALL_TOTAL_JOBS_SUMMARY_STALE_SECONDS", "7200"))
+ALLOW_SERVER_PCAP_PATHS = os.getenv("AGENTIC_ALLOW_SERVER_PCAP_PATHS", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+}
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 ALL_TOTAL_JOBS_SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -58,6 +64,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(auth_router)
+app.include_router(organization_router)
 
 job_store = JobStore(JOBS_DIR)
 total_job_store = TotalJobStore(TOTAL_JOBS_DIR)
@@ -297,8 +304,8 @@ def _persist_job_artifacts(job_id: str, artifacts: dict[str, Any]) -> None:
     )
 
 
-def _load_analysis_record(job_id: str) -> dict[str, Any]:
-    return job_store.read_json_artifact(job_id, "analysis_record.json")
+def _load_analysis_record(job_id: str, *, organization_id: str | None = None) -> dict[str, Any]:
+    return job_store.read_json_artifact(job_id, "analysis_record.json", organization_id=organization_id)
 
 
 _PCAP_FINGERPRINT_CACHE: dict[tuple[str, int, int], str] = {}
@@ -438,8 +445,10 @@ def _save_total_job_jsonl_artifact(
     total_job_id: str,
     name: str,
     records: list[dict[str, Any]],
+    *,
+    organization_id: str | None = None,
 ) -> Path:
-    total_job = total_job_store.get(total_job_id)
+    total_job = total_job_store.get(total_job_id, organization_id=organization_id)
     if not total_job or not total_job.artifacts_dir:
         raise KeyError(f"Unknown total job: {total_job_id}")
 
@@ -452,13 +461,32 @@ def _save_total_job_jsonl_artifact(
         artifact_path,
         artifact_type="total_job_jsonl",
         total_job_id=total_job_id,
+        organization_id=total_job.organization_id,
+        user_id=total_job.created_by_user_id,
     )
     total_job_store.update(total_job_id, updated_at=datetime.now(timezone.utc).isoformat())
     return artifact_path
 
 
-def _save_all_total_jobs_jsonl_artifact(name: str, records: list[dict[str, Any]]) -> Path:
-    artifact_path = ALL_TOTAL_JOBS_SUMMARY_DIR / name
+def _all_total_jobs_summary_dir(organization_id: str | None) -> Path:
+    org_key = str(organization_id or "legacy").strip() or "legacy"
+    org_key = re.sub(r"[^A-Za-z0-9_.-]", "_", org_key)
+    summary_dir = ALL_TOTAL_JOBS_SUMMARY_DIR / org_key
+    summary_dir.mkdir(parents=True, exist_ok=True)
+    return summary_dir
+
+
+def _all_total_jobs_summary_status_path(organization_id: str | None) -> Path:
+    return _all_total_jobs_summary_dir(organization_id) / "status.json"
+
+
+def _save_all_total_jobs_jsonl_artifact(
+    name: str,
+    records: list[dict[str, Any]],
+    *,
+    organization_id: str | None = None,
+) -> Path:
+    artifact_path = _all_total_jobs_summary_dir(organization_id) / name
     with artifact_path.open("w", encoding="utf-8") as handle:
         for record in records:
             handle.write(json.dumps(record))
@@ -500,19 +528,24 @@ def _build_ai_markdown_notice(
     )
 
 
-def _read_all_total_jobs_summary_status() -> dict[str, Any]:
-    if not ALL_TOTAL_JOBS_SUMMARY_STATUS_PATH.exists():
+def _read_all_total_jobs_summary_status(organization_id: str | None = None) -> dict[str, Any]:
+    status_path = _all_total_jobs_summary_status_path(organization_id)
+    if not status_path.exists():
         return {}
     try:
-        return json.loads(ALL_TOTAL_JOBS_SUMMARY_STATUS_PATH.read_text(encoding="utf-8"))
+        return json.loads(status_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
 
 
-def _write_all_total_jobs_summary_status(payload: dict[str, Any]) -> dict[str, Any]:
+def _write_all_total_jobs_summary_status(
+    payload: dict[str, Any],
+    organization_id: str | None = None,
+) -> dict[str, Any]:
     status_payload = dict(payload)
+    status_payload["organization_id"] = str(organization_id) if organization_id else None
     status_payload["updated_at"] = datetime.now(timezone.utc).isoformat()
-    ALL_TOTAL_JOBS_SUMMARY_STATUS_PATH.write_text(
+    _all_total_jobs_summary_status_path(organization_id).write_text(
         json.dumps(status_payload, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -531,7 +564,10 @@ def _parse_status_timestamp(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
-def _recover_stale_all_total_jobs_summary_status(stored_status: dict[str, Any]) -> dict[str, Any]:
+def _recover_stale_all_total_jobs_summary_status(
+    stored_status: dict[str, Any],
+    organization_id: str | None = None,
+) -> dict[str, Any]:
     if stored_status.get("status") not in {"queued", "running"}:
         return stored_status
 
@@ -550,7 +586,8 @@ def _recover_stale_all_total_jobs_summary_status(stored_status: dict[str, Any]) 
             "progress": stored_status.get("progress", 0.0),
             "route_stage": stored_status.get("route_stage") or "interrupted",
             "error": "Interrupted by backend shutdown during all-scans summary.",
-        }
+        },
+        organization_id,
     )
 
 
@@ -604,7 +641,7 @@ def _load_total_job_child_analysis_records(total_job: TotalJobRecord, organizati
         if not child_job or child_job.status != "completed":
             continue
         try:
-            record = _load_analysis_record(child.analysis_job_id)
+            record = _load_analysis_record(child.analysis_job_id, organization_id=organization_id)
         except FileNotFoundError:
             continue
         record.setdefault("file", child.filename)
@@ -647,7 +684,10 @@ def _load_all_total_jobs_summary_records(
 
 def _serialize_all_total_jobs_summary_status(organization_id: str | None = None) -> dict[str, Any]:
     source_total_job_ids, completed_children = _list_completed_total_job_children(organization_id)
-    stored_status = _recover_stale_all_total_jobs_summary_status(_read_all_total_jobs_summary_status())
+    stored_status = _recover_stale_all_total_jobs_summary_status(
+        _read_all_total_jobs_summary_status(organization_id),
+        organization_id,
+    )
     return {
         "status": stored_status.get("status", "not_started"),
         "progress": stored_status.get("progress", 0.0),
@@ -783,14 +823,15 @@ def _run_total_job_enrichment_sync(
     provider: str,
     model: str | None,
     require_ai: bool,
+    organization_id: str | None = None,
 ) -> None:
-    total_job = total_job_store.get(total_job_id)
+    total_job = total_job_store.get(total_job_id, organization_id=organization_id)
     if not total_job:
         raise KeyError(f"Unknown total job: {total_job_id}")
 
     completed_children = []
     for child in total_job.children:
-        child_job = job_store.get(child.analysis_job_id)
+        child_job = job_store.get(child.analysis_job_id, organization_id=organization_id)
         if child_job and child_job.status == "completed":
             completed_children.append(child)
 
@@ -807,7 +848,10 @@ def _run_total_job_enrichment_sync(
         error=None,
     )
 
-    records = [_load_analysis_record(child.analysis_job_id) for child in completed_children]
+    records = [
+        _load_analysis_record(child.analysis_job_id, organization_id=organization_id)
+        for child in completed_children
+    ]
     total_job_store.update(total_job_id, enrichment_progress=0.2)
 
     unique_records, dedupe_metadata = _dedupe_analysis_records(records)
@@ -842,8 +886,18 @@ def _run_total_job_enrichment_sync(
     # AI/sandbox comparisons can reuse the same artifact shape in one place.
     total_job_store.save_json_artifact(total_job_id, "aggregate_summary.json", aggregate)
     total_job_store.save_json_artifact(total_job_id, "scan_results.json", enriched_records)
-    _save_total_job_jsonl_artifact(total_job_id, "scan_results.jsonl", enriched_records)
-    _save_total_job_jsonl_artifact(total_job_id, "scan_results.ai-tshark.jsonl", enriched_records)
+    _save_total_job_jsonl_artifact(
+        total_job_id,
+        "scan_results.jsonl",
+        enriched_records,
+        organization_id=organization_id,
+    )
+    _save_total_job_jsonl_artifact(
+        total_job_id,
+        "scan_results.ai-tshark.jsonl",
+        enriched_records,
+        organization_id=organization_id,
+    )
     total_job_store.save_json_artifact(
         total_job_id,
         "summary.json",
@@ -957,7 +1011,12 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
     if not records:
         raise RuntimeError("No completed analysis or enrichment records are available across total jobs.")
 
-    _write_all_total_jobs_summary_status(
+    summary_dir = _all_total_jobs_summary_dir(organization_id)
+
+    def write_summary_status(payload: dict[str, Any]) -> dict[str, Any]:
+        return _write_all_total_jobs_summary_status(payload, organization_id)
+
+    write_summary_status(
         {
             "status": "running",
             "progress": 0.05,
@@ -974,7 +1033,7 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
     )
 
     unique_records, dedupe_metadata = _dedupe_summary_records(records)
-    _write_all_total_jobs_summary_status(
+    write_summary_status(
         {
             "status": "running",
             "progress": 0.25,
@@ -984,7 +1043,7 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
             "require_ai": require_ai,
             "source_total_job_count": len(source_total_job_ids),
             "source_total_job_ids": source_total_job_ids,
-            "source_file_count": len(completed_children),
+            "source_file_count": len(records),
             "record_count": len(records),
             "unique_record_count": len(unique_records),
             "duplicate_record_count": len(dedupe_metadata["duplicates_removed"]),
@@ -992,7 +1051,7 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
     )
 
     def _campaign_progress(stage: str, progress: float) -> None:
-        _write_all_total_jobs_summary_status(
+        write_summary_status(
             {
                 "status": "running",
                 "progress": progress,
@@ -1003,7 +1062,7 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
                 "route_stage": stage,
                 "source_total_job_count": len(source_total_job_ids),
                 "source_total_job_ids": source_total_job_ids,
-                "source_file_count": len(completed_children),
+                "source_file_count": len(records),
                 "record_count": len(records),
                 "unique_record_count": len(unique_records),
                 "duplicate_record_count": len(dedupe_metadata["duplicates_removed"]),
@@ -1019,7 +1078,7 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
         planner_model=None,
         require_ai=require_ai,
         progress_callback=_campaign_progress,
-        artifacts_dir=ALL_TOTAL_JOBS_SUMMARY_DIR,
+        artifacts_dir=summary_dir,
     )
     enriched_records = campaign_result["enriched_records"]
     aggregate = campaign_result["aggregate"]
@@ -1029,24 +1088,24 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
     final_report = campaign_result["final_report"]
     selected_follow_up_records = campaign_result["selected_follow_up_records"]
 
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "aggregate_summary.json").write_text(
+    (summary_dir / "aggregate_summary.json").write_text(
         json.dumps(aggregate, indent=2) + "\n",
         encoding="utf-8",
     )
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "scan_results.json").write_text(
+    (summary_dir / "scan_results.json").write_text(
         json.dumps(enriched_records, indent=2) + "\n",
         encoding="utf-8",
     )
-    _save_all_total_jobs_jsonl_artifact("scan_results.jsonl", enriched_records)
-    _save_all_total_jobs_jsonl_artifact("scan_results.ai-tshark.jsonl", enriched_records)
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.json").write_text(
+    _save_all_total_jobs_jsonl_artifact("scan_results.jsonl", enriched_records, organization_id=organization_id)
+    _save_all_total_jobs_jsonl_artifact("scan_results.ai-tshark.jsonl", enriched_records, organization_id=organization_id)
+    (summary_dir / "summary.json").write_text(
         json.dumps(
             {
                 "scope": "all_total_jobs",
                 "route": "campaign_ai_then_sandbox_then_final_report",
                 "source_total_job_ids": source_total_job_ids,
                 "source_total_job_count": len(source_total_job_ids),
-                "source_file_count": len(completed_children),
+                "source_file_count": len(records),
                 "dedupe": dedupe_metadata,
                 "ai_execution": {
                     "initial_summary": {
@@ -1086,7 +1145,7 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
         + "\n",
         encoding="utf-8",
     )
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "initial_summary.md").write_text(
+    (summary_dir / "initial_summary.md").write_text(
         _build_ai_markdown_notice(
             stage_label="Initial Campaign Summary AI Status",
             provider=case_summary.get("provider"),
@@ -1099,7 +1158,7 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
         + ("\n" if case_summary.get("report_text") else ""),
         encoding="utf-8",
     )
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "campaign_plan.json").write_text(
+    (summary_dir / "campaign_plan.json").write_text(
         json.dumps(
             {
                 "initial_summary": case_summary,
@@ -1111,7 +1170,7 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
         + "\n",
         encoding="utf-8",
     )
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.md").write_text(
+    (summary_dir / "summary.md").write_text(
         _build_ai_markdown_notice(
             stage_label="Final Campaign Report AI Status",
             provider=final_report.get("provider"),
@@ -1124,13 +1183,13 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
         + ("" if summary_markdown.endswith("\n") else "\n"),
         encoding="utf-8",
     )
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "sandbox.json").write_text(
+    (summary_dir / "sandbox.json").write_text(
         json.dumps(
             {
                 "scope": "all_total_jobs",
                 "source_total_job_ids": source_total_job_ids,
                 "source_total_job_count": len(source_total_job_ids),
-                "source_file_count": len(completed_children),
+                "source_file_count": len(records),
                 "dedupe": dedupe_metadata,
                 "record_count": len(enriched_records),
                 "records": enriched_records,
@@ -1140,7 +1199,7 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
         + "\n",
         encoding="utf-8",
     )
-    _write_all_total_jobs_summary_status(
+    write_summary_status(
         {
             "status": "completed",
             "progress": 1.0,
@@ -1151,7 +1210,7 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
             "require_ai": require_ai,
             "source_total_job_count": len(source_total_job_ids),
             "source_total_job_ids": source_total_job_ids,
-            "source_file_count": len(completed_children),
+            "source_file_count": len(records),
             "record_count": len(records),
             "unique_record_count": len(unique_records),
             "duplicate_record_count": len(dedupe_metadata["duplicates_removed"]),
@@ -1171,8 +1230,13 @@ def _run_all_total_jobs_summary_sync(
     if not records:
         raise RuntimeError("No completed analysis or enrichment records are available across total jobs.")
 
+    summary_dir = _all_total_jobs_summary_dir(organization_id)
+
+    def write_summary_status(payload: dict[str, Any]) -> dict[str, Any]:
+        return _write_all_total_jobs_summary_status(payload, organization_id)
+
     unique_records, dedupe_metadata = _dedupe_summary_records(records)
-    _write_all_total_jobs_summary_status(
+    write_summary_status(
         {
             "status": "running",
             "progress": 0.25,
@@ -1191,7 +1255,7 @@ def _run_all_total_jobs_summary_sync(
     )
 
     aggregate = build_aggregate(unique_records)
-    _write_all_total_jobs_summary_status(
+    write_summary_status(
         {
             "status": "running",
             "progress": 0.5,
@@ -1235,17 +1299,17 @@ def _run_all_total_jobs_summary_sync(
         "sources": source_manifest,
     }
 
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "aggregate_summary.json").write_text(
+    (summary_dir / "aggregate_summary.json").write_text(
         json.dumps(aggregate, indent=2) + "\n",
         encoding="utf-8",
     )
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "scan_results.json").write_text(
+    (summary_dir / "scan_results.json").write_text(
         json.dumps(unique_records, indent=2) + "\n",
         encoding="utf-8",
     )
-    _save_all_total_jobs_jsonl_artifact("scan_results.jsonl", unique_records)
-    _save_all_total_jobs_jsonl_artifact("scan_results.ai-tshark.jsonl", unique_records)
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.json").write_text(
+    _save_all_total_jobs_jsonl_artifact("scan_results.jsonl", unique_records, organization_id=organization_id)
+    _save_all_total_jobs_jsonl_artifact("scan_results.ai-tshark.jsonl", unique_records, organization_id=organization_id)
+    (summary_dir / "summary.json").write_text(
         json.dumps(
             {
                 "scope": "all_total_jobs",
@@ -1279,12 +1343,12 @@ def _run_all_total_jobs_summary_sync(
         + "\n",
         encoding="utf-8",
     )
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "initial_summary.md").write_text(
+    (summary_dir / "initial_summary.md").write_text(
         "> Initial Campaign Summary AI Status\n"
         "> Not run for all-scans summary because parent total-job enrichment artifacts already exist.\n",
         encoding="utf-8",
     )
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "campaign_plan.json").write_text(
+    (summary_dir / "campaign_plan.json").write_text(
         json.dumps(
             {
                 "initial_summary": None,
@@ -1297,7 +1361,7 @@ def _run_all_total_jobs_summary_sync(
         + "\n",
         encoding="utf-8",
     )
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.md").write_text(
+    (summary_dir / "summary.md").write_text(
         _build_ai_markdown_notice(
             stage_label="Final Campaign Report AI Status",
             provider=final_report.get("provider"),
@@ -1310,7 +1374,7 @@ def _run_all_total_jobs_summary_sync(
         + ("" if summary_markdown.endswith("\n") else "\n"),
         encoding="utf-8",
     )
-    (ALL_TOTAL_JOBS_SUMMARY_DIR / "sandbox.json").write_text(
+    (summary_dir / "sandbox.json").write_text(
         json.dumps(
             {
                 "scope": "all_total_jobs",
@@ -1327,7 +1391,7 @@ def _run_all_total_jobs_summary_sync(
         + "\n",
         encoding="utf-8",
     )
-    _write_all_total_jobs_summary_status(
+    write_summary_status(
         {
             "status": "completed",
             "progress": 1.0,
@@ -1366,6 +1430,7 @@ async def _run_total_job_enrichment(
     provider: str,
     model: str | None,
     require_ai: bool,
+    organization_id: str | None = None,
 ) -> None:
     loop = asyncio.get_running_loop()
     try:
@@ -1376,6 +1441,7 @@ async def _run_total_job_enrichment(
             provider,
             model,
             require_ai,
+            organization_id,
         )
     except Exception as exc:  # noqa: BLE001
         total_job_store.update(
@@ -1405,21 +1471,22 @@ async def _run_all_total_jobs_summary(
             organization_id,
         )
     except Exception as exc:  # noqa: BLE001
-        current_status = _read_all_total_jobs_summary_status()
+        current_status = _read_all_total_jobs_summary_status(organization_id)
         _write_all_total_jobs_summary_status(
             {
                 **current_status,
                 "status": "failed",
                 "progress": current_status.get("progress", 0.0),
                 "error": str(exc),
-            }
+            },
+            organization_id,
         )
 
 
 @app.post("/api/v1/analysis")
 async def create_analysis_job(
     request: Request,
-    principal: CurrentPrincipal = Depends(get_current_principal),
+    principal: CurrentPrincipal = Depends(require_permission("analysis:create")),
     file: UploadFile | None = File(default=None),
     pcap_path: str | None = Form(default=None),
     provider: str | None = Form(default=None),
@@ -1445,6 +1512,8 @@ async def create_analysis_job(
         source_type = "upload"
         source_path = target_path
     else:
+        if not ALLOW_SERVER_PCAP_PATHS:
+            raise HTTPException(status_code=400, detail="Server pcap_path inputs are disabled for this environment.")
         target_path = _normalize_pcap_path(pcap_path)
         source_type = "path"
         source_name = Path(target_path).name
@@ -1487,7 +1556,7 @@ async def create_analysis_job(
 @app.post("/api/v1/analysis/batch")
 async def create_batch_analysis_job(
     request: Request,
-    principal: CurrentPrincipal = Depends(get_current_principal),
+    principal: CurrentPrincipal = Depends(require_permission("analysis:create")),
     files: list[UploadFile] = File(default=[]),
     worker_count: str | int | None = Form(default=2),
     pcap_paths: str | None = Form(default=None),
@@ -1497,9 +1566,13 @@ async def create_batch_analysis_job(
     if not files and "application/json" in request.headers.get("content-type", ""):
         payload = await request.json()
         worker_count = payload.get("worker_count", worker_count)
+        if payload.get("pcap_paths") and not ALLOW_SERVER_PCAP_PATHS:
+            raise HTTPException(status_code=400, detail="Server pcap_path inputs are disabled for this environment.")
         requested_paths = _normalize_batch_pcap_paths(payload.get("pcap_paths") or [])
         analysis_profile = payload.get("analysis_profile", analysis_profile)
     elif pcap_paths:
+        if not ALLOW_SERVER_PCAP_PATHS:
+            raise HTTPException(status_code=400, detail="Server pcap_path inputs are disabled for this environment.")
         try:
             requested_paths = _normalize_batch_pcap_paths(json.loads(pcap_paths))
         except json.JSONDecodeError as exc:
@@ -1691,7 +1764,7 @@ async def create_batch_analysis_job(
 
 
 @app.get("/api/v1/analysis/{job_id}", response_model=JobStatusResponse)
-async def get_job_status(job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+async def get_job_status(job_id: str, principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     job = job_store.get(job_id, organization_id=principal.organization_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -1699,7 +1772,7 @@ async def get_job_status(job_id: str, principal: CurrentPrincipal = Depends(get_
 
 
 @app.get("/api/v1/analysis/{job_id}/report.json")
-async def get_report_json(job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+async def get_report_json(job_id: str, principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     job = job_store.get(job_id, organization_id=principal.organization_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -1709,7 +1782,7 @@ async def get_report_json(job_id: str, principal: CurrentPrincipal = Depends(get
 
 
 @app.get("/api/v1/analysis/{job_id}/report.md")
-async def get_report_markdown(job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+async def get_report_markdown(job_id: str, principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     job = job_store.get(job_id, organization_id=principal.organization_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -1719,7 +1792,7 @@ async def get_report_markdown(job_id: str, principal: CurrentPrincipal = Depends
 
 
 @app.get("/api/v1/analysis/{job_id}/metrics")
-async def get_metrics(job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+async def get_metrics(job_id: str, principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     job = job_store.get(job_id, organization_id=principal.organization_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -1729,7 +1802,7 @@ async def get_metrics(job_id: str, principal: CurrentPrincipal = Depends(get_cur
 
 
 @app.get("/api/v1/analysis/{job_id}/guardrail-audit")
-async def get_guardrail_audit(job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+async def get_guardrail_audit(job_id: str, principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     job = job_store.get(job_id, organization_id=principal.organization_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -1739,7 +1812,7 @@ async def get_guardrail_audit(job_id: str, principal: CurrentPrincipal = Depends
 
 
 @app.delete("/api/v1/analysis/{job_id}")
-async def delete_analysis_job(job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+async def delete_analysis_job(job_id: str, principal: CurrentPrincipal = Depends(require_permission("analysis:create"))):
     job = job_store.get(job_id, organization_id=principal.organization_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -1759,7 +1832,7 @@ async def delete_analysis_job(job_id: str, principal: CurrentPrincipal = Depends
 
 
 @app.get("/api/v1/analysis")
-async def list_jobs(principal: CurrentPrincipal = Depends(get_current_principal)):
+async def list_jobs(principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     all_jobs = job_store.list_jobs(organization_id=principal.organization_id)
     return {
         "total": len(all_jobs),
@@ -1768,7 +1841,7 @@ async def list_jobs(principal: CurrentPrincipal = Depends(get_current_principal)
 
 
 @app.get("/api/v1/total-jobs")
-async def list_total_jobs(principal: CurrentPrincipal = Depends(get_current_principal)):
+async def list_total_jobs(principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     jobs = total_job_store.list_jobs(organization_id=principal.organization_id)
     return {
         "total": len(jobs),
@@ -1777,13 +1850,13 @@ async def list_total_jobs(principal: CurrentPrincipal = Depends(get_current_prin
 
 
 @app.get("/api/v1/total-jobs/summary/status")
-async def get_all_total_jobs_summary_status(principal: CurrentPrincipal = Depends(get_current_principal)):
+async def get_all_total_jobs_summary_status(principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     return _serialize_all_total_jobs_summary_status(str(principal.organization_id))
 
 
 @app.post("/api/v1/total-jobs/summary/enrich")
 async def enrich_all_total_jobs_summary(
-    principal: CurrentPrincipal = Depends(get_current_principal),
+    principal: CurrentPrincipal = Depends(require_permission("analysis:create")),
     provider: str | None = Form(default=None),
     model: str | None = Form(default=None),
     require_ai: str | bool | None = Form(default=None),
@@ -1806,7 +1879,8 @@ async def enrich_all_total_jobs_summary(
             "provider": provider or "gemini",
             "model": model,
             "require_ai": _to_bool(require_ai, False),
-        }
+        },
+        str(principal.organization_id),
     )
     asyncio.create_task(
         _run_all_total_jobs_summary(
@@ -1820,34 +1894,34 @@ async def enrich_all_total_jobs_summary(
 
 
 @app.get("/api/v1/total-jobs/summary/json")
-async def get_all_total_jobs_summary_json(principal: CurrentPrincipal = Depends(get_current_principal)):
+async def get_all_total_jobs_summary_json(principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     status = _serialize_all_total_jobs_summary_status(str(principal.organization_id))
     if status["status"] != "completed":
         raise HTTPException(status_code=409, detail=f"All-jobs summary is {status['status']}")
-    artifact_path = ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.json"
+    artifact_path = _all_total_jobs_summary_dir(str(principal.organization_id)) / "summary.json"
     return json.loads(artifact_path.read_text(encoding="utf-8"))
 
 
 @app.get("/api/v1/total-jobs/summary/markdown")
-async def get_all_total_jobs_summary_markdown(principal: CurrentPrincipal = Depends(get_current_principal)):
+async def get_all_total_jobs_summary_markdown(principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     status = _serialize_all_total_jobs_summary_status(str(principal.organization_id))
     if status["status"] != "completed":
         raise HTTPException(status_code=409, detail=f"All-jobs summary is {status['status']}")
-    artifact_path = ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.md"
+    artifact_path = _all_total_jobs_summary_dir(str(principal.organization_id)) / "summary.md"
     return {"markdown": artifact_path.read_text(encoding="utf-8")}
 
 
 @app.get("/api/v1/total-jobs/summary/sandbox")
-async def get_all_total_jobs_summary_sandbox(principal: CurrentPrincipal = Depends(get_current_principal)):
+async def get_all_total_jobs_summary_sandbox(principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     status = _serialize_all_total_jobs_summary_status(str(principal.organization_id))
     if status["status"] != "completed":
         raise HTTPException(status_code=409, detail=f"All-jobs summary is {status['status']}")
-    artifact_path = ALL_TOTAL_JOBS_SUMMARY_DIR / "sandbox.json"
+    artifact_path = _all_total_jobs_summary_dir(str(principal.organization_id)) / "sandbox.json"
     return json.loads(artifact_path.read_text(encoding="utf-8"))
 
 
 @app.get("/api/v1/total-jobs/{total_job_id}", response_model=TotalJobStatusResponse)
-async def get_total_job_status(total_job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+async def get_total_job_status(total_job_id: str, principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     total_job = total_job_store.get(total_job_id, organization_id=principal.organization_id)
     if not total_job:
         raise HTTPException(status_code=404, detail="Total job not found")
@@ -1857,7 +1931,7 @@ async def get_total_job_status(total_job_id: str, principal: CurrentPrincipal = 
 @app.post("/api/v1/total-jobs/{total_job_id}/enrich")
 async def enrich_total_job(
     total_job_id: str,
-    principal: CurrentPrincipal = Depends(get_current_principal),
+    principal: CurrentPrincipal = Depends(require_permission("analysis:create")),
     provider: str | None = Form(default=None),
     model: str | None = Form(default=None),
     require_ai: str | bool | None = Form(default=None),
@@ -1884,6 +1958,7 @@ async def enrich_total_job(
             provider or "gemini",
             model,
             _to_bool(require_ai, False),
+            str(principal.organization_id),
         )
     )
     return _serialize_total_job(
@@ -1893,7 +1968,7 @@ async def enrich_total_job(
 
 
 @app.get("/api/v1/total-jobs/{total_job_id}/summary.json")
-async def get_total_job_summary_json(total_job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+async def get_total_job_summary_json(total_job_id: str, principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     total_job = total_job_store.get(total_job_id, organization_id=principal.organization_id)
     if not total_job:
         raise HTTPException(status_code=404, detail="Total job not found")
@@ -1903,7 +1978,7 @@ async def get_total_job_summary_json(total_job_id: str, principal: CurrentPrinci
 
 
 @app.get("/api/v1/total-jobs/{total_job_id}/summary.md")
-async def get_total_job_summary_markdown(total_job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+async def get_total_job_summary_markdown(total_job_id: str, principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     total_job = total_job_store.get(total_job_id, organization_id=principal.organization_id)
     if not total_job:
         raise HTTPException(status_code=404, detail="Total job not found")
@@ -1913,7 +1988,7 @@ async def get_total_job_summary_markdown(total_job_id: str, principal: CurrentPr
 
 
 @app.get("/api/v1/total-jobs/{total_job_id}/sandbox")
-async def get_total_job_sandbox(total_job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+async def get_total_job_sandbox(total_job_id: str, principal: CurrentPrincipal = Depends(require_permission("analysis:read"))):
     total_job = total_job_store.get(total_job_id, organization_id=principal.organization_id)
     if not total_job:
         raise HTTPException(status_code=404, detail="Total job not found")

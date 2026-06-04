@@ -11,7 +11,7 @@ import uuid
 import warnings
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Callable
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
@@ -31,6 +31,14 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+organization_router = APIRouter(prefix="/api/v1/organization", tags=["organization"])
+
+ROLE_PERMISSIONS = {
+    "owner": {"analysis:create", "analysis:read", "members:manage", "settings:read"},
+    "analyst": {"analysis:create", "analysis:read", "settings:read"},
+    "viewer": {"analysis:read", "settings:read"},
+}
+VALID_MEMBER_ROLES = frozenset(ROLE_PERMISSIONS)
 
 
 class RegisterRequest(BaseModel):
@@ -42,6 +50,10 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=1, max_length=512)
+
+
+class MemberRoleUpdateRequest(BaseModel):
+    role: str = Field(min_length=1, max_length=32)
 
 
 @dataclass(frozen=True)
@@ -162,6 +174,15 @@ def get_current_principal(
     )
 
 
+def require_permission(permission: str) -> Callable[[CurrentPrincipal], CurrentPrincipal]:
+    def dependency(principal: CurrentPrincipal = Depends(get_current_principal)) -> CurrentPrincipal:
+        if permission not in ROLE_PERMISSIONS.get(principal.role, set()):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions.")
+        return principal
+
+    return dependency
+
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, response: Response, session: Session = Depends(get_session)) -> dict[str, Any]:
     email = normalize_email(str(payload.email))
@@ -251,6 +272,66 @@ def me(response: Response, principal: CurrentPrincipal = Depends(get_current_pri
         clear_auth_cookie(response)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated.")
     return _principal_payload(principal)
+
+
+@organization_router.patch("/members/{member_id}/role")
+def update_member_role(
+    member_id: uuid.UUID,
+    payload: MemberRoleUpdateRequest,
+    principal: CurrentPrincipal = Depends(require_permission("members:manage")),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    requested_role = payload.role.strip().lower()
+    if requested_role not in VALID_MEMBER_ROLES:
+        raise HTTPException(status_code=400, detail="role must be one of: analyst, owner, viewer.")
+
+    membership = session.scalar(
+        select(OrganizationMember).where(
+            OrganizationMember.id == member_id,
+            OrganizationMember.organization_id == principal.organization_id,
+        )
+    )
+    if membership is None:
+        raise HTTPException(status_code=404, detail="Organization member not found.")
+
+    previous_role = membership.role
+    if previous_role == "owner" and requested_role != "owner":
+        owner_count = session.scalar(
+            select(func.count())
+            .select_from(OrganizationMember)
+            .where(
+                OrganizationMember.organization_id == principal.organization_id,
+                OrganizationMember.role == "owner",
+            )
+        )
+        if int(owner_count or 0) <= 1:
+            raise HTTPException(status_code=409, detail="Cannot change the last owner role.")
+
+    membership.role = requested_role
+    session.add(
+        AuditLog(
+            organization_id=principal.organization_id,
+            user_id=principal.user_id,
+            action="member role changed",
+            target_type="organization_member",
+            target_id=membership.id,
+            metadata_json={
+                "target_user_id": str(membership.user_id),
+                "previous_role": previous_role,
+                "new_role": requested_role,
+            },
+        )
+    )
+    session.commit()
+
+    return {
+        "member": {
+            "id": str(membership.id),
+            "organization_id": str(membership.organization_id),
+            "user_id": str(membership.user_id),
+            "role": membership.role,
+        }
+    }
 
 
 def _session_payload(user: User, organization: Organization, role: str) -> dict[str, Any]:

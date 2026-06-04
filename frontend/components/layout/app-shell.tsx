@@ -7,6 +7,7 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/components/providers/auth-provider"
+import { canCreateAnalysis } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
 
 const navLinks = [
@@ -78,9 +79,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <nav className="flex items-center gap-2">
-            {navLinks.map((link) => {
-              const active = pathname === link.href
-              return (
+            {navLinks
+              .filter((link) => link.href !== "/analysis/new" || canCreateAnalysis(session?.organization.role))
+              .map((link) => {
+                const active = pathname === link.href
+                return (
                 <Button
                   key={link.href}
                   asChild
@@ -88,10 +91,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   variant={active ? "secondary" : "ghost"}
                   className={cn(active && "shadow-sm")}
                 >
-                  <Link href={link.href}>{link.label}</Link>
-                </Button>
-              )
-            })}
+                    <Link href={link.href}>{link.label}</Link>
+                  </Button>
+                )
+              })}
           </nav>
 
           <form className="flex items-center gap-2" onSubmit={onJumpSubmit}>

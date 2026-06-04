@@ -1,9 +1,11 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import { InlineNotice } from "@/components/common/inline-notice"
+import { EmptyState } from "@/components/common/page-state"
 import { SectionCard } from "@/components/common/section-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,16 +18,20 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/components/ui/toast"
+import { useAuth } from "@/components/providers/auth-provider"
 import { createBatchAnalysisJob } from "@/lib/api/analysis"
 import { isApiError } from "@/lib/api/client"
 import { adaptTotalJobStatus } from "@/lib/adapters/analysis"
 import type { AnalysisProfile } from "@/lib/types/analysis"
+import { canCreateAnalysis } from "@/lib/permissions"
 
 const MIN_WORKERS = 2
 
 export default function NewAnalysisPage() {
   const router = useRouter()
   const { pushToast } = useToast()
+  const { session } = useAuth()
+  const mayCreateAnalysis = canCreateAnalysis(session?.organization.role)
 
   const [files, setFiles] = useState<File[]>([])
   const [workerCount, setWorkerCount] = useState<number>(MIN_WORKERS)
@@ -79,6 +85,27 @@ export default function NewAnalysisPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  if (!mayCreateAnalysis) {
+    return (
+      <div className="flex flex-col gap-6">
+        <EmptyState
+          title="Analysis creation unavailable"
+          description="Your current role can review jobs and reports but cannot submit PCAP files."
+          action={
+            <div className="flex items-center gap-2">
+              <Button asChild>
+                <Link href="/analysis/history">Open History</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/total-jobs">View Total Jobs</Link>
+              </Button>
+            </div>
+          }
+        />
+      </div>
+    )
   }
 
   return (
