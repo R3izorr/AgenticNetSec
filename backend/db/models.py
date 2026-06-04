@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, func, text
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
@@ -76,6 +76,7 @@ class OrganizationMember(Base):
 class TotalJob(TimestampMixin, Base):
     __tablename__ = "total_jobs"
     __table_args__ = (
+        UniqueConstraint("public_id", name="uq_total_jobs_public_id"),
         CheckConstraint("status in ('queued', 'running', 'completed', 'failed', 'cancelled')", name="ck_total_jobs_status"),
         CheckConstraint("progress >= 0 and progress <= 1", name="ck_total_jobs_progress"),
         CheckConstraint("enrichment_progress >= 0 and enrichment_progress <= 1", name="ck_total_jobs_enrichment_progress"),
@@ -91,6 +92,7 @@ class TotalJob(TimestampMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    public_id: Mapped[str | None] = mapped_column(Text)
     organization_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("organizations.id", ondelete="CASCADE"),
@@ -105,12 +107,20 @@ class TotalJob(TimestampMixin, Base):
     analysis_profile: Mapped[str] = mapped_column(Text, nullable=False)
     worker_count: Mapped[int] = mapped_column(nullable=False, server_default="2")
     file_count: Mapped[int] = mapped_column(nullable=False, server_default="0")
+    artifacts_dir: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(Text)
+    completed_children: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    failed_children: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    deterministic_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    enrichment_error: Mapped[str | None] = mapped_column(Text)
+    children_json: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AnalysisJob(TimestampMixin, Base):
     __tablename__ = "analysis_jobs"
     __table_args__ = (
+        UniqueConstraint("public_id", name="uq_analysis_jobs_public_id"),
         CheckConstraint("status in ('queued', 'running', 'completed', 'failed', 'cancelled')", name="ck_analysis_jobs_status"),
         CheckConstraint("progress >= 0 and progress <= 1", name="ck_analysis_jobs_progress"),
         CheckConstraint("status != 'completed' or completed_at is not null", name="ck_analysis_jobs_completed_at"),
@@ -120,6 +130,7 @@ class AnalysisJob(TimestampMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    public_id: Mapped[str | None] = mapped_column(Text)
     organization_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("organizations.id", ondelete="CASCADE"),
@@ -132,6 +143,7 @@ class AnalysisJob(TimestampMixin, Base):
     )
     source_type: Mapped[str] = mapped_column(Text, nullable=False)
     source_name: Mapped[str] = mapped_column(Text, nullable=False)
+    source_path: Mapped[str | None] = mapped_column(Text)
     source_artifact_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("artifacts.id", name="fk_analysis_jobs_source_artifact_id_artifacts", use_alter=True),
@@ -143,6 +155,21 @@ class AnalysisJob(TimestampMixin, Base):
     risk_level: Mapped[str | None] = mapped_column(Text)
     attack_type: Mapped[str | None] = mapped_column(Text)
     confidence_score: Mapped[Decimal | None] = mapped_column(Numeric)
+    artifacts_dir: Mapped[str | None] = mapped_column(Text)
+    group_id: Mapped[str | None] = mapped_column(Text)
+    group_index: Mapped[int | None] = mapped_column(Integer)
+    group_total: Mapped[int | None] = mapped_column(Integer)
+    guardrail_state: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    artifact_ready_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text(
+            """'{"report_json": false, "report_markdown": false, "metrics": false, "guardrail_audit": false}'::jsonb"""
+        ),
+    )
+    runtime_seconds_total: Mapped[Decimal | None] = mapped_column(Numeric)
+    stage1_execution_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
     error: Mapped[str | None] = mapped_column(Text)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

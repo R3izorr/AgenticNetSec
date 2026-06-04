@@ -2,11 +2,18 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 import json
 import threading
 import uuid
+
+from sqlalchemy import select
+
+from backend.db.bootstrap import ensure_default_principal
+from backend.db.models import TotalJob
+from backend.db.session import SessionLocal
 
 
 @dataclass
@@ -43,6 +50,7 @@ class TotalJobStore:
         self.base_dir = base_dir
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, TotalJobRecord] = {}
+        self._db_available = True
         self._lock = threading.Lock()
         self._load_existing_jobs()
 
@@ -74,6 +82,8 @@ class TotalJobStore:
         with self._lock:
             record = self._jobs[total_job_id]
             for key, value in kwargs.items():
+                if key == "updated_at":
+                    continue
                 setattr(record, key, value)
             record.updated_at = datetime.now(timezone.utc).isoformat()
             self._persist_record(record)
@@ -122,14 +132,34 @@ class TotalJobStore:
         return path.read_text(encoding="utf-8")
 
     def _load_existing_jobs(self) -> None:
+        db_records = self._load_db_jobs()
+        self._jobs.update(db_records)
+
         for job_dir in sorted(self.base_dir.iterdir() if self.base_dir.exists() else [], reverse=True):
             if not job_dir.is_dir():
                 continue
             record = self._load_job_record(job_dir)
             if record:
                 record = self._recover_interrupted_total_job(record)
-                self._jobs[record.total_job_id] = record
-                self._persist_record(record)
+                self._jobs.setdefault(record.total_job_id, record)
+                self._persist_record(self._jobs[record.total_job_id])
+
+    def _load_db_jobs(self) -> dict[str, TotalJobRecord]:
+        if not self._db_available:
+            return {}
+        try:
+            with SessionLocal() as session:
+                _user_id, organization_id = ensure_default_principal(session)
+                rows = session.scalars(
+                    select(TotalJob)
+                    .where(TotalJob.organization_id == organization_id, TotalJob.public_id.is_not(None))
+                    .order_by(TotalJob.created_at.desc())
+                ).all()
+                session.commit()
+                return {record.total_job_id: record for record in (self._record_from_model(row) for row in rows)}
+        except Exception:  # noqa: BLE001
+            self._db_available = False
+            return {}
 
     def _load_job_record(self, job_dir: Path) -> TotalJobRecord | None:
         manifest_path = job_dir / "total_job.json"
@@ -147,11 +177,85 @@ class TotalJobStore:
             return None
 
     def _persist_record(self, record: TotalJobRecord) -> None:
-        if not record.artifacts_dir:
+        if record.artifacts_dir:
+            manifest_path = Path(record.artifacts_dir) / "total_job.json"
+            payload = asdict(record)
+            manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        self._persist_db_record(record)
+
+    def _persist_db_record(self, record: TotalJobRecord) -> None:
+        if not self._db_available:
             return
-        manifest_path = Path(record.artifacts_dir) / "total_job.json"
-        payload = asdict(record)
-        manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        try:
+            with SessionLocal() as session:
+                user_id, organization_id = ensure_default_principal(session)
+                row = session.scalar(
+                    select(TotalJob).where(
+                        TotalJob.organization_id == organization_id,
+                        TotalJob.public_id == record.total_job_id,
+                    )
+                )
+                if row is None:
+                    row = TotalJob(
+                        public_id=record.total_job_id,
+                        organization_id=organization_id,
+                        created_by_user_id=user_id,
+                        status=record.status,
+                        current_stage=record.current_stage,
+                        analysis_profile=record.analysis_profile,
+                    )
+                    session.add(row)
+                self._apply_record_to_model(record, row)
+                session.commit()
+        except Exception:  # noqa: BLE001
+            self._db_available = False
+
+    @classmethod
+    def _apply_record_to_model(cls, record: TotalJobRecord, row: TotalJob) -> None:
+        row.public_id = record.total_job_id
+        row.status = record.status
+        row.current_stage = record.current_stage
+        row.progress = Decimal(str(max(0.0, min(1.0, float(record.progress or 0.0)))))
+        row.enrichment_status = record.enrichment_status
+        row.enrichment_progress = Decimal(str(max(0.0, min(1.0, float(record.enrichment_progress or 0.0)))))
+        row.analysis_profile = record.analysis_profile
+        row.worker_count = record.worker_count
+        row.file_count = record.file_count
+        row.artifacts_dir = record.artifacts_dir
+        row.error = record.error
+        row.completed_children = record.completed_children
+        row.failed_children = record.failed_children
+        row.deterministic_complete = record.deterministic_complete
+        row.enrichment_error = record.enrichment_error
+        row.children_json = [asdict(child) for child in record.children]
+        row.completed_at = cls._parse_datetime(record.updated_at) if record.status == "completed" else None
+
+    @classmethod
+    def _record_from_model(cls, row: TotalJob) -> TotalJobRecord:
+        children = []
+        for child in row.children_json or []:
+            if isinstance(child, dict):
+                children.append(TotalJobChildRef(**child))
+        return TotalJobRecord(
+            total_job_id=str(row.public_id),
+            status=row.status,
+            current_stage=row.current_stage,
+            progress=float(row.progress or 0),
+            created_at=cls._format_datetime(row.created_at),
+            updated_at=cls._format_datetime(row.updated_at),
+            error=row.error,
+            artifacts_dir=row.artifacts_dir,
+            worker_count=row.worker_count,
+            file_count=row.file_count,
+            completed_children=row.completed_children,
+            failed_children=row.failed_children,
+            deterministic_complete=bool(row.deterministic_complete),
+            enrichment_status=row.enrichment_status,
+            enrichment_progress=float(row.enrichment_progress or 0),
+            enrichment_error=row.enrichment_error,
+            analysis_profile=row.analysis_profile,
+            children=children,
+        )
 
     @staticmethod
     def _recover_interrupted_total_job(record: TotalJobRecord) -> TotalJobRecord:
@@ -172,3 +276,23 @@ class TotalJobStore:
             record.current_stage = "failed"
             record.error = "Interrupted by backend shutdown before deterministic analysis completed."
         return record
+
+    @staticmethod
+    def _parse_datetime(value: str | None) -> datetime | None:
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    @staticmethod
+    def _format_datetime(value: datetime | None) -> str:
+        if value is None:
+            return datetime.now(timezone.utc).isoformat()
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).isoformat()

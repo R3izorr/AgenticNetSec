@@ -2,11 +2,18 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 import json
 import threading
 import uuid
+
+from sqlalchemy import select
+
+from backend.db.bootstrap import ensure_default_principal
+from backend.db.models import AnalysisJob, TotalJob
+from backend.db.session import SessionLocal
 
 
 ARTIFACT_KEYS = {
@@ -14,6 +21,13 @@ ARTIFACT_KEYS = {
     "report.md": "report_markdown",
     "metrics.json": "metrics",
     "guardrail_audit.json": "guardrail_audit",
+}
+
+DEFAULT_ARTIFACT_READY = {
+    "report_json": False,
+    "report_markdown": False,
+    "metrics": False,
+    "guardrail_audit": False,
 }
 
 
@@ -32,14 +46,7 @@ class JobRecord:
     source_name: str | None = None
     source_path: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
-    artifact_ready: dict[str, bool] = field(
-        default_factory=lambda: {
-            "report_json": False,
-            "report_markdown": False,
-            "metrics": False,
-            "guardrail_audit": False,
-        }
-    )
+    artifact_ready: dict[str, bool] = field(default_factory=lambda: dict(DEFAULT_ARTIFACT_READY))
     attack_type: str | None = None
     risk_level: str | None = None
     confidence_score: float | None = None
@@ -56,6 +63,7 @@ class JobStore:
         self.base_dir = base_dir
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, JobRecord] = {}
+        self._db_available = True
         self._lock = threading.Lock()
         self._load_existing_jobs()
 
@@ -89,10 +97,12 @@ class JobStore:
             self._persist_record(record)
         return record
 
-    def update(self, job_id: str, **kwargs) -> JobRecord:
+    def update(self, job_id: str, **kwargs: Any) -> JobRecord:
         with self._lock:
             record = self._jobs[job_id]
             for key, value in kwargs.items():
+                if key == "updated_at":
+                    continue
                 setattr(record, key, value)
             record.updated_at = datetime.now(timezone.utc).isoformat()
             self._persist_record(record)
@@ -127,6 +137,29 @@ class JobStore:
                 existing = matches.get(normalized_job_path)
                 if existing is None or existing.created_at < job.created_at:
                     matches[normalized_job_path] = job
+            return matches
+
+    def find_by_source_names(
+        self,
+        source_names: list[str],
+        *,
+        statuses: set[str] | None = None,
+    ) -> dict[str, JobRecord]:
+        normalized_targets = {str(name).strip().lower() for name in source_names if str(name).strip()}
+        if not normalized_targets:
+            return {}
+
+        with self._lock:
+            matches: dict[str, JobRecord] = {}
+            for job in self._jobs.values():
+                normalized_name = str(job.source_name or "").strip().lower()
+                if not normalized_name or normalized_name not in normalized_targets:
+                    continue
+                if statuses is not None and job.status not in statuses:
+                    continue
+                existing = matches.get(normalized_name)
+                if existing is None or existing.created_at < job.created_at:
+                    matches[normalized_name] = job
             return matches
 
     def save_artifact(self, job_id: str, name: str, content: str | dict) -> Path:
@@ -170,14 +203,34 @@ class JobStore:
             return jobs
 
     def _load_existing_jobs(self) -> None:
+        db_records = self._load_db_jobs()
+        self._jobs.update(db_records)
+
         for job_dir in sorted(self.base_dir.iterdir() if self.base_dir.exists() else [], reverse=True):
             if not job_dir.is_dir():
                 continue
             record = self._load_job_record(job_dir)
             if record:
                 record = self._recover_interrupted_job(record)
-                self._jobs[record.analysis_job_id] = record
-                self._persist_record(record)
+                self._jobs.setdefault(record.analysis_job_id, record)
+                self._persist_record(self._jobs[record.analysis_job_id])
+
+    def _load_db_jobs(self) -> dict[str, JobRecord]:
+        if not self._db_available:
+            return {}
+        try:
+            with SessionLocal() as session:
+                _user_id, organization_id = ensure_default_principal(session)
+                rows = session.scalars(
+                    select(AnalysisJob)
+                    .where(AnalysisJob.organization_id == organization_id, AnalysisJob.public_id.is_not(None))
+                    .order_by(AnalysisJob.created_at.desc())
+                ).all()
+                session.commit()
+                return {record.analysis_job_id: record for record in (self._record_from_model(row) for row in rows)}
+        except Exception:  # noqa: BLE001
+            self._db_available = False
+            return {}
 
     def _load_job_record(self, job_dir: Path) -> JobRecord | None:
         manifest_path = job_dir / "job.json"
@@ -243,15 +296,101 @@ class JobStore:
             except (OSError, json.JSONDecodeError):
                 pass
 
-        self._persist_record(record)
         return record
 
     def _persist_record(self, record: JobRecord) -> None:
-        if not record.artifacts_dir:
+        if record.artifacts_dir:
+            manifest_path = Path(record.artifacts_dir) / "job.json"
+            payload = asdict(record)
+            manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        self._persist_db_record(record)
+
+    def _persist_db_record(self, record: JobRecord) -> None:
+        if not self._db_available:
             return
-        manifest_path = Path(record.artifacts_dir) / "job.json"
-        payload = asdict(record)
-        manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        try:
+            with SessionLocal() as session:
+                user_id, organization_id = ensure_default_principal(session)
+                row = session.scalar(
+                    select(AnalysisJob).where(
+                        AnalysisJob.organization_id == organization_id,
+                        AnalysisJob.public_id == record.analysis_job_id,
+                    )
+                )
+                if row is None:
+                    row = AnalysisJob(
+                        public_id=record.analysis_job_id,
+                        organization_id=organization_id,
+                        created_by_user_id=user_id,
+                        source_type=record.source_type or "unknown",
+                        source_name=record.source_name or record.analysis_job_id,
+                        status=record.status,
+                        current_phase=record.current_phase,
+                        analysis_profile=record.analysis_profile,
+                    )
+                    session.add(row)
+                self._apply_record_to_model(record, row, session, organization_id)
+                session.commit()
+        except Exception:  # noqa: BLE001
+            self._db_available = False
+
+    def _apply_record_to_model(self, record: JobRecord, row: AnalysisJob, session: Any, organization_id: uuid.UUID) -> None:
+        row.public_id = record.analysis_job_id
+        row.organization_id = organization_id
+        row.source_type = record.source_type or "unknown"
+        row.source_name = record.source_name or record.analysis_job_id
+        row.source_path = record.source_path
+        row.status = record.status
+        row.current_phase = record.current_phase
+        row.progress = Decimal(str(max(0.0, min(1.0, float(record.progress or 0.0)))))
+        row.analysis_profile = record.analysis_profile
+        row.risk_level = record.risk_level
+        row.attack_type = record.attack_type
+        row.confidence_score = self._decimal_or_none(record.confidence_score)
+        row.artifacts_dir = record.artifacts_dir
+        row.group_id = record.group_id
+        row.group_index = record.group_index
+        row.group_total = record.group_total
+        row.guardrail_state = record.guardrail_state
+        row.metadata_json = record.metadata or {}
+        row.artifact_ready_json = record.artifact_ready or dict(DEFAULT_ARTIFACT_READY)
+        row.runtime_seconds_total = self._decimal_or_none(record.runtime_seconds_total)
+        row.stage1_execution_json = record.stage1_execution or {}
+        row.error = record.error
+        row.completed_at = self._parse_datetime(record.updated_at) if record.status == "completed" else None
+        if record.group_id:
+            total_job = session.scalar(
+                select(TotalJob).where(TotalJob.organization_id == organization_id, TotalJob.public_id == record.group_id)
+            )
+            row.total_job_id = total_job.id if total_job else None
+
+    @classmethod
+    def _record_from_model(cls, row: AnalysisJob) -> JobRecord:
+        return JobRecord(
+            analysis_job_id=str(row.public_id),
+            status=row.status,
+            current_phase=row.current_phase,
+            progress=float(row.progress or 0),
+            guardrail_state=row.guardrail_state or "pending",
+            created_at=cls._format_datetime(row.created_at),
+            updated_at=cls._format_datetime(row.updated_at),
+            error=row.error,
+            artifacts_dir=row.artifacts_dir,
+            source_type=row.source_type,
+            source_name=row.source_name,
+            source_path=row.source_path,
+            metadata=dict(row.metadata_json or {}),
+            artifact_ready={**DEFAULT_ARTIFACT_READY, **dict(row.artifact_ready_json or {})},
+            attack_type=row.attack_type,
+            risk_level=row.risk_level,
+            confidence_score=cls._float_or_none(row.confidence_score),
+            runtime_seconds_total=cls._float_or_none(row.runtime_seconds_total),
+            group_id=row.group_id,
+            group_index=row.group_index,
+            group_total=row.group_total,
+            analysis_profile=row.analysis_profile,
+            stage1_execution=dict(row.stage1_execution_json or {}),
+        )
 
     @staticmethod
     def _normalize_source_path(source_path: str | None) -> str | None:
@@ -270,3 +409,35 @@ class JobStore:
         record.current_phase = "interrupted"
         record.error = "Interrupted by backend shutdown before analysis completed."
         return record
+
+    @staticmethod
+    def _parse_datetime(value: str | None) -> datetime | None:
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    @staticmethod
+    def _format_datetime(value: datetime | None) -> str:
+        if value is None:
+            return datetime.now(timezone.utc).isoformat()
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).isoformat()
+
+    @staticmethod
+    def _decimal_or_none(value: float | int | str | None) -> Decimal | None:
+        if value is None:
+            return None
+        return Decimal(str(value))
+
+    @staticmethod
+    def _float_or_none(value: Decimal | float | int | None) -> float | None:
+        if value is None:
+            return None
+        return float(value)
