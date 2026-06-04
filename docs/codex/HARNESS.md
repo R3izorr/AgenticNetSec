@@ -103,6 +103,7 @@ File families:
    - run relevant backend tests
    - run frontend lint/build when frontend changed
    - manually verify upload -> analysis -> report when possible
+   - after auth exists, use a real registered/seeded test account for protected routes; if no account exists, stop and ask the user to create or approve test accounts instead of bypassing auth
    - record skipped checks and reasons in implementation notes
 
 5. Close:

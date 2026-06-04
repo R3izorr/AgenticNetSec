@@ -35,6 +35,8 @@ DEFAULT_ARTIFACT_READY = {
 @dataclass
 class JobRecord:
     analysis_job_id: str
+    organization_id: str | None = None
+    created_by_user_id: str | None = None
     status: str = "queued"
     current_phase: str = "queued"
     progress: float = 0.0
@@ -81,12 +83,16 @@ class JobStore:
         group_total: int | None = None,
         analysis_profile: str = "standard",
         source_artifact_id: str | None = None,
+        organization_id: str | uuid.UUID | None = None,
+        user_id: str | uuid.UUID | None = None,
     ) -> JobRecord:
         job_id = f"analysis_{uuid.uuid4().hex[:12]}"
         artifacts_dir = self.base_dir / job_id
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         record = JobRecord(
             analysis_job_id=job_id,
+            organization_id=str(organization_id) if organization_id else None,
+            created_by_user_id=str(user_id) if user_id else None,
             artifacts_dir=str(artifacts_dir),
             source_type=source_type,
             source_name=source_name,
@@ -113,15 +119,19 @@ class JobStore:
             self._persist_record(record)
             return record
 
-    def get(self, job_id: str) -> JobRecord | None:
+    def get(self, job_id: str, *, organization_id: str | uuid.UUID | None = None) -> JobRecord | None:
         with self._lock:
-            return self._jobs.get(job_id)
+            record = self._jobs.get(job_id)
+            if record is None or not self._matches_organization(record, organization_id):
+                return None
+            return record
 
     def find_by_source_paths(
         self,
         source_paths: list[str],
         *,
         statuses: set[str] | None = None,
+        organization_id: str | uuid.UUID | None = None,
     ) -> dict[str, JobRecord]:
         normalized_targets = {
             self._normalize_source_path(path)
@@ -134,6 +144,8 @@ class JobStore:
         with self._lock:
             matches: dict[str, JobRecord] = {}
             for job in self._jobs.values():
+                if not self._matches_organization(job, organization_id):
+                    continue
                 normalized_job_path = self._normalize_source_path(job.source_path)
                 if not normalized_job_path or normalized_job_path not in normalized_targets:
                     continue
@@ -149,6 +161,7 @@ class JobStore:
         source_names: list[str],
         *,
         statuses: set[str] | None = None,
+        organization_id: str | uuid.UUID | None = None,
     ) -> dict[str, JobRecord]:
         normalized_targets = {str(name).strip().lower() for name in source_names if str(name).strip()}
         if not normalized_targets:
@@ -157,6 +170,8 @@ class JobStore:
         with self._lock:
             matches: dict[str, JobRecord] = {}
             for job in self._jobs.values():
+                if not self._matches_organization(job, organization_id):
+                    continue
                 normalized_name = str(job.source_name or "").strip().lower()
                 if not normalized_name or normalized_name not in normalized_targets:
                     continue
@@ -186,28 +201,42 @@ class JobStore:
                 record.updated_at = datetime.now(timezone.utc).isoformat()
                 self._persist_record(record)
         artifact_type = self._artifact_type_for_name(name)
-        self.artifact_service.record_file(path, artifact_type=artifact_type, analysis_job_id=job_id)
+        self.artifact_service.record_file(
+            path,
+            artifact_type=artifact_type,
+            analysis_job_id=job_id,
+            organization_id=record.organization_id,
+            user_id=record.created_by_user_id,
+        )
         return path
 
-    def read_json_artifact(self, job_id: str, name: str) -> dict:
-        record = self.get(job_id)
+    def read_json_artifact(self, job_id: str, name: str, *, organization_id: str | uuid.UUID | None = None) -> dict:
+        record = self.get(job_id, organization_id=organization_id)
         if not record or not record.artifacts_dir:
             raise KeyError(f"Unknown job_id {job_id}")
         path = Path(record.artifacts_dir) / name
-        self.artifact_service.ensure_readable(path)
+        self.artifact_service.ensure_readable(
+            path,
+            organization_id=record.organization_id,
+            user_id=record.created_by_user_id,
+        )
         return json.loads(path.read_text(encoding="utf-8"))
 
-    def read_text_artifact(self, job_id: str, name: str) -> str:
-        record = self.get(job_id)
+    def read_text_artifact(self, job_id: str, name: str, *, organization_id: str | uuid.UUID | None = None) -> str:
+        record = self.get(job_id, organization_id=organization_id)
         if not record or not record.artifacts_dir:
             raise KeyError(f"Unknown job_id {job_id}")
         path = Path(record.artifacts_dir) / name
-        self.artifact_service.ensure_readable(path)
+        self.artifact_service.ensure_readable(
+            path,
+            organization_id=record.organization_id,
+            user_id=record.created_by_user_id,
+        )
         return path.read_text(encoding="utf-8")
 
-    def list_jobs(self) -> list[JobRecord]:
+    def list_jobs(self, *, organization_id: str | uuid.UUID | None = None) -> list[JobRecord]:
         with self._lock:
-            jobs = list(self._jobs.values())
+            jobs = [job for job in self._jobs.values() if self._matches_organization(job, organization_id)]
             jobs.sort(key=lambda job: job.created_at, reverse=True)
             return jobs
 
@@ -229,10 +258,9 @@ class JobStore:
             return {}
         try:
             with SessionLocal() as session:
-                _user_id, organization_id = ensure_default_principal(session)
                 rows = session.scalars(
                     select(AnalysisJob)
-                    .where(AnalysisJob.organization_id == organization_id, AnalysisJob.public_id.is_not(None))
+                    .where(AnalysisJob.public_id.is_not(None))
                     .order_by(AnalysisJob.created_at.desc())
                 ).all()
                 session.commit()
@@ -319,7 +347,7 @@ class JobStore:
             return
         try:
             with SessionLocal() as session:
-                user_id, organization_id = ensure_default_principal(session)
+                user_id, organization_id = self._resolve_principal(session, record)
                 row = session.scalar(
                     select(AnalysisJob).where(
                         AnalysisJob.organization_id == organization_id,
@@ -338,14 +366,22 @@ class JobStore:
                         analysis_profile=record.analysis_profile,
                     )
                     session.add(row)
-                self._apply_record_to_model(record, row, session, organization_id)
+                self._apply_record_to_model(record, row, session, organization_id, user_id)
                 session.commit()
         except Exception:  # noqa: BLE001
             self._db_available = False
 
-    def _apply_record_to_model(self, record: JobRecord, row: AnalysisJob, session: Any, organization_id: uuid.UUID) -> None:
+    def _apply_record_to_model(
+        self,
+        record: JobRecord,
+        row: AnalysisJob,
+        session: Any,
+        organization_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> None:
         row.public_id = record.analysis_job_id
         row.organization_id = organization_id
+        row.created_by_user_id = user_id
         row.source_type = record.source_type or "unknown"
         row.source_name = record.source_name or record.analysis_job_id
         row.source_path = record.source_path
@@ -382,6 +418,8 @@ class JobStore:
     def _record_from_model(cls, row: AnalysisJob) -> JobRecord:
         return JobRecord(
             analysis_job_id=str(row.public_id),
+            organization_id=str(row.organization_id),
+            created_by_user_id=str(row.created_by_user_id) if row.created_by_user_id else None,
             status=row.status,
             current_phase=row.current_phase,
             progress=float(row.progress or 0),
@@ -407,8 +445,30 @@ class JobStore:
             source_artifact_id=str(row.source_artifact_id) if row.source_artifact_id else None,
         )
 
-    def soft_delete_artifacts(self, job_id: str) -> int:
-        return self.artifact_service.soft_delete_analysis_artifacts(job_id)
+    def soft_delete_artifacts(self, job_id: str, *, organization_id: str | uuid.UUID | None = None) -> int:
+        record = self.get(job_id, organization_id=organization_id)
+        if record is None:
+            return 0
+        return self.artifact_service.soft_delete_analysis_artifacts(
+            job_id,
+            organization_id=record.organization_id,
+            user_id=record.created_by_user_id,
+        )
+
+    @staticmethod
+    def _matches_organization(record: JobRecord, organization_id: str | uuid.UUID | None) -> bool:
+        if organization_id is None:
+            return True
+        return str(record.organization_id) == str(organization_id)
+
+    @staticmethod
+    def _resolve_principal(session: Any, record: JobRecord) -> tuple[uuid.UUID, uuid.UUID]:
+        if record.organization_id and record.created_by_user_id:
+            return uuid.UUID(record.created_by_user_id), uuid.UUID(record.organization_id)
+        user_id, organization_id = ensure_default_principal(session)
+        record.created_by_user_id = str(user_id)
+        record.organization_id = str(organization_id)
+        return user_id, organization_id
 
     @staticmethod
     def _artifact_type_for_name(name: str) -> str:

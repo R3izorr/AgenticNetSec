@@ -40,7 +40,13 @@ class ArtifactService:
         self.root_dir.mkdir(parents=True, exist_ok=True)
         self._db_available = True
 
-    def save_upload(self, upload_file: object) -> StoredArtifact:
+    def save_upload(
+        self,
+        upload_file: object,
+        *,
+        organization_id: str | uuid.UUID | None = None,
+        user_id: str | uuid.UUID | None = None,
+    ) -> StoredArtifact:
         original_name = str(getattr(upload_file, "filename", "") or "upload.pcap")
         safe_name = self.validate_upload_filename(original_name)
         artifact_dir = self.root_dir / "uploads" / uuid.uuid4().hex
@@ -48,7 +54,13 @@ class ArtifactService:
         path = artifact_dir / safe_name
         file_obj = getattr(upload_file, "file")
         self._write_binary(path, file_obj)
-        return self.record_file(path, artifact_type="source_pcap", content_type=self.content_type_for_name(safe_name))
+        return self.record_file(
+            path,
+            artifact_type="source_pcap",
+            content_type=self.content_type_for_name(safe_name),
+            organization_id=organization_id,
+            user_id=user_id,
+        )
 
     def record_file(
         self,
@@ -58,6 +70,8 @@ class ArtifactService:
         content_type: str | None = None,
         analysis_job_id: str | None = None,
         total_job_id: str | None = None,
+        organization_id: str | uuid.UUID | None = None,
+        user_id: str | uuid.UUID | None = None,
     ) -> StoredArtifact:
         file_path = Path(path)
         content_type = content_type or self.content_type_for_name(file_path.name)
@@ -70,6 +84,8 @@ class ArtifactService:
             sha256=sha256,
             analysis_public_id=analysis_job_id,
             total_public_id=total_job_id,
+            organization_id=organization_id,
+            user_id=user_id,
         )
         return StoredArtifact(
             artifact_id=str(artifact_id) if artifact_id is not None else None,
@@ -80,7 +96,14 @@ class ArtifactService:
             sha256=sha256,
         )
 
-    def link_to_analysis_job(self, artifact_id: str | None, analysis_public_id: str) -> None:
+    def link_to_analysis_job(
+        self,
+        artifact_id: str | None,
+        analysis_public_id: str,
+        *,
+        organization_id: str | uuid.UUID | None = None,
+        user_id: str | uuid.UUID | None = None,
+    ) -> None:
         if not artifact_id or not self._db_available:
             return
         try:
@@ -89,16 +112,16 @@ class ArtifactService:
             return
         try:
             with SessionLocal() as session:
-                _user_id, organization_id = ensure_default_principal(session)
+                _user_id, organization_uuid = self._resolve_principal(session, organization_id, user_id)
                 analysis_job = session.scalar(
                     select(AnalysisJob).where(
-                        AnalysisJob.organization_id == organization_id,
+                        AnalysisJob.organization_id == organization_uuid,
                         AnalysisJob.public_id == analysis_public_id,
                     )
                 )
                 artifact = session.scalar(
                     select(Artifact).where(
-                        Artifact.organization_id == organization_id,
+                        Artifact.organization_id == organization_uuid,
                         Artifact.id == artifact_uuid,
                     )
                 )
@@ -111,15 +134,21 @@ class ArtifactService:
         except Exception:  # noqa: BLE001
             self._db_available = False
 
-    def soft_delete_analysis_artifacts(self, analysis_public_id: str) -> int:
+    def soft_delete_analysis_artifacts(
+        self,
+        analysis_public_id: str,
+        *,
+        organization_id: str | uuid.UUID | None = None,
+        user_id: str | uuid.UUID | None = None,
+    ) -> int:
         if not self._db_available:
             return 0
         try:
             with SessionLocal() as session:
-                _user_id, organization_id = ensure_default_principal(session)
+                _user_id, organization_uuid = self._resolve_principal(session, organization_id, user_id)
                 analysis_job = session.scalar(
                     select(AnalysisJob).where(
-                        AnalysisJob.organization_id == organization_id,
+                        AnalysisJob.organization_id == organization_uuid,
                         AnalysisJob.public_id == analysis_public_id,
                     )
                 )
@@ -129,7 +158,7 @@ class ArtifactService:
                 result = session.execute(
                     update(Artifact)
                     .where(
-                        Artifact.organization_id == organization_id,
+                        Artifact.organization_id == organization_uuid,
                         Artifact.analysis_job_id == analysis_job.id,
                         Artifact.deleted_at.is_(None),
                     )
@@ -141,16 +170,22 @@ class ArtifactService:
             self._db_available = False
             return 0
 
-    def artifact_is_deleted(self, path: Path | str) -> bool:
+    def artifact_is_deleted(
+        self,
+        path: Path | str,
+        *,
+        organization_id: str | uuid.UUID | None = None,
+        user_id: str | uuid.UUID | None = None,
+    ) -> bool:
         if not self._db_available:
             return False
         try:
             storage_path = self.storage_path(path)
             with SessionLocal() as session:
-                _user_id, organization_id = ensure_default_principal(session)
+                _user_id, organization_uuid = self._resolve_principal(session, organization_id, user_id)
                 artifact = session.scalar(
                     select(Artifact).where(
-                        Artifact.organization_id == organization_id,
+                        Artifact.organization_id == organization_uuid,
                         Artifact.storage_path == storage_path,
                     )
                 )
@@ -160,8 +195,14 @@ class ArtifactService:
             self._db_available = False
             return False
 
-    def ensure_readable(self, path: Path | str) -> None:
-        if self.artifact_is_deleted(path):
+    def ensure_readable(
+        self,
+        path: Path | str,
+        *,
+        organization_id: str | uuid.UUID | None = None,
+        user_id: str | uuid.UUID | None = None,
+    ) -> None:
+        if self.artifact_is_deleted(path, organization_id=organization_id, user_id=user_id):
             raise PermissionError("Artifact has been deleted.")
 
     def _upsert_artifact_row(
@@ -174,18 +215,20 @@ class ArtifactService:
         sha256: str,
         analysis_public_id: str | None,
         total_public_id: str | None,
+        organization_id: str | uuid.UUID | None,
+        user_id: str | uuid.UUID | None,
     ) -> uuid.UUID | None:
         if not self._db_available:
             return None
         try:
             with SessionLocal() as session:
-                _user_id, organization_id = ensure_default_principal(session)
+                _user_uuid, organization_uuid = self._resolve_principal(session, organization_id, user_id)
                 analysis_uuid = None
                 total_uuid = None
                 if analysis_public_id:
                     analysis_job = session.scalar(
                         select(AnalysisJob).where(
-                            AnalysisJob.organization_id == organization_id,
+                            AnalysisJob.organization_id == organization_uuid,
                             AnalysisJob.public_id == analysis_public_id,
                         )
                     )
@@ -193,7 +236,7 @@ class ArtifactService:
                 if total_public_id:
                     total_job = session.scalar(
                         select(TotalJob).where(
-                            TotalJob.organization_id == organization_id,
+                            TotalJob.organization_id == organization_uuid,
                             TotalJob.public_id == total_public_id,
                         )
                     )
@@ -202,14 +245,14 @@ class ArtifactService:
                 storage_path = self.storage_path(path)
                 artifact = session.scalar(
                     select(Artifact).where(
-                        Artifact.organization_id == organization_id,
+                        Artifact.organization_id == organization_uuid,
                         Artifact.storage_path == storage_path,
                         Artifact.artifact_type == artifact_type,
                     )
                 )
                 if artifact is None:
                     artifact = Artifact(
-                        organization_id=organization_id,
+                        organization_id=organization_uuid,
                         analysis_job_id=analysis_uuid,
                         total_job_id=total_uuid,
                         artifact_type=artifact_type,
@@ -238,6 +281,16 @@ class ArtifactService:
             return str(file_path.resolve().relative_to(self.root_dir.parent.resolve()))
         except ValueError:
             return str(file_path.resolve())
+
+    @staticmethod
+    def _resolve_principal(
+        session: object,
+        organization_id: str | uuid.UUID | None,
+        user_id: str | uuid.UUID | None,
+    ) -> tuple[uuid.UUID, uuid.UUID]:
+        if organization_id is not None and user_id is not None:
+            return uuid.UUID(str(user_id)), uuid.UUID(str(organization_id))
+        return ensure_default_principal(session)
 
     @staticmethod
     def validate_upload_filename(filename: str) -> str:

@@ -8,6 +8,9 @@ backend/venv/
 .virtualenv_data/
 .tmp/
 local_settings.py
+.env
+.env.*
+!.env.example
 
 # Frontend
 frontend/node_modules/

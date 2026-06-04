@@ -1,6 +1,7 @@
 import { getConfiguredApiBaseUrl, getDefaultApiBaseUrl } from "@/lib/settings"
 
 export type ApiErrorCode =
+  | "unauthorized"
   | "bad_request"
   | "not_found"
   | "not_ready"
@@ -39,6 +40,9 @@ function buildUrl(path: string): string {
 function toApiError(status: number, detail: string): ApiError {
   if (status === 400) {
     return new ApiError("Bad request.", status, "bad_request", detail)
+  }
+  if (status === 401) {
+    return new ApiError("Not authenticated.", status, "unauthorized", detail)
   }
   if (status === 404) {
     return new ApiError("Resource not found.", status, "not_found", detail)
@@ -80,7 +84,10 @@ export async function apiRequest<T>(
 
   let response: Response
   try {
-    response = await fetch(url, init)
+    response = await fetch(url, {
+      ...init,
+      credentials: init?.credentials ?? "include",
+    })
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Network request failed."

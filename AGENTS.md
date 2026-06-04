@@ -50,6 +50,7 @@ Subagents return summaries, not noisy logs.
 - Keep edits scoped to the active sprint.
 - Preserve API response compatibility unless the sprint says otherwise.
 - Add tests near risky backend/auth/security changes.
+- After auth exists, do not bypass auth to make verification pass. If a protected flow needs an account and no seeded/demo account exists, stop and ask the user to create or approve test accounts before running that verification.
 - Use server-generated artifact paths only.
 - All protected database queries must include `organization_id`.
 - Never trust user-supplied file paths.

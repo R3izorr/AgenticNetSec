@@ -13,7 +13,7 @@ import sys
 import time
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -31,6 +31,7 @@ from planner import ANALYSIS_PROFILES
 from report_ai import generate_results_report_result
 from summarize_results import build_aggregate
 from backend.db.session import check_database_connection
+from .auth import CurrentPrincipal, get_current_principal, router as auth_router
 from .job_store import JobRecord, JobStore
 from .total_job_store import TotalJobChildRef, TotalJobRecord, TotalJobStore
 
@@ -47,11 +48,16 @@ ALL_TOTAL_JOBS_SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
 app = FastAPI(title="AgenticNetSec API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        origin.strip()
+        for origin in os.getenv("AGENTIC_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+        if origin.strip()
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(auth_router)
 
 job_store = JobStore(JOBS_DIR)
 total_job_store = TotalJobStore(TOTAL_JOBS_DIR)
@@ -136,13 +142,13 @@ def _serialize_job(job: JobRecord) -> dict[str, Any]:
     }
 
 
-def _serialize_total_job(job: TotalJobRecord) -> dict[str, Any]:
+def _serialize_total_job(job: TotalJobRecord, *, organization_id: str | None = None) -> dict[str, Any]:
     children: list[dict[str, Any]] = []
     completed_children = 0
     failed_children = 0
     child_progress_total = 0.0
     for child_ref in job.children:
-        child_job = job_store.get(child_ref.analysis_job_id)
+        child_job = job_store.get(child_ref.analysis_job_id, organization_id=organization_id)
         child_payload = {
             "analysis_job_id": child_ref.analysis_job_id,
             "filename": child_ref.filename,
@@ -227,9 +233,13 @@ def _normalize_batch_pcap_paths(raw_paths: list[Any]) -> list[str]:
     return normalized
 
 
-def _save_upload(file: UploadFile) -> tuple[str, str, str | None]:
+def _save_upload(file: UploadFile, principal: CurrentPrincipal) -> tuple[str, str, str | None]:
     try:
-        artifact = job_store.artifact_service.save_upload(file)
+        artifact = job_store.artifact_service.save_upload(
+            file,
+            organization_id=principal.organization_id,
+            user_id=principal.user_id,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return str(artifact.path), artifact.filename, artifact.artifact_id
@@ -544,14 +554,14 @@ def _recover_stale_all_total_jobs_summary_status(stored_status: dict[str, Any]) 
     )
 
 
-def _list_completed_total_job_children() -> tuple[list[str], list[TotalJobChildRef]]:
+def _list_completed_total_job_children(organization_id: str | None = None) -> tuple[list[str], list[TotalJobChildRef]]:
     total_job_ids: list[str] = []
     completed_children: list[TotalJobChildRef] = []
 
-    for total_job in total_job_store.list_jobs():
+    for total_job in total_job_store.list_jobs(organization_id=organization_id):
         job_children: list[TotalJobChildRef] = []
         for child in total_job.children:
-            child_job = job_store.get(child.analysis_job_id)
+            child_job = job_store.get(child.analysis_job_id, organization_id=organization_id)
             if child_job and child_job.status == "completed":
                 job_children.append(child)
         if job_children:
@@ -587,10 +597,10 @@ def _load_total_job_enriched_records(total_job: TotalJobRecord) -> list[dict[str
     return records
 
 
-def _load_total_job_child_analysis_records(total_job: TotalJobRecord) -> list[dict[str, Any]]:
+def _load_total_job_child_analysis_records(total_job: TotalJobRecord, organization_id: str | None = None) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for child in total_job.children:
-        child_job = job_store.get(child.analysis_job_id)
+        child_job = job_store.get(child.analysis_job_id, organization_id=organization_id)
         if not child_job or child_job.status != "completed":
             continue
         try:
@@ -605,16 +615,18 @@ def _load_total_job_child_analysis_records(total_job: TotalJobRecord) -> list[di
     return records
 
 
-def _load_all_total_jobs_summary_records() -> tuple[list[str], list[dict[str, Any]], list[dict[str, Any]]]:
+def _load_all_total_jobs_summary_records(
+    organization_id: str | None = None,
+) -> tuple[list[str], list[dict[str, Any]], list[dict[str, Any]]]:
     source_total_job_ids: list[str] = []
     records: list[dict[str, Any]] = []
     source_manifest: list[dict[str, Any]] = []
 
-    for total_job in total_job_store.list_jobs():
+    for total_job in total_job_store.list_jobs(organization_id=organization_id):
         job_records = _load_total_job_enriched_records(total_job)
         record_source = "parent_enrichment"
         if not job_records:
-            job_records = _load_total_job_child_analysis_records(total_job)
+            job_records = _load_total_job_child_analysis_records(total_job, organization_id=organization_id)
             record_source = "child_analysis"
         if not job_records:
             continue
@@ -633,8 +645,8 @@ def _load_all_total_jobs_summary_records() -> tuple[list[str], list[dict[str, An
     return source_total_job_ids, records, source_manifest
 
 
-def _serialize_all_total_jobs_summary_status() -> dict[str, Any]:
-    source_total_job_ids, completed_children = _list_completed_total_job_children()
+def _serialize_all_total_jobs_summary_status(organization_id: str | None = None) -> dict[str, Any]:
+    source_total_job_ids, completed_children = _list_completed_total_job_children(organization_id)
     stored_status = _recover_stale_all_total_jobs_summary_status(_read_all_total_jobs_summary_status())
     return {
         "status": stored_status.get("status", "not_started"),
@@ -939,8 +951,9 @@ def _run_all_total_jobs_summary_sync_legacy_campaign_route(
     provider: str,
     model: str | None,
     require_ai: bool,
+    organization_id: str | None = None,
 ) -> None:
-    source_total_job_ids, records, source_manifest = _load_all_total_jobs_summary_records()
+    source_total_job_ids, records, source_manifest = _load_all_total_jobs_summary_records(organization_id)
     if not records:
         raise RuntimeError("No completed analysis or enrichment records are available across total jobs.")
 
@@ -1152,8 +1165,9 @@ def _run_all_total_jobs_summary_sync(
     provider: str,
     model: str | None,
     require_ai: bool,
+    organization_id: str | None = None,
 ) -> None:
-    source_total_job_ids, records, source_manifest = _load_all_total_jobs_summary_records()
+    source_total_job_ids, records, source_manifest = _load_all_total_jobs_summary_records(organization_id)
     if not records:
         raise RuntimeError("No completed analysis or enrichment records are available across total jobs.")
 
@@ -1378,6 +1392,7 @@ async def _run_all_total_jobs_summary(
     provider: str,
     model: str | None,
     require_ai: bool,
+    organization_id: str | None = None,
 ) -> None:
     loop = asyncio.get_running_loop()
     try:
@@ -1387,6 +1402,7 @@ async def _run_all_total_jobs_summary(
             provider,
             model,
             require_ai,
+            organization_id,
         )
     except Exception as exc:  # noqa: BLE001
         current_status = _read_all_total_jobs_summary_status()
@@ -1403,6 +1419,7 @@ async def _run_all_total_jobs_summary(
 @app.post("/api/v1/analysis")
 async def create_analysis_job(
     request: Request,
+    principal: CurrentPrincipal = Depends(get_current_principal),
     file: UploadFile | None = File(default=None),
     pcap_path: str | None = Form(default=None),
     provider: str | None = Form(default=None),
@@ -1424,7 +1441,7 @@ async def create_analysis_job(
         raise HTTPException(status_code=400, detail="Provide either 'file' upload or 'pcap_path'.")
 
     if file is not None:
-        target_path, source_name, source_artifact_id = _save_upload(file)
+        target_path, source_name, source_artifact_id = _save_upload(file, principal)
         source_type = "upload"
         source_path = target_path
     else:
@@ -1442,8 +1459,15 @@ async def create_analysis_job(
         source_path=source_path,
         analysis_profile=resolved_analysis_profile,
         source_artifact_id=source_artifact_id,
+        organization_id=principal.organization_id,
+        user_id=principal.user_id,
     )
-    job_store.artifact_service.link_to_analysis_job(source_artifact_id, job.analysis_job_id)
+    job_store.artifact_service.link_to_analysis_job(
+        source_artifact_id,
+        job.analysis_job_id,
+        organization_id=principal.organization_id,
+        user_id=principal.user_id,
+    )
 
     req = AnalysisRequest(
         pcap_path=target_path,
@@ -1463,6 +1487,7 @@ async def create_analysis_job(
 @app.post("/api/v1/analysis/batch")
 async def create_batch_analysis_job(
     request: Request,
+    principal: CurrentPrincipal = Depends(get_current_principal),
     files: list[UploadFile] = File(default=[]),
     worker_count: str | int | None = Form(default=2),
     pcap_paths: str | None = Form(default=None),
@@ -1494,7 +1519,7 @@ async def create_batch_analysis_job(
     if files:
         total_files = len(files)
         for index, file in enumerate(files):
-            target_path, source_name, source_artifact_id = _save_upload(file)
+            target_path, source_name, source_artifact_id = _save_upload(file, principal)
             child_specs.append(
                 {
                     "filename": source_name,
@@ -1518,10 +1543,12 @@ async def create_batch_analysis_job(
         existing_jobs_by_path = job_store.find_by_source_paths(
             requested_paths,
             statuses={"queued", "running", "completed"},
+            organization_id=principal.organization_id,
         )
         existing_jobs_by_name = job_store.find_by_source_names(
             [Path(path).name for path in requested_paths],
             statuses={"queued", "running", "completed"},
+            organization_id=principal.organization_id,
         )
         accepted_paths = [
             path
@@ -1602,6 +1629,8 @@ async def create_batch_analysis_job(
         worker_count=resolved_worker_count,
         files=[],
         analysis_profile=resolved_analysis_profile,
+        organization_id=principal.organization_id,
+        user_id=principal.user_id,
     )
     total_files = len(child_specs)
     finalized_child_specs: list[dict[str, Any]] = []
@@ -1615,8 +1644,15 @@ async def create_batch_analysis_job(
             group_total=total_files,
             analysis_profile=resolved_analysis_profile,
             source_artifact_id=item.get("source_artifact_id"),
+            organization_id=principal.organization_id,
+            user_id=principal.user_id,
         )
-        job_store.artifact_service.link_to_analysis_job(item.get("source_artifact_id"), child_job.analysis_job_id)
+        job_store.artifact_service.link_to_analysis_job(
+            item.get("source_artifact_id"),
+            child_job.analysis_job_id,
+            organization_id=principal.organization_id,
+            user_id=principal.user_id,
+        )
         request_payload = {
             **item["request"],
             "artifacts_dir": child_job.artifacts_dir,
@@ -1645,66 +1681,69 @@ async def create_batch_analysis_job(
 
     asyncio.create_task(_run_total_job(total_job.total_job_id, resolved_worker_count, finalized_child_specs))
     return {
-        **_serialize_total_job(total_job_store.get(total_job.total_job_id) or total_job),
+        **_serialize_total_job(
+            total_job_store.get(total_job.total_job_id, organization_id=principal.organization_id) or total_job,
+            organization_id=str(principal.organization_id),
+        ),
         "accepted_file_count": len(finalized_child_specs),
         "skipped_files": skipped_files,
     }
 
 
 @app.get("/api/v1/analysis/{job_id}", response_model=JobStatusResponse)
-async def get_job_status(job_id: str):
-    job = job_store.get(job_id)
+async def get_job_status(job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+    job = job_store.get(job_id, organization_id=principal.organization_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return JobStatusResponse(**_serialize_job(job))
 
 
 @app.get("/api/v1/analysis/{job_id}/report.json")
-async def get_report_json(job_id: str):
-    job = job_store.get(job_id)
+async def get_report_json(job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+    job = job_store.get(job_id, organization_id=principal.organization_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status != "completed":
         raise HTTPException(status_code=409, detail=f"Job is {job.status}")
-    return job_store.read_json_artifact(job_id, "report.json")
+    return job_store.read_json_artifact(job_id, "report.json", organization_id=principal.organization_id)
 
 
 @app.get("/api/v1/analysis/{job_id}/report.md")
-async def get_report_markdown(job_id: str):
-    job = job_store.get(job_id)
+async def get_report_markdown(job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+    job = job_store.get(job_id, organization_id=principal.organization_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status != "completed":
         raise HTTPException(status_code=409, detail=f"Job is {job.status}")
-    return {"markdown": job_store.read_text_artifact(job_id, "report.md")}
+    return {"markdown": job_store.read_text_artifact(job_id, "report.md", organization_id=principal.organization_id)}
 
 
 @app.get("/api/v1/analysis/{job_id}/metrics")
-async def get_metrics(job_id: str):
-    job = job_store.get(job_id)
+async def get_metrics(job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+    job = job_store.get(job_id, organization_id=principal.organization_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status != "completed":
         raise HTTPException(status_code=409, detail=f"Job is {job.status}")
-    return job_store.read_json_artifact(job_id, "metrics.json")
+    return job_store.read_json_artifact(job_id, "metrics.json", organization_id=principal.organization_id)
 
 
 @app.get("/api/v1/analysis/{job_id}/guardrail-audit")
-async def get_guardrail_audit(job_id: str):
-    job = job_store.get(job_id)
+async def get_guardrail_audit(job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+    job = job_store.get(job_id, organization_id=principal.organization_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status != "completed":
         raise HTTPException(status_code=409, detail=f"Job is {job.status}")
-    return job_store.read_json_artifact(job_id, "guardrail_audit.json")
+    return job_store.read_json_artifact(job_id, "guardrail_audit.json", organization_id=principal.organization_id)
 
 
 @app.delete("/api/v1/analysis/{job_id}")
-async def delete_analysis_job(job_id: str):
-    job = job_store.get(job_id)
+async def delete_analysis_job(job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+    job = job_store.get(job_id, organization_id=principal.organization_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    deleted_artifacts = job_store.soft_delete_artifacts(job_id)
+    deleted_artifacts = job_store.soft_delete_artifacts(job_id, organization_id=principal.organization_id)
     job_store.update(
         job_id,
         status="cancelled",
@@ -1720,8 +1759,8 @@ async def delete_analysis_job(job_id: str):
 
 
 @app.get("/api/v1/analysis")
-async def list_jobs():
-    all_jobs = job_store.list_jobs()
+async def list_jobs(principal: CurrentPrincipal = Depends(get_current_principal)):
+    all_jobs = job_store.list_jobs(organization_id=principal.organization_id)
     return {
         "total": len(all_jobs),
         "jobs": [_serialize_job(job) for job in all_jobs],
@@ -1729,26 +1768,27 @@ async def list_jobs():
 
 
 @app.get("/api/v1/total-jobs")
-async def list_total_jobs():
-    jobs = total_job_store.list_jobs()
+async def list_total_jobs(principal: CurrentPrincipal = Depends(get_current_principal)):
+    jobs = total_job_store.list_jobs(organization_id=principal.organization_id)
     return {
         "total": len(jobs),
-        "jobs": [_serialize_total_job(job) for job in jobs],
+        "jobs": [_serialize_total_job(job, organization_id=str(principal.organization_id)) for job in jobs],
     }
 
 
 @app.get("/api/v1/total-jobs/summary/status")
-async def get_all_total_jobs_summary_status():
-    return _serialize_all_total_jobs_summary_status()
+async def get_all_total_jobs_summary_status(principal: CurrentPrincipal = Depends(get_current_principal)):
+    return _serialize_all_total_jobs_summary_status(str(principal.organization_id))
 
 
 @app.post("/api/v1/total-jobs/summary/enrich")
 async def enrich_all_total_jobs_summary(
+    principal: CurrentPrincipal = Depends(get_current_principal),
     provider: str | None = Form(default=None),
     model: str | None = Form(default=None),
     require_ai: str | bool | None = Form(default=None),
 ):
-    status = _serialize_all_total_jobs_summary_status()
+    status = _serialize_all_total_jobs_summary_status(str(principal.organization_id))
     if status["source_file_count"] <= 0:
         raise HTTPException(
             status_code=409,
@@ -1773,14 +1813,15 @@ async def enrich_all_total_jobs_summary(
             provider or "gemini",
             model,
             _to_bool(require_ai, False),
+            str(principal.organization_id),
         )
     )
-    return _serialize_all_total_jobs_summary_status()
+    return _serialize_all_total_jobs_summary_status(str(principal.organization_id))
 
 
 @app.get("/api/v1/total-jobs/summary/json")
-async def get_all_total_jobs_summary_json():
-    status = _serialize_all_total_jobs_summary_status()
+async def get_all_total_jobs_summary_json(principal: CurrentPrincipal = Depends(get_current_principal)):
+    status = _serialize_all_total_jobs_summary_status(str(principal.organization_id))
     if status["status"] != "completed":
         raise HTTPException(status_code=409, detail=f"All-jobs summary is {status['status']}")
     artifact_path = ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.json"
@@ -1788,8 +1829,8 @@ async def get_all_total_jobs_summary_json():
 
 
 @app.get("/api/v1/total-jobs/summary/markdown")
-async def get_all_total_jobs_summary_markdown():
-    status = _serialize_all_total_jobs_summary_status()
+async def get_all_total_jobs_summary_markdown(principal: CurrentPrincipal = Depends(get_current_principal)):
+    status = _serialize_all_total_jobs_summary_status(str(principal.organization_id))
     if status["status"] != "completed":
         raise HTTPException(status_code=409, detail=f"All-jobs summary is {status['status']}")
     artifact_path = ALL_TOTAL_JOBS_SUMMARY_DIR / "summary.md"
@@ -1797,8 +1838,8 @@ async def get_all_total_jobs_summary_markdown():
 
 
 @app.get("/api/v1/total-jobs/summary/sandbox")
-async def get_all_total_jobs_summary_sandbox():
-    status = _serialize_all_total_jobs_summary_status()
+async def get_all_total_jobs_summary_sandbox(principal: CurrentPrincipal = Depends(get_current_principal)):
+    status = _serialize_all_total_jobs_summary_status(str(principal.organization_id))
     if status["status"] != "completed":
         raise HTTPException(status_code=409, detail=f"All-jobs summary is {status['status']}")
     artifact_path = ALL_TOTAL_JOBS_SUMMARY_DIR / "sandbox.json"
@@ -1806,25 +1847,26 @@ async def get_all_total_jobs_summary_sandbox():
 
 
 @app.get("/api/v1/total-jobs/{total_job_id}", response_model=TotalJobStatusResponse)
-async def get_total_job_status(total_job_id: str):
-    total_job = total_job_store.get(total_job_id)
+async def get_total_job_status(total_job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+    total_job = total_job_store.get(total_job_id, organization_id=principal.organization_id)
     if not total_job:
         raise HTTPException(status_code=404, detail="Total job not found")
-    return TotalJobStatusResponse(**_serialize_total_job(total_job))
+    return TotalJobStatusResponse(**_serialize_total_job(total_job, organization_id=str(principal.organization_id)))
 
 
 @app.post("/api/v1/total-jobs/{total_job_id}/enrich")
 async def enrich_total_job(
     total_job_id: str,
+    principal: CurrentPrincipal = Depends(get_current_principal),
     provider: str | None = Form(default=None),
     model: str | None = Form(default=None),
     require_ai: str | bool | None = Form(default=None),
 ):
-    total_job = total_job_store.get(total_job_id)
+    total_job = total_job_store.get(total_job_id, organization_id=principal.organization_id)
     if not total_job:
         raise HTTPException(status_code=404, detail="Total job not found")
 
-    serialized = _serialize_total_job(total_job)
+    serialized = _serialize_total_job(total_job, organization_id=str(principal.organization_id))
     if not serialized["completed_children"]:
         raise HTTPException(status_code=409, detail="No completed child jobs are available for enrichment yet.")
     if serialized["enrichment_status"] == "running":
@@ -1844,34 +1886,37 @@ async def enrich_total_job(
             _to_bool(require_ai, False),
         )
     )
-    return _serialize_total_job(total_job_store.get(total_job_id) or total_job)
+    return _serialize_total_job(
+        total_job_store.get(total_job_id, organization_id=principal.organization_id) or total_job,
+        organization_id=str(principal.organization_id),
+    )
 
 
 @app.get("/api/v1/total-jobs/{total_job_id}/summary.json")
-async def get_total_job_summary_json(total_job_id: str):
-    total_job = total_job_store.get(total_job_id)
+async def get_total_job_summary_json(total_job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+    total_job = total_job_store.get(total_job_id, organization_id=principal.organization_id)
     if not total_job:
         raise HTTPException(status_code=404, detail="Total job not found")
     if total_job.enrichment_status != "completed":
         raise HTTPException(status_code=409, detail=f"Enrichment is {total_job.enrichment_status}")
-    return total_job_store.read_json_artifact(total_job_id, "summary.json")
+    return total_job_store.read_json_artifact(total_job_id, "summary.json", organization_id=principal.organization_id)
 
 
 @app.get("/api/v1/total-jobs/{total_job_id}/summary.md")
-async def get_total_job_summary_markdown(total_job_id: str):
-    total_job = total_job_store.get(total_job_id)
+async def get_total_job_summary_markdown(total_job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+    total_job = total_job_store.get(total_job_id, organization_id=principal.organization_id)
     if not total_job:
         raise HTTPException(status_code=404, detail="Total job not found")
     if total_job.enrichment_status != "completed":
         raise HTTPException(status_code=409, detail=f"Enrichment is {total_job.enrichment_status}")
-    return {"markdown": total_job_store.read_text_artifact(total_job_id, "summary.md")}
+    return {"markdown": total_job_store.read_text_artifact(total_job_id, "summary.md", organization_id=principal.organization_id)}
 
 
 @app.get("/api/v1/total-jobs/{total_job_id}/sandbox")
-async def get_total_job_sandbox(total_job_id: str):
-    total_job = total_job_store.get(total_job_id)
+async def get_total_job_sandbox(total_job_id: str, principal: CurrentPrincipal = Depends(get_current_principal)):
+    total_job = total_job_store.get(total_job_id, organization_id=principal.organization_id)
     if not total_job:
         raise HTTPException(status_code=404, detail="Total job not found")
     if total_job.enrichment_status != "completed":
         raise HTTPException(status_code=409, detail=f"Enrichment is {total_job.enrichment_status}")
-    return total_job_store.read_json_artifact(total_job_id, "sandbox.json")
+    return total_job_store.read_json_artifact(total_job_id, "sandbox.json", organization_id=principal.organization_id)

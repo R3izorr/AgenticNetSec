@@ -366,6 +366,22 @@ Acceptance criteria:
 - protected routes reject anonymous requests
 - disabled user cannot log in
 
+### Test Account Policy
+
+After authentication is implemented, protected verification must use real registered or seeded test accounts.
+
+Do not bypass authentication, disable route protection, inject fake request principals, or call internal store methods only to make a protected-flow check pass.
+
+If a sprint requires protected-flow verification and no suitable test account exists, stop and notify the user. Ask the user to create accounts manually or approve a local-only seed script before continuing.
+
+Recommended local-only test accounts:
+
+- `owner@example.test`
+- `analyst@example.test`
+- `viewer@example.test`
+- `disabled@example.test`
+- `other-owner@example.test`
+
 ## RBAC MVP
 
 Roles:
