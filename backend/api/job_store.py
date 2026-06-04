@@ -12,6 +12,7 @@ import uuid
 from sqlalchemy import select
 
 from backend.db.bootstrap import ensure_default_principal
+from .artifact_service import ArtifactService
 from backend.db.models import AnalysisJob, TotalJob
 from backend.db.session import SessionLocal
 
@@ -56,6 +57,7 @@ class JobRecord:
     group_total: int | None = None
     analysis_profile: str = "standard"
     stage1_execution: dict[str, Any] = field(default_factory=dict)
+    source_artifact_id: str | None = None
 
 
 class JobStore:
@@ -64,6 +66,7 @@ class JobStore:
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, JobRecord] = {}
         self._db_available = True
+        self.artifact_service = ArtifactService(base_dir.parent / "artifacts")
         self._lock = threading.Lock()
         self._load_existing_jobs()
 
@@ -77,6 +80,7 @@ class JobStore:
         group_index: int | None = None,
         group_total: int | None = None,
         analysis_profile: str = "standard",
+        source_artifact_id: str | None = None,
     ) -> JobRecord:
         job_id = f"analysis_{uuid.uuid4().hex[:12]}"
         artifacts_dir = self.base_dir / job_id
@@ -91,6 +95,7 @@ class JobStore:
             group_index=group_index,
             group_total=group_total,
             analysis_profile=analysis_profile,
+            source_artifact_id=source_artifact_id,
         )
         with self._lock:
             self._jobs[job_id] = record
@@ -180,6 +185,8 @@ class JobStore:
                 record.artifact_ready[artifact_key] = True
                 record.updated_at = datetime.now(timezone.utc).isoformat()
                 self._persist_record(record)
+        artifact_type = self._artifact_type_for_name(name)
+        self.artifact_service.record_file(path, artifact_type=artifact_type, analysis_job_id=job_id)
         return path
 
     def read_json_artifact(self, job_id: str, name: str) -> dict:
@@ -187,6 +194,7 @@ class JobStore:
         if not record or not record.artifacts_dir:
             raise KeyError(f"Unknown job_id {job_id}")
         path = Path(record.artifacts_dir) / name
+        self.artifact_service.ensure_readable(path)
         return json.loads(path.read_text(encoding="utf-8"))
 
     def read_text_artifact(self, job_id: str, name: str) -> str:
@@ -194,6 +202,7 @@ class JobStore:
         if not record or not record.artifacts_dir:
             raise KeyError(f"Unknown job_id {job_id}")
         path = Path(record.artifacts_dir) / name
+        self.artifact_service.ensure_readable(path)
         return path.read_text(encoding="utf-8")
 
     def list_jobs(self) -> list[JobRecord]:
@@ -356,6 +365,11 @@ class JobStore:
         row.artifact_ready_json = record.artifact_ready or dict(DEFAULT_ARTIFACT_READY)
         row.runtime_seconds_total = self._decimal_or_none(record.runtime_seconds_total)
         row.stage1_execution_json = record.stage1_execution or {}
+        if record.source_artifact_id:
+            try:
+                row.source_artifact_id = uuid.UUID(record.source_artifact_id)
+            except ValueError:
+                pass
         row.error = record.error
         row.completed_at = self._parse_datetime(record.updated_at) if record.status == "completed" else None
         if record.group_id:
@@ -390,7 +404,22 @@ class JobStore:
             group_total=row.group_total,
             analysis_profile=row.analysis_profile,
             stage1_execution=dict(row.stage1_execution_json or {}),
+            source_artifact_id=str(row.source_artifact_id) if row.source_artifact_id else None,
         )
+
+    def soft_delete_artifacts(self, job_id: str) -> int:
+        return self.artifact_service.soft_delete_analysis_artifacts(job_id)
+
+    @staticmethod
+    def _artifact_type_for_name(name: str) -> str:
+        artifact_types = {
+            "report.json": "analysis_report_json",
+            "report.md": "analysis_report_markdown",
+            "metrics.json": "analysis_metrics",
+            "guardrail_audit.json": "guardrail_audit",
+            "analysis_record.json": "analysis_record",
+        }
+        return artifact_types.get(name, "analysis_artifact")
 
     @staticmethod
     def _normalize_source_path(source_path: str | None) -> str | None:

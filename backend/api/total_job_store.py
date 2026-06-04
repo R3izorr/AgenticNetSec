@@ -12,6 +12,7 @@ import uuid
 from sqlalchemy import select
 
 from backend.db.bootstrap import ensure_default_principal
+from .artifact_service import ArtifactService
 from backend.db.models import TotalJob
 from backend.db.session import SessionLocal
 
@@ -51,6 +52,7 @@ class TotalJobStore:
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, TotalJobRecord] = {}
         self._db_available = True
+        self.artifact_service = ArtifactService(base_dir.parent / "artifacts")
         self._lock = threading.Lock()
         self._load_existing_jobs()
 
@@ -105,6 +107,7 @@ class TotalJobStore:
             raise KeyError(f"Unknown total_job_id {total_job_id}")
         path = Path(record.artifacts_dir) / name
         path.write_text(json.dumps(content, indent=2) + "\n", encoding="utf-8")
+        self.artifact_service.record_file(path, artifact_type=self._artifact_type_for_name(name), total_job_id=total_job_id)
         self.update(total_job_id, updated_at=datetime.now(timezone.utc).isoformat())
         return path
 
@@ -114,6 +117,7 @@ class TotalJobStore:
             raise KeyError(f"Unknown total_job_id {total_job_id}")
         path = Path(record.artifacts_dir) / name
         path.write_text(content + ("" if content.endswith("\n") else "\n"), encoding="utf-8")
+        self.artifact_service.record_file(path, artifact_type=self._artifact_type_for_name(name), total_job_id=total_job_id)
         self.update(total_job_id, updated_at=datetime.now(timezone.utc).isoformat())
         return path
 
@@ -122,6 +126,7 @@ class TotalJobStore:
         if not record or not record.artifacts_dir:
             raise KeyError(f"Unknown total_job_id {total_job_id}")
         path = Path(record.artifacts_dir) / name
+        self.artifact_service.ensure_readable(path)
         return json.loads(path.read_text(encoding="utf-8"))
 
     def read_text_artifact(self, total_job_id: str, name: str) -> str:
@@ -129,6 +134,7 @@ class TotalJobStore:
         if not record or not record.artifacts_dir:
             raise KeyError(f"Unknown total_job_id {total_job_id}")
         path = Path(record.artifacts_dir) / name
+        self.artifact_service.ensure_readable(path)
         return path.read_text(encoding="utf-8")
 
     def _load_existing_jobs(self) -> None:
@@ -256,6 +262,19 @@ class TotalJobStore:
             analysis_profile=row.analysis_profile,
             children=children,
         )
+
+    @staticmethod
+    def _artifact_type_for_name(name: str) -> str:
+        artifact_types = {
+            "aggregate_summary.json": "total_job_aggregate_summary",
+            "scan_results.json": "total_job_scan_results",
+            "summary.json": "total_job_summary_json",
+            "summary.md": "total_job_summary_markdown",
+            "sandbox.json": "total_job_sandbox",
+            "campaign_plan.json": "total_job_campaign_plan",
+            "initial_summary.md": "total_job_initial_summary",
+        }
+        return artifact_types.get(name, "total_job_artifact")
 
     @staticmethod
     def _recover_interrupted_total_job(record: TotalJobRecord) -> TotalJobRecord:

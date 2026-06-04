@@ -227,11 +227,12 @@ def _normalize_batch_pcap_paths(raw_paths: list[Any]) -> list[str]:
     return normalized
 
 
-def _save_upload(file: UploadFile) -> tuple[str, str]:
-    safe_name = Path(file.filename or "upload.pcap").name
-    dest = UPLOADS_DIR / f"upload_{int(time.time())}_{safe_name}"
-    dest.write_bytes(file.file.read())
-    return str(dest), safe_name
+def _save_upload(file: UploadFile) -> tuple[str, str, str | None]:
+    try:
+        artifact = job_store.artifact_service.save_upload(file)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return str(artifact.path), artifact.filename, artifact.artifact_id
 
 
 def _artifacts_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -437,6 +438,11 @@ def _save_total_job_jsonl_artifact(
         for record in records:
             handle.write(json.dumps(record))
             handle.write("\n")
+    total_job_store.artifact_service.record_file(
+        artifact_path,
+        artifact_type="total_job_jsonl",
+        total_job_id=total_job_id,
+    )
     total_job_store.update(total_job_id, updated_at=datetime.now(timezone.utc).isoformat())
     return artifact_path
 
@@ -1418,7 +1424,7 @@ async def create_analysis_job(
         raise HTTPException(status_code=400, detail="Provide either 'file' upload or 'pcap_path'.")
 
     if file is not None:
-        target_path, source_name = _save_upload(file)
+        target_path, source_name, source_artifact_id = _save_upload(file)
         source_type = "upload"
         source_path = target_path
     else:
@@ -1426,6 +1432,7 @@ async def create_analysis_job(
         source_type = "path"
         source_name = Path(target_path).name
         source_path = target_path
+        source_artifact_id = None
 
     resolved_analysis_profile = _normalize_analysis_profile(analysis_profile)
 
@@ -1434,7 +1441,9 @@ async def create_analysis_job(
         source_name=source_name,
         source_path=source_path,
         analysis_profile=resolved_analysis_profile,
+        source_artifact_id=source_artifact_id,
     )
+    job_store.artifact_service.link_to_analysis_job(source_artifact_id, job.analysis_job_id)
 
     req = AnalysisRequest(
         pcap_path=target_path,
@@ -1485,12 +1494,13 @@ async def create_batch_analysis_job(
     if files:
         total_files = len(files)
         for index, file in enumerate(files):
-            target_path, source_name = _save_upload(file)
+            target_path, source_name, source_artifact_id = _save_upload(file)
             child_specs.append(
                 {
                     "filename": source_name,
                     "source_path": target_path,
                     "source_type": "upload",
+                    "source_artifact_id": source_artifact_id,
                     "group_index": index,
                     "group_total": total_files,
                     "request": {
@@ -1550,6 +1560,7 @@ async def create_batch_analysis_job(
                     "filename": Path(target_path).name,
                     "source_path": target_path,
                     "source_type": "path",
+                    "source_artifact_id": None,
                     "group_index": index,
                     "group_total": total_files,
                     "request": {
@@ -1603,7 +1614,9 @@ async def create_batch_analysis_job(
             group_index=index,
             group_total=total_files,
             analysis_profile=resolved_analysis_profile,
+            source_artifact_id=item.get("source_artifact_id"),
         )
+        job_store.artifact_service.link_to_analysis_job(item.get("source_artifact_id"), child_job.analysis_job_id)
         request_payload = {
             **item["request"],
             "artifacts_dir": child_job.artifacts_dir,
@@ -1684,6 +1697,26 @@ async def get_guardrail_audit(job_id: str):
     if job.status != "completed":
         raise HTTPException(status_code=409, detail=f"Job is {job.status}")
     return job_store.read_json_artifact(job_id, "guardrail_audit.json")
+
+
+@app.delete("/api/v1/analysis/{job_id}")
+async def delete_analysis_job(job_id: str):
+    job = job_store.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    deleted_artifacts = job_store.soft_delete_artifacts(job_id)
+    job_store.update(
+        job_id,
+        status="cancelled",
+        current_phase="deleted",
+        progress=job.progress,
+        error="Artifacts soft-deleted.",
+    )
+    return {
+        "analysis_job_id": job_id,
+        "status": "deleted",
+        "deleted_artifacts": deleted_artifacts,
+    }
 
 
 @app.get("/api/v1/analysis")
