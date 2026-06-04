@@ -30,6 +30,7 @@ from forensic_schema import JobStatusResponse, TotalJobStatusResponse
 from planner import ANALYSIS_PROFILES
 from report_ai import generate_results_report_result
 from summarize_results import build_aggregate
+from backend.db.session import check_database_connection
 from .job_store import JobRecord, JobStore
 from .total_job_store import TotalJobChildRef, TotalJobRecord, TotalJobStore
 
@@ -60,6 +61,22 @@ engine = AnalysisEngine()
 @app.get("/")
 async def root():
     return {"message": "AgenticNetSec API is running", "version": "1.0.0"}
+
+
+@app.on_event("startup")
+async def startup_database_check() -> None:
+    database_health_result = await asyncio.to_thread(check_database_connection)
+    app.state.database_health = database_health_result
+    if (
+        database_health_result["status"] != "ok"
+        and os.getenv("AGENTIC_DATABASE_REQUIRED", "").strip().lower() in {"1", "true", "yes", "y", "on"}
+    ):
+        raise RuntimeError(f"Database unavailable: {database_health_result.get('error', 'unknown error')}")
+
+
+@app.get("/api/v1/health/database")
+async def database_health():
+    return await asyncio.to_thread(check_database_connection)
 
 
 def _to_bool(value: Any, default: bool) -> bool:

@@ -163,6 +163,7 @@ Default API URL:
 Useful endpoints:
 
 - `http://localhost:8000/docs`
+- `GET /api/v1/health/database`
 - `POST /api/v1/analysis`
 - `GET /api/v1/analysis`
 - `GET /api/v1/analysis/{job_id}`
@@ -173,7 +174,37 @@ Useful endpoints:
 
 Important note:
 
-- `http://localhost:8000/` returning `404 Not Found` is expected
+- `http://localhost:8000/` returns backend health JSON
+
+## Database
+
+Sprint 1 adds PostgreSQL, SQLAlchemy, and Alembic without replacing the existing file-backed API flow yet.
+
+Start PostgreSQL from the repository root:
+
+```bash
+docker compose up -d postgres
+```
+
+Run migrations:
+
+```bash
+./.venv/bin/python -m alembic upgrade head
+```
+
+Create and read one `analysis_jobs` row:
+
+```bash
+./.venv/bin/python backend/scripts/db_smoke.py
+```
+
+The default `DATABASE_URL` is:
+
+```text
+postgresql+psycopg://agenticnetsec:agenticnetsec@localhost:5432/agenticnetsec
+```
+
+PostgreSQL is optional for the legacy file-backed API flow unless `AGENTIC_DATABASE_REQUIRED=1` is set.
 
 ## Run Local Analysis
 

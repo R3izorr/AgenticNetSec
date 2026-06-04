@@ -22,10 +22,15 @@ Introduce PostgreSQL without replacing the working file-based flow yet.
 
 ## Done
 
-- migrations create all MVP tables
-- backend connects to database
-- tests can create/read job rows
-- existing file-based analysis still works
+- [x] migrations create all MVP tables
+- [x] backend connects to database
+- [x] test/script can create/read job rows
+- [x] existing file-based analysis still works
+
+Notes:
+
+- DB verification used Docker Compose PostgreSQL plus `backend/scripts/db_smoke.py`.
+- The current upload -> analysis -> report flow remains file-backed; Sprint 1 only adds the database foundation.
 
 ## Verification
 
@@ -38,4 +43,3 @@ Manual:
 
 - run old upload flow
 - confirm no current API regression
-

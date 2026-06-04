@@ -130,6 +130,38 @@ Backend URLs:
 - API: `http://localhost:8000`
 - API docs: `http://localhost:8000/docs`
 
+## Run The Database
+
+Sprint 1 adds PostgreSQL for the MVP persistence foundation. The current upload -> analysis -> report path still uses the existing file-backed job stores until later sprints.
+
+Start local PostgreSQL:
+
+```bash
+docker compose up -d postgres
+```
+
+Run migrations from the repository root:
+
+```bash
+./.venv/bin/python -m alembic upgrade head
+```
+
+Verify the backend can create and read one database job row:
+
+```bash
+./.venv/bin/python backend/scripts/db_smoke.py
+```
+
+Default local database URL:
+
+```text
+postgresql+psycopg://agenticnetsec:agenticnetsec@localhost:5432/agenticnetsec
+```
+
+Override it with `DATABASE_URL` if needed.
+
+PostgreSQL is optional for the legacy file-backed analysis flow unless `AGENTIC_DATABASE_REQUIRED=1` is set.
+
 ## Run The Frontend
 
 Development mode:
