@@ -52,7 +52,7 @@ If dev mode starts acting strangely, clear browser site data for `http://localho
 Backend note:
 
 - the frontend expects the backend API at `http://localhost:8000`
-- `http://localhost:8000/` returning `404 Not Found` is normal
+- `http://localhost:8000/` returns backend health JSON
 - use `http://localhost:8000/docs` if you want to inspect the backend directly
 
 ## Build Checks
@@ -77,11 +77,14 @@ Create `.env.local` from `.env.example` when needed.
 - `/analysis/[jobId]/report` analyst-facing structured report
 - `/analysis/[jobId]/raw` raw artifacts (`report.json`, `report.md`, metrics, guardrail audit`)
 - `/analysis/history` persisted job history with search/filtering
+- `/total-jobs` parent batch history and all-scans summary
+- `/total-jobs/[totalJobId]` parent batch status, child jobs, enrichment, and summary artifacts
 
 ## API Contract Assumptions
 
 The frontend uses these backend endpoints:
 
+- `POST /api/v1/analysis/batch`
 - `POST /api/v1/analysis`
 - `GET /api/v1/analysis`
 - `GET /api/v1/analysis/{job_id}`
@@ -89,10 +92,22 @@ The frontend uses these backend endpoints:
 - `GET /api/v1/analysis/{job_id}/report.md`
 - `GET /api/v1/analysis/{job_id}/metrics`
 - `GET /api/v1/analysis/{job_id}/guardrail-audit`
+- `GET /api/v1/total-jobs`
+- `GET /api/v1/total-jobs/{total_job_id}`
+- `POST /api/v1/total-jobs/{total_job_id}/enrich`
+- `GET /api/v1/total-jobs/{total_job_id}/summary.json`
+- `GET /api/v1/total-jobs/{total_job_id}/summary.md`
+- `GET /api/v1/total-jobs/{total_job_id}/sandbox`
+- `GET /api/v1/total-jobs/summary/status`
+- `POST /api/v1/total-jobs/summary/enrich`
+- `GET /api/v1/total-jobs/summary/json`
+- `GET /api/v1/total-jobs/summary/markdown`
+- `GET /api/v1/total-jobs/summary/sandbox`
 
 ### Behavior notes
 
 - `analysis_job_id` is treated as canonical identifier.
+- `total_job_id` is the parent identifier for batch runs.
 - Job status responses may include source metadata, runtime summary, confidence, risk, and artifact readiness flags.
 - Artifact `409` means "not ready yet" and is handled as a retryable/polling UI state.
 - Polling interval for job status is 3 seconds while status is `queued` or `running`.

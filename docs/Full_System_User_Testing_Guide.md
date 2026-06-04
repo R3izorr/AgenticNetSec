@@ -21,8 +21,7 @@ The frontend talks to the backend through the REST API under `/api/v1/analysis`.
 
 Important backend note:
 
-- visiting `http://localhost:8000/` will return `404 Not Found`, and that is expected
-- the backend does not expose a root landing page at `/`
+- visiting `http://localhost:8000/` returns backend health JSON
 - use `http://localhost:8000/docs` for FastAPI docs
 - use `http://localhost:8000/api/v1/analysis` for the analysis API surface
 
@@ -68,7 +67,7 @@ Expected result:
 
 - the API starts on `http://localhost:8000`
 - the backend exposes analysis endpoints under `/api/v1/analysis`
-- opening `http://localhost:8000/` directly will show `404 Not Found`, which is normal for this app
+- opening `http://localhost:8000/` directly returns backend health JSON
 
 Useful note:
 
@@ -129,10 +128,11 @@ Then use this route sequence:
 
 1. `/dashboard`
 2. `/analysis/new`
-3. `/analysis/[jobId]`
-4. `/analysis/[jobId]/report`
-5. `/analysis/[jobId]/raw`
-6. `/analysis/history`
+3. `/total-jobs/[totalJobId]`
+4. `/analysis/[jobId]`
+5. `/analysis/[jobId]/report`
+6. `/analysis/[jobId]/raw`
+7. `/analysis/history`
 
 ### What to Verify on Each Screen
 
@@ -146,8 +146,15 @@ Then use this route sequence:
 `/analysis/new`
 
 - file upload submission works
-- path-based submission works if the file exists on the backend machine
-- the form returns a valid `analysis_job_id`
+- the form returns a valid `total_job_id`
+- the app redirects to `/total-jobs/[totalJobId]`
+
+`/total-jobs/[totalJobId]`
+
+- parent total-job status changes as children run
+- child analysis jobs are listed
+- completed child jobs link to their job, report, and raw artifact pages
+- enrichment controls handle not-ready and completed states cleanly
 
 `/analysis/[jobId]`
 
@@ -175,7 +182,9 @@ Then use this route sequence:
 
 ## Good Test Inputs
 
-Repo-local smoke inputs are available in:
+Fresh checkouts do not include committed PCAP fixtures. Use one or more known-small PCAP files from your local dataset.
+
+If `outputs/smoke_inputs/` exists from a previous local run, these examples are useful:
 
 - `outputs/smoke_inputs/benign_small.pcap`
 - `outputs/smoke_inputs/suspicious_scan_small.pcap`
@@ -198,12 +207,12 @@ Recommended manual test set:
 1. Start the backend.
 2. Start the frontend with `npm run build` and `npm run start`.
 3. Open `/dashboard` and confirm the page loads.
-4. Submit `outputs/smoke_inputs/benign_small.pcap` from `/analysis/new`.
-5. Watch the job page until the status is final.
-6. Open the report page and raw page.
+4. Submit one small PCAP from `/analysis/new`.
+5. Watch the total-job page until at least one child job is final.
+6. Open a completed child job, then open the report page and raw page.
 7. Return to `/analysis/history` and confirm the job is listed.
-8. Submit `outputs/smoke_inputs/suspicious_scan_small.pcap` and repeat.
-9. Submit `outputs/smoke_inputs/corrupt_input.pcap` and confirm failure handling is clear.
+8. Submit a second small/suspicious PCAP if available and repeat.
+9. Submit a corrupt PCAP if available and confirm failure handling is clear.
 10. Stop and restart the backend.
 11. Reload `/dashboard` and `/analysis/history` and confirm previous jobs are still present.
 
@@ -213,6 +222,7 @@ If you want to confirm the backend independently while the UI is running, these 
 
 - `http://localhost:8000/docs`
 - `http://localhost:8000/api/v1/analysis`
+- `POST /api/v1/analysis/batch`
 - `POST /api/v1/analysis`
 - `GET /api/v1/analysis`
 - `GET /api/v1/analysis/{job_id}`
@@ -220,6 +230,9 @@ If you want to confirm the backend independently while the UI is running, these 
 - `GET /api/v1/analysis/{job_id}/report.md`
 - `GET /api/v1/analysis/{job_id}/metrics`
 - `GET /api/v1/analysis/{job_id}/guardrail-audit`
+- `GET /api/v1/total-jobs`
+- `GET /api/v1/total-jobs/{total_job_id}`
+- `POST /api/v1/total-jobs/{total_job_id}/enrich`
 
 ## Expected Output Location
 

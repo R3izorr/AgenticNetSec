@@ -21,11 +21,16 @@ Preserve the current working demo before large changes.
 
 ## Done
 
-- backend starts locally
-- frontend starts locally
-- existing PCAP upload flow works
-- current API route map is documented
-- known limitations are written down
+- [x] backend starts locally
+- [x] frontend starts locally
+- [x] existing PCAP upload flow works
+- [x] current API route map is documented
+- [x] known limitations are written down
+
+Notes:
+
+- API-level upload smoke used a generated one-packet PCAP and completed through report artifact fetch.
+- Hands-on browser upload was not performed in this run; frontend report route returned HTTP 200 for the completed smoke job.
 
 ## Verification
 
@@ -40,4 +45,3 @@ Manual:
 - upload one small PCAP
 - open report page
 - refresh report page
-
