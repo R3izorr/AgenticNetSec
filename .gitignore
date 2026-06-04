@@ -16,7 +16,9 @@ frontend/.next/
 # OS/editor
 .DS_Store
 Thumbs.db
-/.codex
+/.codex/*
+!/.codex/agents/
+!/.codex/agents/*.toml
 
 # Runtime artifacts
 outputs/
