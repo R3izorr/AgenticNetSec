@@ -2,7 +2,7 @@
 
 The backend is the forensic analysis engine for AgenticNetSec. It supports:
 
-- FastAPI async analysis jobs
+- FastAPI analysis job APIs backed by a Redis worker queue
 - local single-PCAP analysis
 - batch/offline multi-PCAP analysis
 - structured JSON reporting
@@ -39,7 +39,9 @@ The backend is the forensic analysis engine for AgenticNetSec. It supports:
 - `backend/src/report_ai.py`
   - AI-assisted and fallback report generation
 - `backend/api/app.py`
-  - FastAPI REST service
+  - FastAPI REST service and worker-call entrypoints
+- `backend/api/worker_queue.py`
+  - Redis/RQ queue adapter
 - `backend/api/job_store.py`
   - persisted job manifests and artifact readiness
 

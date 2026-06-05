@@ -231,7 +231,7 @@ export default function TotalJobsPage() {
   }
 
   const canRunEnrichment = (enrichmentStatus: string, deterministicComplete: boolean) =>
-    deterministicComplete && enrichmentStatus !== "running"
+    deterministicComplete && enrichmentStatus !== "queued" && enrichmentStatus !== "running"
 
   const canOpenSummary = (enrichmentStatus: string) => enrichmentStatus === "completed"
 

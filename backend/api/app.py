@@ -34,6 +34,7 @@ from backend.db.session import check_database_connection
 from .auth import CurrentPrincipal, organization_router, require_permission, router as auth_router
 from .job_store import JobRecord, JobStore
 from .total_job_store import TotalJobChildRef, TotalJobRecord, TotalJobStore
+from .worker_queue import QueueUnavailable, enqueue_worker_call
 
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 UPLOADS_DIR = OUTPUTS_DIR / "uploads"
@@ -301,6 +302,200 @@ def _persist_job_artifacts(job_id: str, artifacts: dict[str, Any]) -> None:
         analysis_profile=artifacts["analysis_record"].get("analysis_profile", "standard"),
         stage1_execution=artifacts["analysis_record"].get("stage1_execution") or {},
         error=None,
+    )
+
+
+def _analysis_request_payload(req: AnalysisRequest) -> dict[str, Any]:
+    return {
+        "pcap_path": req.pcap_path,
+        "provider": req.provider,
+        "model": req.model,
+        "use_ai": req.use_ai,
+        "require_ai": req.require_ai,
+        "analysis_profile": req.analysis_profile,
+        "artifacts_dir": req.artifacts_dir,
+        "enable_sandbox": req.enable_sandbox,
+    }
+
+
+def _analysis_request_from_job(job: JobRecord) -> AnalysisRequest:
+    payload = dict((job.metadata or {}).get("analysis_request") or {})
+    if not payload:
+        raise RuntimeError("Analysis request metadata is missing for queued job.")
+    return AnalysisRequest(**payload)
+
+
+def _persist_analysis_request(job_id: str, req: AnalysisRequest) -> None:
+    job = job_store.get(job_id)
+    if job is None:
+        raise KeyError(f"Unknown job_id {job_id}")
+    metadata = dict(job.metadata or {})
+    metadata["analysis_request"] = _analysis_request_payload(req)
+    job_store.update(job_id, metadata=metadata)
+
+
+def _assert_job_scope(job: JobRecord, organization_id: str | None) -> None:
+    if not organization_id or not job.organization_id or str(job.organization_id) != str(organization_id):
+        raise PermissionError("Queued analysis job organization mismatch.")
+
+
+def _assert_total_job_scope(total_job: TotalJobRecord, organization_id: str | None) -> None:
+    if not organization_id or not total_job.organization_id or str(total_job.organization_id) != str(organization_id):
+        raise PermissionError("Queued total job organization mismatch.")
+
+
+def run_analysis_job(job_id: str, organization_id: str) -> None:
+    job = job_store.get(job_id, organization_id=organization_id)
+    if job is None:
+        raise KeyError(f"Unknown analysis job: {job_id}")
+    _assert_job_scope(job, organization_id)
+    if job.status == "completed":
+        return
+
+    last_phase = job.current_phase or "queued"
+    last_progress = float(job.progress or 0.0)
+    req = _analysis_request_from_job(job)
+
+    def on_progress(phase: str, progress: float) -> None:
+        nonlocal last_phase, last_progress
+        last_phase = phase
+        last_progress = progress
+        job_store.update(job_id, status="running", current_phase=phase, progress=progress)
+
+    try:
+        job_store.update(job_id, status="running", current_phase="ingest", progress=max(0.05, last_progress), error=None)
+        local_engine = AnalysisEngine()
+        artifacts = local_engine.run(req, on_progress)
+        _persist_job_artifacts(
+            job_id,
+            {
+                "report_json": artifacts.report_json,
+                "report_markdown": artifacts.report_markdown,
+                "metrics": artifacts.metrics,
+                "guardrail_audit": artifacts.guardrail_audit,
+                "metadata": artifacts.metadata,
+                "analysis_record": artifacts.analysis_record,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        job_store.update(
+            job_id,
+            status="failed",
+            current_phase=last_phase,
+            progress=last_progress,
+            guardrail_state="error",
+            error=str(exc),
+        )
+
+
+def _enqueue_analysis_job(job_id: str, organization_id: str) -> str:
+    return enqueue_worker_call("backend.api.app.run_analysis_job", job_id, organization_id)
+
+
+def run_total_job(total_job_id: str, organization_id: str) -> None:
+    total_job = total_job_store.get(total_job_id, organization_id=organization_id)
+    if total_job is None:
+        raise KeyError(f"Unknown total job: {total_job_id}")
+    _assert_total_job_scope(total_job, organization_id)
+
+    total_job_store.update(
+        total_job_id,
+        status="running",
+        current_stage="deterministic_analysis",
+        progress=0.02,
+        error=None,
+        deterministic_complete=False,
+        enrichment_status="not_started",
+        enrichment_progress=0.0,
+        enrichment_error=None,
+    )
+
+    completed = 0
+    failed = 0
+    file_count = len(total_job.children)
+    for child in total_job.children:
+        try:
+            run_analysis_job(child.analysis_job_id, organization_id)
+        except Exception as exc:  # noqa: BLE001
+            child_job = job_store.get(child.analysis_job_id, organization_id=organization_id)
+            if child_job and child_job.status != "failed":
+                job_store.update(
+                    child.analysis_job_id,
+                    status="failed",
+                    current_phase=child_job.current_phase or "analysis",
+                    progress=child_job.progress or 0.0,
+                    guardrail_state="error",
+                    error=str(exc),
+                )
+
+        child_job = job_store.get(child.analysis_job_id, organization_id=organization_id)
+        if child_job and child_job.status == "completed":
+            completed += 1
+        elif child_job and child_job.status == "failed":
+            failed += 1
+
+        total_job_store.update(
+            total_job_id,
+            progress=(completed + failed) / file_count if file_count else 1.0,
+            completed_children=completed,
+            failed_children=failed,
+        )
+
+    has_completed = completed > 0
+    total_job_store.update(
+        total_job_id,
+        status="completed" if has_completed else "failed",
+        current_stage="ready_for_enrichment" if has_completed else "failed",
+        progress=1.0,
+        completed_children=completed,
+        failed_children=failed,
+        deterministic_complete=True,
+        error=None if has_completed else "All child analysis jobs failed.",
+    )
+
+
+def _enqueue_total_job(total_job_id: str, organization_id: str) -> str:
+    return enqueue_worker_call("backend.api.app.run_total_job", total_job_id, organization_id)
+
+
+def run_total_job_enrichment(
+    total_job_id: str,
+    organization_id: str,
+    provider: str,
+    model: str | None,
+    require_ai: bool,
+) -> None:
+    total_job = total_job_store.get(total_job_id, organization_id=organization_id)
+    if total_job is None:
+        raise KeyError(f"Unknown total job: {total_job_id}")
+    _assert_total_job_scope(total_job, organization_id)
+    try:
+        _run_total_job_enrichment_sync(total_job_id, provider, model, require_ai, organization_id)
+    except Exception as exc:  # noqa: BLE001
+        total_job_store.update(
+            total_job_id,
+            status="completed" if total_job.deterministic_complete else total_job.status,
+            current_stage="ready_for_enrichment" if total_job.deterministic_complete else total_job.current_stage,
+            enrichment_status="failed",
+            enrichment_error=str(exc),
+            error=None if total_job.deterministic_complete else total_job.error,
+        )
+
+
+def _enqueue_total_job_enrichment(
+    total_job_id: str,
+    organization_id: str,
+    provider: str,
+    model: str | None,
+    require_ai: bool,
+) -> str:
+    return enqueue_worker_call(
+        "backend.api.app.run_total_job_enrichment",
+        total_job_id,
+        organization_id,
+        provider,
+        model,
+        require_ai,
     )
 
 
@@ -1548,9 +1743,21 @@ async def create_analysis_job(
         artifacts_dir=job.artifacts_dir,
     )
 
-    asyncio.create_task(_run_job(job.analysis_job_id, req))
+    _persist_analysis_request(job.analysis_job_id, req)
+    try:
+        _enqueue_analysis_job(job.analysis_job_id, str(principal.organization_id))
+    except QueueUnavailable as exc:
+        job_store.update(
+            job.analysis_job_id,
+            status="failed",
+            current_phase="queue_failed",
+            progress=0.0,
+            guardrail_state="error",
+            error=str(exc),
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    return _serialize_job(job)
+    return _serialize_job(job_store.get(job.analysis_job_id, organization_id=principal.organization_id) or job)
 
 
 @app.post("/api/v1/analysis/batch")
@@ -1752,7 +1959,24 @@ async def create_batch_analysis_job(
         ],
     )
 
-    asyncio.create_task(_run_total_job(total_job.total_job_id, resolved_worker_count, finalized_child_specs))
+    for item in finalized_child_specs:
+        child_job = job_store.get(item["analysis_job_id"], organization_id=principal.organization_id)
+        if child_job is None:
+            raise HTTPException(status_code=500, detail="Queued child job was not persisted.")
+        _persist_analysis_request(child_job.analysis_job_id, AnalysisRequest(**item["request"]))
+
+    try:
+        _enqueue_total_job(total_job.total_job_id, str(principal.organization_id))
+    except QueueUnavailable as exc:
+        total_job_store.update(
+            total_job.total_job_id,
+            status="failed",
+            current_stage="queue_failed",
+            progress=0.0,
+            error=str(exc),
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
     return {
         **_serialize_total_job(
             total_job_store.get(total_job.total_job_id, organization_id=principal.organization_id) or total_job,
@@ -1952,15 +2176,22 @@ async def enrich_total_job(
         enrichment_progress=0.0,
         enrichment_error=None,
     )
-    asyncio.create_task(
-        _run_total_job_enrichment(
+    try:
+        _enqueue_total_job_enrichment(
             total_job_id,
+            str(principal.organization_id),
             provider or "gemini",
             model,
             _to_bool(require_ai, False),
-            str(principal.organization_id),
         )
-    )
+    except QueueUnavailable as exc:
+        total_job_store.update(
+            total_job_id,
+            enrichment_status="failed",
+            enrichment_progress=0.0,
+            enrichment_error=str(exc),
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return _serialize_total_job(
         total_job_store.get(total_job_id, organization_id=principal.organization_id) or total_job,
         organization_id=str(principal.organization_id),

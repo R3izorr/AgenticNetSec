@@ -82,6 +82,7 @@ Runtime artifacts are generated under `outputs/` when the app runs. The reposito
 
 - Python 3.10+
 - Node.js and npm
+- Redis for the background worker queue
 - `tshark` for packet inspection features
 - Optional AI provider keys for AI-backed summaries
 
@@ -113,13 +114,27 @@ cp backend/config/local_settings.example.py backend/config/local_settings.py
 
 Then edit `backend/config/local_settings.py` with local-only provider keys if needed. Do not commit that file.
 
-## Run The Backend
+## Run The Backend And Worker
+
+Start Redis and PostgreSQL:
+
+```bash
+docker compose up -d redis postgres
+```
+
+Run the API:
 
 ```bash
 ./.venv/bin/python backend/scripts/run_api.py
 ```
 
-With auto-reload:
+Run the worker in a second terminal:
+
+```bash
+./.venv/bin/python backend/scripts/run_worker.py
+```
+
+With API auto-reload:
 
 ```bash
 ./.venv/bin/python backend/scripts/run_api.py --reload
@@ -130,14 +145,14 @@ Backend URLs:
 - API: `http://localhost:8000`
 - API docs: `http://localhost:8000/docs`
 
-## Run The Database
+## Run The Database And Queue
 
-Sprint 1 adds PostgreSQL for the MVP persistence foundation. The current upload -> analysis -> report path still uses the existing file-backed job stores until later sprints.
+PostgreSQL stores durable job state and Redis backs the worker queue.
 
-Start local PostgreSQL:
+Start local PostgreSQL and Redis:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres redis
 ```
 
 Run migrations from the repository root:
@@ -160,7 +175,7 @@ postgresql+psycopg://agenticnetsec:agenticnetsec@localhost:5432/agenticnetsec
 
 Override it with `DATABASE_URL` if needed.
 
-PostgreSQL is optional for the legacy file-backed analysis flow unless `AGENTIC_DATABASE_REQUIRED=1` is set.
+PostgreSQL is optional for legacy file-backed reads unless `AGENTIC_DATABASE_REQUIRED=1` is set. Redis is required for API enqueue routes to start new analysis work.
 
 ## Run The Frontend
 

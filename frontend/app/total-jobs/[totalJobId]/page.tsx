@@ -334,12 +334,13 @@ export default function TotalJobDetailPage() {
     )
   }
 
-  const canRunEnrichment = job.deterministicComplete && job.enrichmentStatus !== "running"
+  const enrichmentActive = job.enrichmentStatus === "queued" || job.enrichmentStatus === "running"
+  const canRunEnrichment = job.deterministicComplete && !enrichmentActive
   const summaryReady = job.enrichmentStatus === "completed"
 
   const enrichmentButtonLabel = actionLoading
     ? "Starting..."
-    : job.enrichmentStatus === "running"
+    : (job.enrichmentStatus === "queued" || job.enrichmentStatus === "running")
       ? "AI Summary + Sandbox Running"
       : job.enrichmentStatus === "completed"
         ? "Re-run AI Summary + Sandbox"

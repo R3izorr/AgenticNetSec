@@ -88,11 +88,6 @@ class RBACTenantIsolationTests(unittest.TestCase):
             session.commit()
             return str(membership.id)
 
-    @staticmethod
-    def _close_background_task(coro):
-        coro.close()
-        return None
-
     def test_viewer_cannot_upload_and_analyst_can_upload(self) -> None:
         viewer, _viewer_session = self._registered_client("viewer", role="viewer")
         analyst, _analyst_session = self._registered_client("analyst", role="analyst")
@@ -110,7 +105,7 @@ class RBACTenantIsolationTests(unittest.TestCase):
         )
         self.assertEqual(viewer_batch.status_code, 403, viewer_batch.text)
 
-        with patch("backend.api.app.asyncio.create_task", side_effect=self._close_background_task):
+        with patch("backend.api.app._enqueue_total_job", return_value="rq-total-job"):
             analyst_batch = analyst.post(
                 "/api/v1/analysis/batch",
                 files={"files": ("analyst.pcap", io.BytesIO(b"pcap"), "application/vnd.tcpdump.pcap")},

@@ -9,6 +9,7 @@ import type { TotalJobStatus } from "@/lib/types/analysis"
 
 const POLLING_STATES = new Set(["queued", "running"])
 const POLLING_STAGES = new Set(["deterministic_analysis", "enrichment_running"])
+const POLLING_ENRICHMENT_STATES = new Set(["queued", "running"])
 
 export function useTotalJobStatus(totalJobId: string) {
   const { resolvedPollIntervalMs } = useAppSettings()
@@ -42,7 +43,11 @@ export function useTotalJobStatus(totalJobId: string) {
     if (!job) {
       return false
     }
-    return POLLING_STATES.has(job.status.toLowerCase()) || POLLING_STAGES.has(job.currentStage)
+    return (
+      POLLING_STATES.has(job.status.toLowerCase()) ||
+      POLLING_STAGES.has(job.currentStage) ||
+      POLLING_ENRICHMENT_STATES.has(job.enrichmentStatus.toLowerCase())
+    )
   }, [job])
 
   useEffect(() => {
@@ -53,7 +58,7 @@ export function useTotalJobStatus(totalJobId: string) {
       void refresh()
     }, resolvedPollIntervalMs)
     return () => window.clearTimeout(timer)
-  }, [refresh, resolvedPollIntervalMs, shouldPoll, job?.status, job?.currentStage, job?.progress, job?.enrichmentProgress])
+  }, [refresh, resolvedPollIntervalMs, shouldPoll, job?.status, job?.currentStage, job?.progress, job?.enrichmentStatus, job?.enrichmentProgress])
 
   return {
     job,

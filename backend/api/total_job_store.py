@@ -104,6 +104,7 @@ class TotalJobStore:
             return record
 
     def get(self, total_job_id: str, *, organization_id: str | uuid.UUID | None = None) -> TotalJobRecord | None:
+        self._refresh_db_job(total_job_id, organization_id=organization_id)
         with self._lock:
             record = self._jobs.get(total_job_id)
             if record is None or not self._matches_organization(record, organization_id):
@@ -111,6 +112,7 @@ class TotalJobStore:
             return record
 
     def list_jobs(self, *, organization_id: str | uuid.UUID | None = None) -> list[TotalJobRecord]:
+        self._refresh_db_jobs(organization_id=organization_id)
         with self._lock:
             jobs = [job for job in self._jobs.values() if self._matches_organization(job, organization_id)]
             jobs.sort(key=lambda job: job.created_at, reverse=True)
@@ -200,6 +202,41 @@ class TotalJobStore:
         except Exception:  # noqa: BLE001
             self._db_available = False
             return {}
+
+    def _refresh_db_job(self, total_job_id: str, *, organization_id: str | uuid.UUID | None = None) -> None:
+        if not self._db_available:
+            return
+        try:
+            with SessionLocal() as session:
+                query = select(TotalJob).where(TotalJob.public_id == total_job_id)
+                if organization_id is not None:
+                    query = query.where(TotalJob.organization_id == uuid.UUID(str(organization_id)))
+                row = session.scalar(query)
+                session.commit()
+                if row is None:
+                    return
+                record = self._record_from_model(row)
+            with self._lock:
+                self._jobs[record.total_job_id] = record
+        except Exception:  # noqa: BLE001
+            self._db_available = False
+
+    def _refresh_db_jobs(self, *, organization_id: str | uuid.UUID | None = None) -> None:
+        if not self._db_available:
+            return
+        try:
+            with SessionLocal() as session:
+                query = select(TotalJob).where(TotalJob.public_id.is_not(None))
+                if organization_id is not None:
+                    query = query.where(TotalJob.organization_id == uuid.UUID(str(organization_id)))
+                rows = session.scalars(query.order_by(TotalJob.created_at.desc())).all()
+                session.commit()
+                records = [self._record_from_model(row) for row in rows]
+            with self._lock:
+                for record in records:
+                    self._jobs[record.total_job_id] = record
+        except Exception:  # noqa: BLE001
+            self._db_available = False
 
     def _load_job_record(self, job_dir: Path) -> TotalJobRecord | None:
         manifest_path = job_dir / "total_job.json"
