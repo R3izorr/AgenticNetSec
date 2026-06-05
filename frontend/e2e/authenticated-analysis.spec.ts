@@ -32,7 +32,7 @@ async function apiFetch<T>(page: Page, route: string): Promise<{ status: number;
 }
 
 test("registered user can upload a PCAP, open report after refresh, and logout", async ({ page }) => {
-  test.skip(!fs.existsSync(pcapPath), `PCAP fixture not found: ${pcapPath}`)
+  expect(fs.existsSync(pcapPath), `PCAP fixture not found: ${pcapPath}`).toBeTruthy()
 
   const email = `owner+e2e-${Date.now()}@example.test`
   const password = "Password123!"
@@ -52,6 +52,7 @@ test("registered user can upload a PCAP, open report after refresh, and logout",
   await page.setInputFiles("#pcap-files", pcapPath)
   await page.getByRole("button", { name: "Start Batch" }).click()
   await page.waitForURL("**/total-jobs/total_*")
+  await expect(page.getByText("Total Job").first()).toBeVisible()
 
   const totalJobId = page.url().split("/").pop()
   expect(totalJobId).toMatch(/^total_/)

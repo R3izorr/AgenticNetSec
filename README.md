@@ -19,6 +19,127 @@ The backend extracts deterministic network evidence from each PCAP, stores repor
 
 The frontend provides pages for upload, batch progress, per-file inspection, total-job enrichment, and all-scans summaries.
 
+## Reviewer Quick Start
+
+This is the preferred internship-review path. It starts PostgreSQL, Redis, the FastAPI backend, the RQ worker, and the Next.js frontend.
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
+
+The Compose stack runs Alembic migrations before the backend and worker start. Browser requests use `http://localhost:8000` for the API.
+
+For later runs after the images are built:
+
+```bash
+docker compose up
+```
+
+Stop the stack:
+
+```bash
+docker compose down
+```
+
+Reset local database and runtime artifacts:
+
+```bash
+docker compose down -v
+```
+
+## Accounts And Keys You Need
+
+For local Docker Compose use, you do not need to create a hosted PostgreSQL account or a hosted Redis account.
+
+- PostgreSQL account:
+  Compose creates the local database user from `.env`.
+  Default local values are `POSTGRES_DB=agenticnetsec`, `POSTGRES_USER=agenticnetsec`, and `POSTGRES_PASSWORD=agenticnetsec`.
+- Redis account:
+  None for local Compose use. The app uses the local Redis container through `REDIS_URL`.
+- App login account:
+  Required.
+  Create it in the UI at `http://localhost:3000/register`.
+  Registration creates the user, default organization, and owner membership.
+- Auth secret:
+  Required.
+  Set `AGENTIC_AUTH_SECRET` in `.env`.
+  The sample value in `.env.example` is only for local demos.
+- AI provider account or API key:
+  Optional.
+  Deterministic Stage 1 analysis and the authenticated upload -> analysis -> report flow work without AI keys.
+  Add one only if you want AI-backed summaries or follow-up reasoning.
+
+Supported optional AI providers:
+
+- `OPENROUTER_API_KEY`
+- `OPENAI_API_KEY`
+- `GEMINI_API_KEY` or `GOOGLE_API_KEY`
+- `GROQ_API_KEY`
+- local Ollama via `OLLAMA_BASE_URL` and `OLLAMA_MODEL`
+
+Recommended first local account:
+
+```text
+email: owner+demo-<timestamp>@example.test
+password: Password123!
+```
+
+## Architecture
+
+```text
+Browser
+  |
+  | HttpOnly cookie auth
+  v
+Next.js frontend :3000
+  |
+  | authenticated API requests
+  v
+FastAPI backend :8000
+  |
+  | SQLAlchemy
+  v
+PostgreSQL :5432
+  |
+  | enqueue job IDs
+  v
+Redis :6379
+  |
+  | RQ worker loads trusted DB/artifact metadata
+  v
+Shared outputs volume
+  |
+  | existing forensic engine
+  v
+Scapy / tshark / deterministic fallback reports
+```
+
+Runtime upload and report files live in the shared `app_outputs` Docker volume so the API container and worker container see the same server-generated artifact paths.
+
+## Demo Path
+
+Use a real local account. Do not bypass auth.
+
+1. Open `http://localhost:3000/register`.
+2. Register `owner+demo-<timestamp>@example.test` with password `Password123!`.
+3. Open New Analysis.
+4. Upload `pcap/CredAccess/DCSync_krbtgt_dcerpc_smb.pcapng`.
+5. Start the batch with the default `standard` profile.
+6. Watch the Total Job page until deterministic analysis completes.
+7. Open the child analysis report.
+8. Refresh the report page and confirm it reloads.
+9. Log out.
+10. Open `/dashboard` directly and confirm redirect to login.
+
+Full checklist: `docs/Manual_Test_Checklist.md`.
+
 ## How The Workflow Works
 
 ### Stage 1: Deterministic PCAP Analysis
@@ -82,7 +203,9 @@ Runtime artifacts are generated under `outputs/` when the app runs. The reposito
 
 - Python 3.10+
 - Node.js and npm
+- Docker and Docker Compose for the reviewer quick start
 - Redis for the background worker queue
+- PostgreSQL for durable auth/job state
 - `tshark` for packet inspection features
 - Optional AI provider keys for AI-backed summaries
 
@@ -116,10 +239,21 @@ Then edit `backend/config/local_settings.py` with local-only provider keys if ne
 
 ## Run The Backend And Worker
 
+Manual local fallback, useful while developing without containerized app services.
+
 Start Redis and PostgreSQL:
 
 ```bash
 docker compose up -d redis postgres
+```
+
+Run migrations:
+
+```bash
+set -a
+. ./.env
+set +a
+./.venv/bin/python -m alembic upgrade head
 ```
 
 Run the API:
@@ -175,7 +309,7 @@ postgresql+psycopg://agenticnetsec:agenticnetsec@localhost:5432/agenticnetsec
 
 Override it with `DATABASE_URL` if needed.
 
-PostgreSQL is optional for legacy file-backed reads unless `AGENTIC_DATABASE_REQUIRED=1` is set. Redis is required for API enqueue routes to start new analysis work.
+PostgreSQL is required for the MVP reviewer path. `AGENTIC_DATABASE_REQUIRED=1` is set in `.env.example` so startup fails loudly if the database is unavailable. Redis is required for API enqueue routes to start new analysis work.
 
 ## Run The Frontend
 
@@ -205,6 +339,36 @@ If needed, set the backend URL in `frontend/.env.local`:
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
+
+## Tests
+
+Backend tests:
+
+```bash
+set -a
+. ./.env
+set +a
+./.venv/bin/python -m alembic upgrade head
+./.venv/bin/python -m unittest discover -s backend/tests -p 'test_*.py' -v
+```
+
+Frontend static checks:
+
+```bash
+cd frontend
+npm run lint
+npm run build
+```
+
+Browser E2E:
+
+```bash
+cd frontend
+npx playwright install chromium
+npm run test:e2e
+```
+
+`npm run test:e2e` expects the backend, frontend, PostgreSQL, Redis, and worker to be running. It registers a real local user, uploads `pcap/CredAccess/DCSync_krbtgt_dcerpc_smb.pcapng`, waits for analysis completion, opens and refreshes the report, logs out, and verifies protected-route redirect.
 
 ## How To Use
 
@@ -252,6 +416,20 @@ The report path is provider-specific:
 - The report path does not silently cross-fallback into a different provider.
 
 If no provider is callable, the system can still produce deterministic fallback reporting.
+
+## Security Notes
+
+- Authentication uses email/password with an HttpOnly session cookie.
+- Every protected API route reloads the current user membership and enforces role permissions.
+- Roles are `owner`, `analyst`, and `viewer`; viewers can read jobs/reports but cannot upload, delete, or trigger enrichment.
+- Protected job and artifact reads are scoped by `organization_id`.
+- Browser uploads are stored through the server artifact service under server-generated paths.
+- Raw server `pcap_path` inputs are disabled unless `AGENTIC_ALLOW_SERVER_PCAP_PATHS=1` is explicitly set.
+- Upload filenames reject path separators and only accept `.pcap` or `.pcapng`.
+- Authenticated API payloads may include local server artifact paths for debugging; the frontend hides these paths from reviewer workflows.
+- `.env.example` secrets and database passwords are local-demo defaults only. Replace `AGENTIC_AUTH_SECRET` before any shared or deployed environment.
+- PostgreSQL and Redis ports are published for local reviewer convenience; this Compose file is not a production deployment.
+- Do not commit `.env`, `frontend/.env.local`, `backend/config/local_settings.py`, or generated `outputs/`.
 
 ## Demo
 
