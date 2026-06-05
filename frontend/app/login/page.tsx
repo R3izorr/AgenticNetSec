@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { isApiError } from "@/lib/api/client"
+import { resolveSafeNextPath } from "@/lib/navigation"
 
 function LoginForm() {
   const router = useRouter()
@@ -21,7 +22,7 @@ function LoginForm() {
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
-  const nextPath = searchParams.get("next") || "/dashboard"
+  const nextPath = resolveSafeNextPath(searchParams.get("next"))
 
   useEffect(() => {
     if (!loading && authenticated) {

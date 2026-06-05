@@ -54,7 +54,7 @@ export default function AnalysisReportPage() {
   const params = useParams<{ jobId: string }>()
   const jobId = decodeURIComponent(params.jobId)
   const router = useRouter()
-  const { job, refresh, isPolling } = useJobStatus(jobId)
+  const { job, error: jobError, refresh, isPolling } = useJobStatus(jobId)
 
   const canNavigateGroup =
     job?.groupId &&
@@ -88,8 +88,13 @@ export default function AnalysisReportPage() {
   }, [jobId])
 
   const reportState = useArtifact(loadReport, [loadReport], {
-    pollWhileNotReady: isPolling,
+    pollWhileNotReady: isPolling || job?.status === "completed",
   })
+
+  async function retryReport() {
+    await refresh()
+    await reportState.reload()
+  }
 
   if (reportState.loading && !reportState.data) {
     return <LoadingState title="Loading report" description={`Job: ${jobId}`} />
@@ -102,7 +107,7 @@ export default function AnalysisReportPage() {
         description="The analysis job has not finished writing report.json yet."
         action={
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => void reportState.reload()}>
+            <Button type="button" variant="outline" size="sm" onClick={() => void retryReport()}>
               Retry Now
             </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => void refresh()}>
@@ -119,7 +124,7 @@ export default function AnalysisReportPage() {
       <ErrorState
         title="Unable to load report"
         description={reportState.error}
-        onRetry={() => void reportState.reload()}
+        onRetry={() => void retryReport()}
       />
     )
   }
@@ -137,6 +142,7 @@ export default function AnalysisReportPage() {
           The report view is polling while the backend finishes the job. Current status: {job?.status ?? "unknown"}.
         </InlineNotice>
       ) : null}
+      {jobError ? <InlineNotice variant="warning">{jobError}</InlineNotice> : null}
 
       <SectionCard
         title="Forensic Report"
@@ -161,6 +167,9 @@ export default function AnalysisReportPage() {
             </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href={`/analysis/${jobId}/raw`}>Open Raw</Link>
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void retryReport()}>
+              Refresh
             </Button>
           </div>
         }

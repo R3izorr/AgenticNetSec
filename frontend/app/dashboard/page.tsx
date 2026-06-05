@@ -92,14 +92,13 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-8">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.14),transparent_35%)]" />
         <div className="relative z-10 flex max-w-4xl flex-col gap-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">AgenticNetSec Command View</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">AgenticNetSec Dashboard</p>
           <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">
-            Demo-ready overview of autonomous forensic analyses
+            Recent network forensic analysis
           </h1>
           <p className="text-sm text-muted-foreground sm:text-base">
-            Use the dashboard to show recent runs, runtime trends, guardrail outcomes, and the fastest path into a completed report.
+            Track persisted jobs, failures, risk ranking, runtime, and report readiness across this organization.
           </p>
           <div className="flex flex-wrap items-center gap-2 pt-2">
             {mayCreateAnalysis ? (
@@ -170,7 +169,15 @@ export default function DashboardPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <Button asChild size="sm" variant="ghost">
-                      <Link href={`/analysis/${job.analysisJobId}`}>Open</Link>
+                      <Link
+                        href={
+                          job.status === "completed"
+                            ? `/analysis/${job.analysisJobId}/report`
+                            : `/analysis/${job.analysisJobId}`
+                        }
+                      >
+                        {job.status === "completed" ? "Report" : "Open"}
+                      </Link>
                     </Button>
                   </TableCell>
                 </TableRow>

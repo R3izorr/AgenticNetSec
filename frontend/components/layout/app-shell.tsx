@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { LogOutIcon } from "lucide-react"
 import { useEffect, useState } from "react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -11,7 +12,6 @@ import { canCreateAnalysis } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
 
 const navLinks = [
-  { href: "/", label: "Overview" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/analysis/new", label: "New Analysis" },
   { href: "/total-jobs", label: "Total Jobs" },
@@ -19,6 +19,16 @@ const navLinks = [
   { href: "/settings", label: "Settings" },
 ]
 const publicRoutes = new Set(["/login", "/register"])
+
+function isActiveRoute(pathname: string, href: string) {
+  if (href === "/dashboard") {
+    return pathname === "/" || pathname === "/dashboard"
+  }
+  if (href === "/analysis/history") {
+    return pathname === href
+  }
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -66,23 +76,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     )
   }
 
+  const role = session?.organization.role ?? "viewer"
+  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1)
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div>
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
             <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">AgenticNetSec</p>
-            <h1 className="text-base font-semibold">Network Forensic Frontend v1</h1>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {session?.user.email} - {session?.organization.name}
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <h1 className="text-base font-semibold">Forensic Workspace</h1>
+              <Badge variant="secondary" className="rounded-full px-2.5 py-0.5">
+                {roleLabel}
+              </Badge>
+            </div>
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              {session?.user.email} / {session?.organization.name}
             </p>
           </div>
 
-          <nav className="flex items-center gap-2">
+          <nav className="flex flex-wrap items-center gap-2">
             {navLinks
               .filter((link) => link.href !== "/analysis/new" || canCreateAnalysis(session?.organization.role))
               .map((link) => {
-                const active = pathname === link.href
+                const active = isActiveRoute(pathname, link.href)
                 return (
                 <Button
                   key={link.href}
@@ -97,7 +115,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               })}
           </nav>
 
-          <form className="flex items-center gap-2" onSubmit={onJumpSubmit}>
+          <form className="flex w-full flex-wrap items-center gap-2 lg:w-auto" onSubmit={onJumpSubmit}>
             <label htmlFor="jump-job-id" className="sr-only">
               Jump to Job ID
             </label>
@@ -106,7 +124,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               value={jobId}
               onChange={(event) => setJobId(event.target.value)}
               placeholder="Jump to Job ID"
-              className="h-8 w-44 bg-card"
+              className="h-8 min-w-0 flex-1 bg-card sm:w-52 sm:flex-none"
             />
             <Button type="submit" size="sm">
               Open

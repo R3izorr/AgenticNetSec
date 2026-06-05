@@ -246,11 +246,6 @@ export default function AnalysisJobPage() {
             <ArtifactBadge label="Guardrails" ready={job.artifactReady.guardrailAudit} />
           </div>
 
-          {job.sourcePath ? (
-            <InlineNotice variant="info" title="Backend Path">
-              <code className="text-xs">{job.sourcePath}</code>
-            </InlineNotice>
-          ) : null}
           {job.error ? <InlineNotice variant="error">{job.error}</InlineNotice> : null}
           {error && job ? <InlineNotice variant="warning">{error}</InlineNotice> : null}
         </div>

@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from "react"
 import { InlineNotice } from "@/components/common/inline-notice"
+import { KeyValueGrid } from "@/components/common/key-value-grid"
 import { SectionCard } from "@/components/common/section-card"
+import { StatusBadge } from "@/components/common/status-badge"
+import { useAuth } from "@/components/providers/auth-provider"
 import { useAppSettings } from "@/components/providers/app-settings-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,6 +54,34 @@ function buildDraftFromSettings(settings: AppSettings) {
   }
 }
 
+function AccountWorkspacePanel() {
+  const { session, refresh } = useAuth()
+
+  return (
+    <SectionCard
+      title="Account"
+      subtitle="Current authenticated user and organization context."
+      actions={
+        <Button type="button" variant="outline" size="sm" onClick={() => void refresh()}>
+          Refresh Session
+        </Button>
+      }
+    >
+      <KeyValueGrid
+        items={[
+          { label: "Email", value: session?.user.email ?? "N/A" },
+          { label: "Display Name", value: session?.user.display_name || "Not set" },
+          { label: "User ID", value: <code className="text-xs">{session?.user.id ?? "N/A"}</code> },
+          { label: "Organization", value: session?.organization.name ?? "N/A" },
+          { label: "Organization Slug", value: session?.organization.slug ?? "N/A" },
+          { label: "Organization ID", value: <code className="text-xs">{session?.organization.id ?? "N/A"}</code> },
+          { label: "Role", value: <StatusBadge value={session?.organization.role ?? "unknown"} /> },
+        ]}
+      />
+    </SectionCard>
+  )
+}
+
 function SettingsForm({
   settings,
   onSave,
@@ -68,6 +99,8 @@ function SettingsForm({
 
   const resolvedApiBaseUrl = useMemo(() => resolveApiBaseUrl(settings), [settings])
   const resolvedPollInterval = useMemo(() => resolvePollIntervalMs(settings), [settings])
+  const defaultApiBaseUrl = getDefaultApiBaseUrl()
+  const usingCustomApiBaseUrl = resolvedApiBaseUrl !== defaultApiBaseUrl
 
   function applySettings(nextSettings: AppSettings, successMessage: string) {
     onSave(nextSettings, successMessage)
@@ -99,6 +132,8 @@ function SettingsForm({
 
   return (
     <div className="flex flex-col gap-6">
+      <AccountWorkspacePanel />
+
       <SectionCard
         title="Settings"
         subtitle="Manage browser-local runtime preferences for the frontend."
@@ -112,6 +147,11 @@ function SettingsForm({
           <InlineNotice title="Local only">
             These preferences are stored in this browser only. They do not change backend configuration and they are not shared with other machines or users.
           </InlineNotice>
+          {usingCustomApiBaseUrl ? (
+            <InlineNotice variant="warning" title="Custom API origin">
+              Requests use credentials for the configured API origin. Keep this set to a trusted local backend.
+            </InlineNotice>
+          ) : null}
           {formError ? <InlineNotice variant="error">{formError}</InlineNotice> : null}
         </div>
       </SectionCard>
@@ -137,7 +177,7 @@ function SettingsForm({
               id="api-base-url"
               value={apiBaseUrlInput}
               onChange={(event) => setApiBaseUrlInput(event.target.value)}
-              placeholder={getDefaultApiBaseUrl()}
+              placeholder={defaultApiBaseUrl}
               className="bg-card"
               aria-invalid={Boolean(formError && apiBaseUrlInput.trim() && !normalizeApiBaseUrlInput(apiBaseUrlInput))}
             />

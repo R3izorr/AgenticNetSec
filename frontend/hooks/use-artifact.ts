@@ -40,8 +40,10 @@ export function useArtifact<T>(
         setNotReady(true)
         setError(err.detail || "Artifact is not ready yet.")
       } else if (isApiError(err)) {
+        setNotReady(false)
         setError(err.detail || err.message)
       } else {
+        setNotReady(false)
         setError("Failed to load artifact.")
       }
     } finally {

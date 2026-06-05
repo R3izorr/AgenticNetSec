@@ -167,7 +167,6 @@ export default function HistoryPage() {
       return [
         job.analysisJobId,
         job.sourceName ?? "",
-        job.sourcePath ?? "",
         job.currentPhase,
         job.status,
         job.riskLevel ?? "",
