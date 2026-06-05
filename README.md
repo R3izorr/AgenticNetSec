@@ -19,6 +19,19 @@ The backend extracts deterministic network evidence from each PCAP, stores repor
 
 The frontend provides pages for upload, batch progress, per-file inspection, total-job enrichment, and all-scans summaries.
 
+## Repository Extras
+
+This repository also includes a committed Understand Anything graph snapshot under `.understand-anything/`.
+
+Included files:
+
+- `.understand-anything/knowledge-graph.json`
+- `.understand-anything/fingerprints.json`
+- `.understand-anything/meta.json`
+- `.understand-anything/.understandignore`
+
+Use this when you want a fast architecture walkthrough without re-running a full scan first.
+
 ## Reviewer Quick Start
 
 This is the preferred internship-review path. It starts PostgreSQL, Redis, the FastAPI backend, the RQ worker, and the Next.js frontend.
@@ -139,6 +152,22 @@ Use a real local account. Do not bypass auth.
 10. Open `/dashboard` directly and confirm redirect to login.
 
 Full checklist: `docs/Manual_Test_Checklist.md`.
+
+## Architecture Graph
+
+The repo includes a committed knowledge graph snapshot for the current codebase.
+
+Graph files:
+
+```text
+.understand-anything/knowledge-graph.json
+.understand-anything/fingerprints.json
+.understand-anything/meta.json
+```
+
+To regenerate it later, run the Understand Anything flow from the repository root and commit the refreshed snapshot.
+
+To view the graph in the interactive dashboard, start the dashboard against this repo and open the tokenized URL it prints. The graph is intended for source understanding and reviewer onboarding, not for runtime application behavior.
 
 ## How The Workflow Works
 
@@ -430,6 +459,27 @@ If no provider is callable, the system can still produce deterministic fallback 
 - `.env.example` secrets and database passwords are local-demo defaults only. Replace `AGENTIC_AUTH_SECRET` before any shared or deployed environment.
 - PostgreSQL and Redis ports are published for local reviewer convenience; this Compose file is not a production deployment.
 - Do not commit `.env`, `frontend/.env.local`, `backend/config/local_settings.py`, or generated `outputs/`.
+
+## Deployment Notes
+
+Current production posture:
+
+- Good enough for local review, demo, and single-server hosting.
+- Not yet a hardened multi-tenant production deployment.
+
+If you want to host it:
+
+- use hosted PostgreSQL via `DATABASE_URL`
+- use hosted Redis via `REDIS_URL`
+- set a strong `AGENTIC_AUTH_SECRET`
+- run the frontend, backend, and worker on a server with Docker Compose or equivalent
+- keep HTTPS in front of the app and set secure cookie settings
+
+Current limitation:
+
+- uploaded PCAPs and generated report artifacts still live on server disk / shared volume
+- there is no S3, Blob, or MinIO integration yet
+- if you need fully remote durable artifact storage, add object storage in a later phase
 
 ## Demo
 
